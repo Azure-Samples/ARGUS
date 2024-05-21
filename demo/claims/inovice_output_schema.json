@@ -1,0 +1,47 @@
+{
+    "invoiceNumber": "",
+    "date": "",
+    "billTo": {
+    "customerName": "",
+    "customerID": "",
+    "address": "",
+    "phone": ""
+    },
+    "shipTo": {
+    "recipientName": "",
+    "address": "",
+    "phone": "",
+    "deliveryDate": "",
+    "shippingMethod": "",
+    "shippingTerms": ""
+    },
+    "paymentDetails": {
+    "paymentDue": "",
+    "salesperson": "",
+    "paymentTerms": ""
+    },
+    "items": [
+    {
+    "quantity": "",
+    "itemNumber": "",
+    "description": "",
+    "unitPrice": "",
+    "discount": "",
+    "lineTotal": ""
+    }
+    ],
+    "totals": {
+    "totalDiscount": "",
+    "subtotal": "",
+    "salesTax": "",
+    "total": ""
+    },
+    "companyDetails": {
+    "companyName": "",
+    "address": "",
+    "website": "",
+    "phone": "",
+    "fax": "",
+    "email": ""
+    }
+    }

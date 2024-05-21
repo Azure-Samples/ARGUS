@@ -1,0 +1,15 @@
+version: "0.1"
+name: aga-docextracionai
+services:
+  web:
+    image: aga-reg/aga-docextracionai-userapp
+    ports:
+      - "8080:80"
+    env_file:
+      - ../frontend/.env
+  backend:
+    image: aga-reg/aga-docextracionai-backend
+    ports: 
+      - "8082:80"
+    env_file:
+      - ../backend/.env
