@@ -64,6 +64,25 @@ class CosmosDBManager:
         else:
             return None
 
+    def list_all_schema(self):
+
+        return list(self.schema_container.read_all_items())
+
+
+    def delete_all_schema(self):
+
+        container_schema_name = os.getenv("COSMOSDB_CONTAINER_SCHEMA_NAME")
+        schema_partition_key = PartitionKey(path="/schemaId")
+
+        # Delete the schema container        
+        self.db.delete_container(container_schema_name)
+        
+        # Create the schema container if it does not exist
+        self.schema_container = self.db.create_container_if_not_exists(
+            id=container_schema_name, 
+            partition_key=schema_partition_key
+        )
+
 
     def create_system_request(self, request_id, request_data):
         
