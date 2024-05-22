@@ -1,4 +1,5 @@
-# AI OCR with Azure and OpenAI
+# Project ARGUS: 
+### (Automated Retrieval and GPT Understanding System)  
 
 ## This project demonstrates Documents OCR with Azure Cognitive Services and GPT4 Vision
 
@@ -34,7 +35,7 @@ https://github.com/piizei/azure-ai-ocr/tree/main/ai_ocr
 
 *Complete the .env files before running.*
 
-Local (VSCode):
+Local (VSCode + Debugging):
 1. Pull up the Azure function in the backend (VS Code Studio -> Attach Python Function to debug)  
     1. Azure Function only works with Python version 3.7 to 3.11 (NOT 3.12 which is also stable version)  
     2. When creating the local Azure Functions project one needs to select Python (Programming Model V2) NOT just Python  
@@ -49,10 +50,16 @@ Local (Docker)
 2. Run the docker_run.sh to build and push the images
 3. Docker compose (yml file provided) or: docker compose -f "docker/docker-compose.yml" up -d --build
 
+### Quickstart How-To  
+1. Locate some samples in the demo folder: pdfs, output schema json and system prompt  
+2. From the backend folder use the "cosmosdb_mgmt.ipynb" to come up with a new schema based on an input document (use the ones provided or bring your own) and populate the DB  
+3. From the backend fodler use the "azure_doc_extr_ocr_genai.ipynb" to run either the static test (where a schema is fixed) or the dynamic test (where the schema is autoamtically determined by the LLM and loaded from the DB)  
+
 ### Notes on the examples
 - Used https://bjdash.github.io/JSON-Schema-Builder/ to create the json-schemas in the example folders. If the keys in the json model are not self-explanatory, you should use description fields to tell the LLM model what you mean by each key to increase accuracy.
 - Alternatively you can ask GPT4T to come up with a schema for you.
 - The Solution also works with empty output schema i.e.: { }
+
 
 ### WIP
 
@@ -62,4 +69,4 @@ TODO:
 - Code review
 - GET API of backend function used for the journal, TODO: move it to different admin backend API
 - Plug the Evaluator in the processing
-- Raise cases to human feedback in the UI below a certain evaluator threshold
+- TBD: Raise cases to human feedback in the UI below a certain evaluator threshold
