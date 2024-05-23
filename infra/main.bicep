@@ -178,9 +178,10 @@ resource documentIntelligence 'Microsoft.CognitiveServices/accounts@2021-04-30' 
   sku: {
     name: 'S0'
   }
-  kind: 'CognitiveServices'
+  kind: 'FormRecognizer'
   properties: {
     apiProperties: {}
+    customSubDomainName: documentIntelligenceName
   }
 }
 
