@@ -11,5 +11,5 @@ def get_config():
         "openai_api_endpoint": os.getenv("AZURE_OPENAI_ENDPOINT", None),
         "openai_api_version": "2023-12-01-preview",
         "openai_model_deployment": os.getenv("AZURE_OPENAI_MODEL_DEPLOYMENT_NAME", None),
-        "temp_images_outdir" : os.getenv("TEMP_IMAGES_OUTDIR", "/")
+        "temp_images_outdir" : os.getenv("TEMP_IMAGES_OUTDIR", "/tmp/")
     }

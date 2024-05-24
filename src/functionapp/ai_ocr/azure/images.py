@@ -24,7 +24,7 @@ def extract_images_from_pdf(pdf_path):
             image = Image.open(io.BytesIO(image_bytes))
             
             # Define the output path
-            output_path = os.path.join(os.getcwd(), os.getenv("TEMP_IMAGES_OUTDIR", ""), f"page_{page_num + 1}_img_{img_index + 1}.{image_ext}")
+            output_path = os.path.join(os.getcwd(), "/tmp/", f"page_{page_num + 1}_img_{img_index + 1}.{image_ext}")
             print(output_path)
 
             # Save the image as a PNG file

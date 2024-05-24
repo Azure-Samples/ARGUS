@@ -113,7 +113,7 @@ resource cosmosDbContainer 'Microsoft.DocumentDB/databaseAccounts/sqlDatabases/c
         paths: ['/myPartitionKey']
         kind: 'Hash'
       }
-      defaultTtl: 1000
+      defaultTtl: -1
     }
   }
 }
@@ -216,14 +216,6 @@ resource functionApp 'Microsoft.Web/sites@2021-03-01' = {
           value: 'functionapp-content'
         }
         {
-          name: 'SCM_DO_BUILD_DURING_DEPLOYMENT'
-          value: 'true'
-        }
-        {
-          name: 'ENABLE_ORYX_BUILD'
-          value: 'true'
-        }
-        {
           name: 'FUNCTIONS_EXTENSION_VERSION'
           value: '~4'
         }
@@ -275,9 +267,18 @@ resource functionApp 'Microsoft.Web/sites@2021-03-01' = {
           name: 'AZURE_OPENAI_MODEL_DEPLOYMENT_NAME'
           value: azureOpenaiModelDeploymentName
         }
+        {
+          name: 'FUNCTIONS_WORKER_PROCESS_COUNT'
+          value: '1'
+        }
+        {
+          name: 'WEBSITE_MAX_DYNAMIC_APPLICATION_SCALE_OUT'
+          value: '1'
+        }
       ]
     }
   }
 }
 
 output functionAppEndpoint string = functionApp.properties.defaultHostName
+output functionAppName string = functionApp.name

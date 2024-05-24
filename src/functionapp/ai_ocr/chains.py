@@ -35,7 +35,7 @@ def get_structured_data(pages: str, prompt: str, json_schema: str, images=[]) ->
     return chain.invoke({"input": pages, "schema": schema_prompt})
 
 
-def get_final_reasoning_from_markdown(mkd_output_json: str) -> any:
+def get_summary_with_gpt(mkd_output_json: str) -> any:
     reasoning_prompt = """
     Use the provided data represented in the schema to produce a summary in natural language. The format should be a few sentences summary of the document.
 

@@ -6,23 +6,17 @@
 
 # Name of the application.
 name: azure-function-app
-steps:
-    - script: |
-        pip install django
-        pip install psycopg2
-        pip install mysqlclient
 services:
   functionapp:
     project: ./src/functionapp
     language: python
     host: appservice
-    requirements: ./src/functionapp/azure
-
-# requirements:
-#   - azure-functions
-#   - azure-cosmos
-
-
-
+hooks:
+  postrestore: # Example of an inline script. (shell is required for inline scripts)
+    shell: sh
+    run: echo 'Building and publishing the function app...'
+  postprovision: # Example of external script (Relative path from project root)
+    shell: sh
+    run: cd src/functionapp && sleep 60 && func azure functionapp publish $functionAppName --build remote
 
 
