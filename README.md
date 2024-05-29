@@ -1,21 +1,19 @@
 # Project ARGUS: 
 ### Automated Retrieval and GPT Understanding System
 
-```
-Argus Panoptes, in ancient Greek mythology, was a giant with a hundred eyes and a servant of the goddess Hera. His many eyes made him an excellent watchman, as some of his eyes would always remain open while the others slept, allowing him to be ever-vigilant.
-```
+> Argus Panoptes, in ancient Greek mythology, was a giant with a hundred eyes and a servant of the goddess Hera. His many eyes made him an excellent watchman, as some of his eyes would always remain open while the others slept, allowing him to be ever-vigilant.
 
-## This project demonstrates Documents OCR with Azure Cognitive Services and GPT4 Vision
+
+## This project demonstrates Azure Document Intelligence + GPT4 Vision
 
 Classic OCR (Object Character Recognition) models lack reasoning ability based on context when extracting information from documents. In this project we demonstrate how to use a hybrid approach with OCR and LLM (multimodal Large Language Model) to get better results without any pre-training.
 
 This solution uses Azure Document Intelligence combined with GPT4 and GPT-Vision. Each of the tools have their strong points and the hybrid approach is better than any of them alone.
 
-```
-Notes:
-- The document-intelligence resource needs to use the markdown preview feature (limited regions: West EU adn East US at the moment). 
-- The Azure Openai model needs to be vision capable i.e. GPT-4T-0125 or 0409
-```
+> Notes:
+> - The document-intelligence resource needs to use the markdown preview feature (limited regions: West EU adn East US at the moment). 
+> - The Azure Openai model needs to be vision capable i.e. GPT-4T-0125 or 0409
+
 
 ## Solution Overview
 
