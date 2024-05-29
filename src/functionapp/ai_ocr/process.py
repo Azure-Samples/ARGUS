@@ -1,17 +1,27 @@
-import glob
-import json
-import os
+import glob, logging, json, os
 from datetime import datetime
+import tempfile 
+from azure.cosmos import CosmosClient
 
 from langchain_core.output_parsers.json import parse_json_markdown
 
 from ai_ocr.azure.doc_intelligence import get_ocr_results
 from ai_ocr.azure.openai_ops import load_image, get_size_of_base64_images
-from ai_ocr.chains import get_structured_data
+from ai_ocr.chains import get_structured_data, get_summary_with_gpt
 from ai_ocr.model import Config
 from ai_ocr.azure.images import extract_images_from_pdf
 
-def initialize_document(file_name: str, file_size: int, request_timestamp: datetime) -> dict:
+def connect_to_cosmos():
+    endpoint = os.environ['COSMOS_DB_ENDPOINT']
+    key = os.environ['COSMOS_DB_KEY']
+    database_name = os.environ['COSMOS_DB_DATABASE_NAME']
+    container_name = os.environ['COSMOS_DB_CONTAINER_NAME']
+    client = CosmosClient(endpoint, key)
+    database = client.get_database_client(database_name)
+    container = database.get_container_client(container_name)
+    return client, container
+
+def initialize_document(file_name: str, file_size: int, prompt: str, json_schema: str, request_timestamp: datetime) -> dict:
     return {
         "id": file_name.replace('/', '__'),
         "properties": {
@@ -33,6 +43,11 @@ def initialize_document(file_name: str, file_size: int, request_timestamp: datet
             "gpt_extraction_output": {},
             "gpt_summary_output": ''
         },
+        "model_input":{
+            "model_deployment": os.getenv("AZURE_OPENAI_MODEL_DEPLOYMENT_NAME"),
+            "model_prompt": prompt,
+            "example_schema": json_schema
+        },
         "errors": []
     }
 
@@ -41,6 +56,15 @@ def update_state(document: dict, container: any, state_name: str, state: bool, p
     if processing_time is not None:
         document['state'][f"{state_name}_time_seconds"] = processing_time
     container.upsert_item(document)
+
+def write_blob_to_temp_file(myblob):
+    file_content = myblob.read()
+    file_name = myblob.name
+    temp_file_path = os.path.join(tempfile.gettempdir(), file_name)
+    os.makedirs(os.path.dirname(temp_file_path), exist_ok=True)
+    with open(temp_file_path, 'wb') as file_to_write:
+        file_to_write.write(file_content)
+    return temp_file_path
 
 def run_ocr_and_gpt(file_to_ocr: str, prompt: str, json_schema: str, document: dict, container: any, config: Config = Config()) -> (any, dict):
     processing_times = {}
@@ -93,3 +117,21 @@ def run_ocr_and_gpt(file_to_ocr: str, prompt: str, json_schema: str, document: d
     # Parse structured data and return as JSON
     x = parse_json_markdown(structured.content)
     return ocr_result.content, json.dumps(x), processing_times
+
+def process_gpt_summary(ocr_response, document, container):
+    try:
+        classification = 'N/A'
+        try:
+            classification = ocr_response.categorization
+        except AttributeError:
+            logging.warning("Cannot find 'categorization' in output schema! Logging it as N/A...")
+        summary_start_time = datetime.now()
+        gpt_summary = get_summary_with_gpt(ocr_response)
+        summary_processing_time = (datetime.now() - summary_start_time).total_seconds()
+        update_state(document, container, 'gpt_summary_completed', True, summary_processing_time)
+        document['extracted_data']['classification'] = classification
+        document['extracted_data']['gpt_summary_output'] = gpt_summary.content
+    except Exception as e:
+        document['errors'].append(f"NL processing error: {str(e)}")
+        update_state(document, container, 'gpt_summary_completed', False)
+        raise
