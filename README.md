@@ -8,65 +8,132 @@ In this project we demonstrate how to use hybrid approach with LLM (multimodal) 
 
 The project uses Azure Document Intelligence combined with GPT4 and GPT-Vision. Each of the tools have their strong points and the hybrid approach is better than any of them alone.
 
+
 Notes:
 - The document-intelligence needs to be using the markdown preview (limited regions: West EU adn East US at the moment). 
 - The openai model needs to be vision capable i.e. GPT-4T-0125 or 0409
 
-The Solution structure looks like this:
-- frontend  
--- streamlit python web-app  
-  
-- backend  
--- azure function exposed endpoint for core logic  
--- cosmosDB for auditing logging and output schemas storage  
--- Jupyter notebook for fast testing
--- Jupyter notebook Evaluator (WIP) to derive an accuracy between data in the images/doc vs filled in the output schema
-  
-- demo  
--- folder with some samples, system prompts and output schemas  
-  
-- docker  
+## Solution Overview
 
-## Credits
-Core functionalities library for the combination of document intelligence and GPT done by Petteri Johansson.
-https://github.com/piizei/azure-ai-ocr/tree/main/ai_ocr
+The project uses Azure Document Intelligence and GPT-4 Vision to improve document processing. The solution includes:
 
-## How to use
-
-*Complete the .env files before running.*
-
-Local (VSCode + Debugging):
-1. Pull up the Azure function in the backend (VS Code Studio -> Attach Python Function to debug)  
-    1. Azure Function only works with Python version 3.7 to 3.11 (NOT 3.12 which is also stable version)  
-    2. When creating the local Azure Functions project one needs to select Python (Programming Model V2) NOT just Python  
-    3. local.settings.json Blob storage file needs to be created locally and configured with your own azure blob storage endpoint and key
-2. Use the streamlint app.py under frontend folder to use UI for:  
-    1. configuration of system prompt, backend URL and schema (env file)  
-    2. upload document to be processed  
-    3. See summary and raw responses  
-
-Local (Docker)
-1. Configure the docker folder according to your local containers and images
-2. Run the docker_run.sh to build and push the images
-3. Docker compose (yml file provided) or: docker compose -f "docker/docker-compose.yml" up -d --build
-
-### Quickstart How-To  
-1. Locate some samples in the demo folder: pdfs, output schema json and system prompt  
-2. From the backend folder use the "cosmosdb_mgmt.ipynb" to come up with a new schema based on an input document (use the ones provided or bring your own) and populate the DB  
-3. From the backend fodler use the "azure_doc_extr_ocr_genai.ipynb" to run either the static test (where a schema is fixed) or the dynamic test (where the schema is autoamtically determined by the LLM and loaded from the DB)  
-
-### Notes on the examples
-- Used https://bjdash.github.io/JSON-Schema-Builder/ to create the json-schemas in the example folders. If the keys in the json model are not self-explanatory, you should use description fields to tell the LLM model what you mean by each key to increase accuracy.
-- Alternatively you can ask GPT4T to come up with a schema for you.
-- The Solution also works with empty output schema i.e.: { }
+- **Frontend**: A Streamlit Python web-app for user interaction. UNDER CONSTRUCTION
+- **Backend**: An Azure Function for core logic, Cosmos DB for auditing, logging, and storing output schemas.
+- **Demo**: Sample documents, system prompts, and output schemas.
+- **Docker**: Configuration for containerized deployment.  
 
 
-### WIP
+## Prerequisites
+### OpenAI Resource
 
-TODO:
-- 1-click deployment:
--- Bicep / ARM file
-- Code review
-- GET API of backend function used for the journal, TODO: move it to different admin backend API
-- Plug the Evaluator in the processing
-- TBD: Raise cases to human feedback in the UI below a certain evaluator threshold
+Before deploying the solution, you need to create an OpenAI resource and deploy a model that is vision capable.
+
+1. **Create an OpenAI Resource**:
+   - Follow the instructions [here](https://learn.microsoft.com/en-us/azure/cognitive-services/openai/how-to/create-resource) to create an OpenAI resource in Azure.
+
+2. **Deploy a Vision-Capable Model**:
+   - Ensure the deployed model supports vision, such as GPT-4T-0125 or GPT-4T-0409.
+
+
+## Deployment
+
+### One-click Deployment with `azd up`
+
+1. **Prerequisites**:
+   - Install [Azure Developer CLI](https://learn.microsoft.com/en-us/azure/developer/azure-developer-cli/install-azd).
+   - Ensure you have access to an Azure subscription.
+   - Create an OpenAI resource and deploy a vision-capable model.
+
+2. **Deployment Steps**:
+   - Run the following command to deploy all resources:
+     ```sh
+     azd up
+     ```
+
+### Manual Deployment
+
+1. **Bicep Template Deployment**:
+   - Use the provided `main.bicep` file to deploy resources manually:
+     ```sh
+     az deployment group create --resource-group <your-resource-group> --template-file main.bicep
+     ```
+
+2. **Azure Function Deployment**:
+   - Navigate to the function app directory:
+     ```sh
+     cd src/functionapp
+     ```
+   - Deploy the Azure Function:
+     ```sh
+     func azure functionapp publish <your-function-app-name> --build remote
+     ```
+
+## How to Use
+
+### Upload and Process Documents
+
+1. **Upload PDF Files**:
+   - Upload PDF files to the `sa-uniqueID` storage account under the `myblobcontainer` container.
+
+2. **View Results**:
+   - Processed results will be available in your Cosmos DB database under the `doc-extracts` database and the `documents` container.
+
+
+## Model Input Instructions
+
+The input to the model consists of two main components: a `model prompt` and a `JSON template` with the schema of the data to be extracted.
+
+### `Model Prompt`
+
+The prompt is a textual instruction explaining what the model should do, including the type of data to extract and how to extract it. Here are a couple of example prompts:
+
+1. **Example Prompt 1**:
+Extract all data from the document.
+
+2. **Example Prompt 2**:
+Extract all financial data, including transaction amounts, dates, and descriptions from the document. For date extraction use american formatting. 
+
+
+### `JSON Template`
+
+The JSON template defines the schema of the data to be extracted. This can be an empty JSON object `{}` if the model is supposed to create its own schema. Alternatively, it can be more specific to guide the model on what data to extract. Here are some examples:
+
+1. Empty JSON Template:
+```json
+{}
+```
+2. Specific JSON Template Example:
+```
+{
+    "transactionDate": "",
+    "transactionAmount": "",
+    "transactionDescription": ""
+}
+```
+By providing a prompt and a JSON template, users can control the behavior of the model to extract specific data from their documents in a structured manner.
+
+
+## Notes on Examples
+
+- JSON Schemas created using [JSON Schema Builder](https://bjdash.github.io/JSON-Schema-Builder/).
+- The solution also works with empty output schemas `{}`.
+
+## TODO
+
+- One-click deployment improvements
+- Introduction of datasets that are specific to one schema and model instructions
+- Additional backend APIs for administration
+- Integrate evaluator for processing
+
+
+## Team behind ARGUS
+
+- [Alberto Gallo](https://github.com/albertaga27)
+- [Petteri Johansson](https://github.com/piizei)
+- Christin Pohl
+- [Konstantinos Mavrodis](https://github.com/kmavrodis_microsoft)
+
+
+---
+
+This README file provides an overview and quickstart guide for deploying and using Project ARGUS. For detailed instructions, consult the documentation and code comments in the respective files.
