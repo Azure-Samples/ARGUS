@@ -1,26 +1,27 @@
 # Project ARGUS: 
-### (Automated Retrieval and GPT Understanding System)  
+### Automated Retrieval and GPT Understanding System
+
+```
+Argus Panoptes, in ancient Greek mythology, was a giant with a hundred eyes and a servant of the goddess Hera. His many eyes made him an excellent watchman, as some of his eyes would always remain open while the others slept, allowing him to be ever-vigilant.
+```
 
 ## This project demonstrates Documents OCR with Azure Cognitive Services and GPT4 Vision
 
-Classic OCR models need training to extract structured information from documents.
-In this project we demonstrate how to use hybrid approach with LLM (multimodal) to get better results without any pre-training.
+Classic OCR (Object Character Recognition) models lack reasoning ability based on context when extracting information from documents. In this project we demonstrate how to use a hybrid approach with OCR and LLM (multimodal Large Language Model) to get better results without any pre-training.
 
-The project uses Azure Document Intelligence combined with GPT4 and GPT-Vision. Each of the tools have their strong points and the hybrid approach is better than any of them alone.
+This solution uses Azure Document Intelligence combined with GPT4 and GPT-Vision. Each of the tools have their strong points and the hybrid approach is better than any of them alone.
 
-
+```
 Notes:
-- The document-intelligence needs to be using the markdown preview (limited regions: West EU adn East US at the moment). 
-- The openai model needs to be vision capable i.e. GPT-4T-0125 or 0409
+- The document-intelligence resource needs to use the markdown preview feature (limited regions: West EU adn East US at the moment). 
+- The Azure Openai model needs to be vision capable i.e. GPT-4T-0125 or 0409
+```
 
 ## Solution Overview
 
-The project uses Azure Document Intelligence and GPT-4 Vision to improve document processing. The solution includes:
-
 - **Frontend**: A Streamlit Python web-app for user interaction. UNDER CONSTRUCTION
-- **Backend**: An Azure Function for core logic, Cosmos DB for auditing, logging, and storing output schemas.
+- **Backend**: An Azure Function for core logic, Cosmos DB for auditing, logging, and storing output schemas, Azure Document Intelligence and GPT-4 Vision.
 - **Demo**: Sample documents, system prompts, and output schemas.
-- **Docker**: Configuration for containerized deployment.  
 
 
 ## Prerequisites
@@ -87,10 +88,10 @@ The input to the model consists of two main components: a `model prompt` and a `
 
 The prompt is a textual instruction explaining what the model should do, including the type of data to extract and how to extract it. Here are a couple of example prompts:
 
-1. **Example Prompt 1**:
-Extract all data from the document.
+1. **Default Prompt**:
+Extract all data from the document. 
 
-2. **Example Prompt 2**:
+2. **Example Prompt**:
 Extract all financial data, including transaction amounts, dates, and descriptions from the document. For date extraction use american formatting. 
 
 
@@ -98,7 +99,7 @@ Extract all financial data, including transaction amounts, dates, and descriptio
 
 The JSON template defines the schema of the data to be extracted. This can be an empty JSON object `{}` if the model is supposed to create its own schema. Alternatively, it can be more specific to guide the model on what data to extract. Here are some examples:
 
-1. Empty JSON Template:
+1. Empty JSON Template (default):
 ```json
 {}
 ```
@@ -112,11 +113,8 @@ The JSON template defines the schema of the data to be extracted. This can be an
 ```
 By providing a prompt and a JSON template, users can control the behavior of the model to extract specific data from their documents in a structured manner.
 
-
-## Notes on Examples
-
 - JSON Schemas created using [JSON Schema Builder](https://bjdash.github.io/JSON-Schema-Builder/).
-- The solution also works with empty output schemas `{}`.
+
 
 ## TODO
 
