@@ -17,7 +17,7 @@ def get_llm():
         max_tokens=4000,  
         verbose=True,  
         api_key=api_key,
-        api_version=get_config()["openai_api_version"]  
+        api_version=get_config()["openai_api_version"]
     )  
 
 

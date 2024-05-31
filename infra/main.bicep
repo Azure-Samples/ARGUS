@@ -60,7 +60,7 @@ resource blobService 'Microsoft.Storage/storageAccounts/blobServices@2022-05-01'
 // Define the blob container
 resource blobContainer 'Microsoft.Storage/storageAccounts/blobServices/containers@2022-05-01' = {
   parent: blobService
-  name: 'myblobcontainer'
+  name: 'datasets'
   properties: {
     publicAccess: 'None'
   }
@@ -102,7 +102,7 @@ resource cosmosDbDatabase 'Microsoft.DocumentDB/databaseAccounts/sqlDatabases@20
   }
 }
 
-// Define the Cosmos DB container
+// Define the Cosmos DB container for documents
 resource cosmosDbContainer 'Microsoft.DocumentDB/databaseAccounts/sqlDatabases/containers@2021-04-15' = {
   parent: cosmosDbDatabase
   name: cosmosDbContainerName
@@ -110,7 +110,23 @@ resource cosmosDbContainer 'Microsoft.DocumentDB/databaseAccounts/sqlDatabases/c
     resource: {
       id: cosmosDbContainerName
       partitionKey: {
-        paths: ['/myPartitionKey']
+        paths: ['/partitionKey']
+        kind: 'Hash'
+      }
+      defaultTtl: -1
+    }
+  }
+}
+
+// Define the Cosmos DB container for configuration
+resource cosmosDbContainerConf 'Microsoft.DocumentDB/databaseAccounts/sqlDatabases/containers@2021-04-15' = {
+  parent: cosmosDbDatabase
+  name: 'configuration'
+  properties: {
+    resource: {
+      id: 'configuration'
+      partitionKey: {
+        paths: ['/partitionKey']
         kind: 'Hash'
       }
       defaultTtl: -1
@@ -282,3 +298,6 @@ resource functionApp 'Microsoft.Web/sites@2021-03-01' = {
 
 output functionAppEndpoint string = functionApp.properties.defaultHostName
 output functionAppName string = functionApp.name
+output storageAccountName string = storageAccount.name
+output containerName string = blobContainer.name
+output storageAccountKey string = listKeys(storageAccount.id, storageAccount.apiVersion).keys[0].value

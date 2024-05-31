@@ -1,4 +1,3 @@
 Extract information about patients, medical conditions, treatments, analysis or appointments/visits they made at hospitals, doctors or laboratories, payments of invoices or purchases of medicaments.
 On the field 'categorization' choose one of these: 1) 'invoice' 2) 'medical_report' based on your classification. 
 If you cannot determine that the content belongs to one of these categories then apply a classification 'N/A'.
-Your response must be the name of the category without brackets or apex or nothing else.

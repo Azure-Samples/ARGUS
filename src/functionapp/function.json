@@ -4,7 +4,7 @@
         "name": "myblob",
         "type": "blobTrigger",
         "direction": "in",
-        "path": "myblobcontainer/{name}",
+        "path": "dataset/{name}",
         "connection": "AzureWebJobsStorage"
       }
     ]
