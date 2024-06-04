@@ -8,16 +8,12 @@ from azure.storage.blob import BlobServiceClient
 from azure.cosmos import CosmosClient
 from dotenv import load_dotenv
 import pandas as pd
+from instructions import show_instructions
 
 # Load environment variables
 load_dotenv()
 
 st.set_page_config(layout="wide", page_title="ARGUS System")
-
-# Sidebar navigation
-st.sidebar.title('Automated Retrieval and GPT Understanding System')
-menu_options = ['Process', 'Explore']
-menu = st.sidebar.radio("Menu", menu_options)
 
 # Initialize the session state variables if they are not already set
 def initialize_session_state():
@@ -135,11 +131,12 @@ def fetch_json_from_cosmosdb(item_id):
     item = container.read_item(item=item_id, partition_key={})
     return item
 
-# Based on the menu selection, display different pages
-if menu == 'Process':
-    st.header('ARGUS: Process')
-    col1, col2 = st.columns([0.5, 0.5])
+# Tabs navigation
+title = st.header("ARGUS: Automated Retrieval and GPT Understanding System")
+tabs = st.tabs(["🧠 Process Files", "🔎 Explore Data", "🖥️ Instructions"])
 
+with tabs[0]:
+    col1, col2 = st.columns([0.5, 0.5])
     with col1:
         # Fetch configuration from CosmosDB
         config_data = fetch_configuration()
@@ -152,29 +149,17 @@ if menu == 'Process':
             model_prompt = config_data[selected_dataset].get("model_prompt", "")
             example_schema = config_data[selected_dataset].get("example_schema", {})
 
-            if 'edit_mode' not in st.session_state:
-                st.session_state.edit_mode = False
+            st.session_state.system_prompt = st.text_area("Model Prompt", value=model_prompt, height=150)
+            st.session_state.schema = st.text_area("Example Schema", value=json.dumps(example_schema, indent=4), height=300)
 
-            if st.session_state.edit_mode:
-                st.session_state.system_prompt = st.text_area("Model Prompt", value=model_prompt, height=200)
-                st.session_state.schema = st.text_area("Example Schema", value=json.dumps(example_schema, indent=4), height=200)
-                if st.button('Save'):
-                    config_data[selected_dataset]['model_prompt'] = st.session_state.system_prompt
-                    try:
-                        config_data[selected_dataset]['example_schema'] = json.loads(st.session_state.schema)
-                        update_configuration(config_data)
-                        st.success('Configuration saved!')
-                        st.session_state.edit_mode = False
-                        st.session_state.edit_mode = False
-                        st.rerun()
-                    except json.JSONDecodeError:
-                        st.error('Invalid JSON format in Example Schema.')
-            else:
-                st.text_area("Model Prompt", value=model_prompt, height=200)
-                st.json(example_schema)
-                if st.button('Edit'):
-                    st.session_state.edit_mode = True
-                    st.rerun()
+            if st.button('Save'):
+                config_data[selected_dataset]['model_prompt'] = st.session_state.system_prompt
+                try:
+                    config_data[selected_dataset]['example_schema'] = json.loads(st.session_state.schema)
+                    update_configuration(config_data)
+                    st.success('Configuration saved!')
+                except json.JSONDecodeError:
+                    st.error('Invalid JSON format in Example Schema.')
 
     with col2:
         uploaded_files = st.file_uploader("Choose files to attach to the request", type=['pdf'], accept_multiple_files=True)
@@ -203,102 +188,103 @@ if menu == 'Process':
                     # Refresh configuration and select the new dataset
                     config_data = fetch_configuration()
                     st.session_state.selected_dataset = new_dataset_name
-                    st.rerun()
+                    st.experimental_rerun()
                 else:
                     st.warning('Please enter a unique dataset name.')
 
-# Journal Page
-elif menu == 'Explore':
-    st.header('ARGUS: Explore')
+with tabs[1]:
 
     df = refresh_data()
     
-    with st.spinner('Fetching data from CosmosDB...'):
-        if not df.empty:
-            st.success('Data fetched successfully!')
-            # Extract and format relevant fields
-            extracted_data = []
-            for item in df.to_dict(orient='records'):
-                blob_name = item.get('properties.blob_name', '')
-                errors = item.get('errors', '')
-                extracted_item = {
-                    'Dataset': blob_name.split('/')[1],
-                    'File Name': '/'.join(blob_name.split('/')[2:]),
-                    'File Landed': format_finished(item.get('state.file_landed', False), errors),
-                    'OCR Extraction': format_finished(item.get('state.ocr_completed', False), errors),
-                    'GPT Extraction': format_finished(item.get('state.gpt_extraction_completed',False), errors),
-                    'GPT Summary': format_finished(item.get('state.gpt_summary_completed', False), errors),
-                    'Finished': format_finished(item.get('state.processing_completed', False), errors),
-                    'Request Timestamp': datetime.fromisoformat(item.get('properties.request_timestamp', '')),
-                    'Total Time': item.get('properties.total_time_seconds', 0),
-                    'Errors': errors,
-                    'id': item['id'],
-                }
-                extracted_data.append(extracted_item)
+    if not df.empty:
+        st.toast('Data fetched successfully!')
+        # Extract and format relevant fields
+        extracted_data = []
+        for item in df.to_dict(orient='records'):
+            blob_name = item.get('properties.blob_name', '')
+            errors = item.get('errors', '')
+            extracted_item = {
+                'Dataset': blob_name.split('/')[1],
+                'File Name': '/'.join(blob_name.split('/')[2:]),
+                'File Landed': format_finished(item.get('state.file_landed', False), errors),
+                'OCR Extraction': format_finished(item.get('state.ocr_completed', False), errors),
+                'GPT Extraction': format_finished(item.get('state.gpt_extraction_completed',False), errors),
+                'GPT Summary': format_finished(item.get('state.gpt_summary_completed', False), errors),
+                'Finished': format_finished(item.get('state.processing_completed', False), errors),
+                'Request Timestamp': datetime.fromisoformat(item.get('properties.request_timestamp', '')),
+                'Total Time': item.get('properties.total_time_seconds', 0),
+                'Errors': errors,
+                'id': item['id'],
+            }
+            extracted_data.append(extracted_item)
 
-            extracted_df = pd.DataFrame(extracted_data)
-            
-            # Add a selection column
-            extracted_df.insert(0, 'Select', False)
-            
-            # Sort by request date, most recent first
-            extracted_df = extracted_df.sort_values(by='Request Timestamp', ascending=False)
-            
-            # Display the table with selection checkboxes
-            edited_df = st.data_editor(extracted_df, column_config={"id": None})        
+        extracted_df = pd.DataFrame(extracted_data)
+        
+        # Add a selection column
+        extracted_df.insert(0, 'Select', False)
+        
+        # Sort by request date, most recent first
+        extracted_df = extracted_df.sort_values(by='Request Timestamp', ascending=False)
+        
+        # Display the table with selection checkboxes
+        edited_df = st.data_editor(extracted_df, column_config={"id": None})        
 
-            # Find selected rows
-            selected_rows = edited_df[edited_df['Select'] == True]
+        # Find selected rows
+        selected_rows = edited_df[edited_df['Select'] == True]
+        
+        col1, col2 = st.columns(2)
+        with col1:
+            sub_col1, sub_col2, sub_col3, sub_col4 = st.columns(4)
             
-            col1, col2 = st.columns(2)
-            with col1:
-                sub_col1, sub_col2, sub_col3, sub_col4 = st.columns(4)
-                
-                with sub_col1:
-                    # Refresh Table button should be below the table
-                    if st.button('Refresh Table', key='refresh_table'):
-                        df = refresh_data()
+            with sub_col1:
+                # Refresh Table button should be below the table
+                if st.button('Refresh Table', key='refresh_table'):
+                    df = refresh_data()
 
-                with sub_col2:
-                    if st.button('Delete Selected', key='delete_selected'):
-                        for _, row in selected_rows.iterrows():
-                            delete_item(row['Dataset'], row['File Name'], row['id'])
-                            
-                with sub_col3:
-                    if st.button('Re-process Selected', key='reprocess_selected'):
-                        for _, row in selected_rows.iterrows():
-                            reprocess_item(row['Dataset'], row['File Name'])
-
-            if len(selected_rows) == 1:
-                with st.expander("Show/Hide raw PDF and extracted JSON...", expanded=False):
-                    selected_item = selected_rows.iloc[0]
-                    pdf_blob_name = f"{selected_item['Dataset']}/{selected_item['File Name']}"
-                    json_item_id = selected_item['id']
+            with sub_col2:
+                if st.button('Delete Selected', key='delete_selected'):
+                    for _, row in selected_rows.iterrows():
+                        delete_item(row['Dataset'], row['File Name'], row['id'])
                         
-                    pdf_data = fetch_pdf_from_blob(pdf_blob_name)
-                    with st.spinner('Fetching PDF and JSON data...'):
-                        if pdf_data:
-                            st.success('PDF fetched successfully!')
-                        else:
-                            st.error('Failed to fetch PDF data.')
+            with sub_col3:
+                if st.button('Re-process Selected', key='reprocess_selected'):
+                    for _, row in selected_rows.iterrows():
+                        reprocess_item(row['Dataset'], row['File Name'])
 
-                        json_data = fetch_json_from_cosmosdb(json_item_id)
-                        if json_data:
-                            st.success('JSON data fetched successfully!')
-                        else:
-                            st.error('Failed to fetch JSON data.')
-                    col1, col2 = st.columns(2)
-                    with col1:
-                        if pdf_data:
-                            # Display the PDF
-                            pdf_base64 = base64.b64encode(pdf_data).decode('utf-8')
-                            pdf_display = f'<iframe src="data:application/pdf;base64,{pdf_base64}" width="100%" height="1200" type="application/pdf"></iframe>'
-                            st.markdown(pdf_display, unsafe_allow_html=True)
-                    with col2:
-                        if json_data:
-                            # Display the JSON data
-                            st.json(json_data['extracted_data']['gpt_extraction_output'])
-            elif len(selected_rows) > 1:
-                st.warning('Please select exactly one item to show extraction.')
-        else:
-            st.error('Failed to fetch data or no data found.')
+        if len(selected_rows) == 1:
+            with st.expander("Show/Hide raw PDF and extracted JSON...", expanded=False):
+                selected_item = selected_rows.iloc[0]
+                pdf_blob_name = f"{selected_item['Dataset']}/{selected_item['File Name']}"
+                json_item_id = selected_item['id']
+                    
+                pdf_data = fetch_pdf_from_blob(pdf_blob_name)
+                with st.spinner('Fetching PDF and JSON data...'):
+                    if pdf_data:
+                        st.success('PDF fetched successfully!')
+                    else:
+                        st.error('Failed to fetch PDF data.')
+
+                    json_data = fetch_json_from_cosmosdb(json_item_id)
+                    if json_data:
+                        st.success('JSON data fetched successfully!')
+                    else:
+                        st.error('Failed to fetch JSON data.')
+                col1, col2 = st.columns(2)
+                with col1:
+                    if pdf_data:
+                        # Display the PDF
+                        pdf_base64 = base64.b64encode(pdf_data).decode('utf-8')
+                        pdf_display = f'<iframe src="data:application/pdf;base64,{pdf_base64}" width="100%" height="1200" type="application/pdf"></iframe>'
+                        st.markdown(pdf_display, unsafe_allow_html=True)
+                with col2:
+                    if json_data:
+                        # Display the JSON data
+                        st.json(json_data['extracted_data']['gpt_extraction_output'])
+        elif len(selected_rows) > 1:
+            st.warning('Please select exactly one item to show extraction.')
+    else:
+        st.error('Failed to fetch data or no data found.')
+
+with tabs[2]:
+    ## Display instructions
+    show_instructions()
