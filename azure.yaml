@@ -18,7 +18,9 @@ hooks:
   postprovision: # Example of external script (Relative path from project root)
     shell: sh
     run: |
-      cd src/functionapp && sleep 60 && func azure functionapp publish $functionAppName --build remote && cd ../..
+      cd src/functionapp && sleep 60 && func azure functionapp publish $functionAppName --python --build remote
+      az functionapp restart --name $functionAppName --resource-group $resourceGroup 
+      cd ../..
       echo 'Uploading PDF files from subfolders...'
       # Check if the folder in the container is empty and upload examples if it is. This will happen only the first time of deployment.
       blob_count=$(az storage blob list --account-name $storageAccountName --container-name $containerName --account-key $storageAccountKey --query "length([])")

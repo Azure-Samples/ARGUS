@@ -179,8 +179,8 @@ resource appServicePlan 'Microsoft.Web/serverfarms@2021-03-01' = {
   location: location
   kind: 'Linux'
   sku: {
-    name: 'B1'
-    tier: 'Basic'
+    name: 'P0V3'
+    tier: 'Premium'
   }
   properties: {
     reserved: true
@@ -218,6 +218,7 @@ resource functionApp 'Microsoft.Web/sites@2021-03-01' = {
     siteConfig: {
       pythonVersion: '3.11'
       linuxFxVersion: 'python|3.11'
+      alwaysOn: true
       appSettings: [
         {
           name: 'AzureWebJobsStorage'
@@ -295,7 +296,7 @@ resource functionApp 'Microsoft.Web/sites@2021-03-01' = {
     }
   }
 }
-
+output resourceGroup string = resourceGroup().name
 output functionAppEndpoint string = functionApp.properties.defaultHostName
 output functionAppName string = functionApp.name
 output storageAccountName string = storageAccount.name

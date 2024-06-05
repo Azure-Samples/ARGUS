@@ -57,8 +57,12 @@ def fetch_configuration():
     cosmos_client = CosmosClient(st.session_state.cosmos_url, st.session_state.cosmos_key)
     database = cosmos_client.get_database_client(st.session_state.cosmos_db_name)
     container = database.get_container_client(st.session_state.cosmos_config_container_name)
-
-    configuration = container.read_item(item="configuration", partition_key={})
+    
+    try:
+        configuration = container.read_item(item="configuration", partition_key={})
+    except Exception as e:
+        st.warning("No dataset found, create a new dataset to get started.")
+        configuration = {"id": "configuration"}  # Initialize with an empty dataset
     return configuration
 
 def update_configuration(config_data):
@@ -283,7 +287,7 @@ with tabs[1]:
         elif len(selected_rows) > 1:
             st.warning('Please select exactly one item to show extraction.')
     else:
-        st.error('Failed to fetch data or no data found.')
+        st.error('Failed to fetch data or no data found. If you submitted files for processing, please wait a few seconds and refresh the page.')
 
 with tabs[2]:
     ## Display instructions
