@@ -2,12 +2,13 @@ import streamlit as st
 import requests
 import json
 import base64
-import os
+import os, sys
 from datetime import datetime
 from azure.storage.blob import BlobServiceClient
 from azure.cosmos import CosmosClient
 from dotenv import load_dotenv
 import pandas as pd
+from streamlit_pdf_viewer import pdf_viewer
 from instructions import show_instructions
 
 # Load environment variables
@@ -73,12 +74,7 @@ def update_configuration(config_data):
     container.upsert_item(config_data)
 
 def format_finished(finished, error):
-    if finished:
-        return '✅'
-    elif error:
-        return '❌'
-    else:
-        return '➖'
+    return '✅' if finished else '❌' if error else '➖'
 
 def refresh_data():
     return fetch_data_from_cosmosdb(st.session_state.cosmos_documents_container_name)
@@ -126,6 +122,8 @@ def fetch_pdf_from_blob(blob_name):
 
     pdf_data = blob_client.download_blob().readall()
     return pdf_data
+
+
 
 # Function to fetch JSON from CosmosDB
 def fetch_json_from_cosmosdb(item_id):
@@ -216,8 +214,10 @@ with tabs[1]:
                 'GPT Summary': format_finished(item.get('state.gpt_summary_completed', False), errors),
                 'Finished': format_finished(item.get('state.processing_completed', False), errors),
                 'Request Timestamp': datetime.fromisoformat(item.get('properties.request_timestamp', '')),
-                'Total Time': item.get('properties.total_time_seconds', 0),
                 'Errors': errors,
+                'Total Time': item.get('properties.total_time_seconds', 0),
+                'Pages': item.get('properties.num_pages', 0),
+                'Size': item.get('properties.blob_size', 0),
                 'id': item['id'],
             }
             extracted_data.append(extracted_item)
@@ -277,9 +277,15 @@ with tabs[1]:
                 with col1:
                     if pdf_data:
                         # Display the PDF
+                        if sys.getsizeof(pdf_data) >  1500000:
+                            st.toast('PDF file is too large to display in iframe.')
+                            download_link = f'<a href="data:application/octet-stream;base64,{base64.b64encode(pdf_data).decode("utf-8")}" download="{pdf_blob_name.split("/")[-1]}">Download PDF</a>'
+                            pdf_viewer(pdf_data, height=1200)
+                            st.markdown(download_link, unsafe_allow_html=True)
                         pdf_base64 = base64.b64encode(pdf_data).decode('utf-8')
                         pdf_display = f'<iframe src="data:application/pdf;base64,{pdf_base64}" width="100%" height="1200" type="application/pdf"></iframe>'
-                        st.markdown(pdf_display, unsafe_allow_html=True)
+                        st.markdown(pdf_display, unsafe_allow_html=True)                       
+
                 with col2:
                     if json_data:
                         # Display the JSON data

@@ -1,8 +1,8 @@
-import glob, logging, json, os
+import glob, logging, json, os, sys
 from datetime import datetime
 import tempfile 
 from azure.cosmos import CosmosClient, exceptions
-
+from PyPDF2 import PdfReader
 from langchain_core.output_parsers.json import parse_json_markdown
 
 from ai_ocr.azure.doc_intelligence import get_ocr_results
@@ -23,13 +23,14 @@ def connect_to_cosmos():
 
     return docs_container, conf_container
 
-def initialize_document(file_name: str, file_size: int, prompt: str, json_schema: str, request_timestamp: datetime) -> dict:
+def initialize_document(file_name: str, file_size: int, num_pages:int, prompt: str, json_schema: str, request_timestamp: datetime) -> dict:
     return {
         "id": file_name.replace('/', '__'),
         "properties": {
             "blob_name": file_name,
             "blob_size": file_size,
-            "request_timestamp": request_timestamp.isoformat()
+            "request_timestamp": request_timestamp.isoformat(),
+            "num_pages": num_pages
         },
         "state": {
             "file_landed": False,
@@ -66,7 +67,12 @@ def write_blob_to_temp_file(myblob):
     os.makedirs(os.path.dirname(temp_file_path), exist_ok=True)
     with open(temp_file_path, 'wb') as file_to_write:
         file_to_write.write(file_content)
-    return temp_file_path
+    # Get the size of the file
+    file_size = os.path.getsize(temp_file_path)
+    # Calculate the number of pages in the PDF
+    pdf_reader = PdfReader(temp_file_path)
+    number_of_pages = len(pdf_reader.pages)
+    return temp_file_path, number_of_pages, file_size
 
 
 def fetch_model_prompt_and_schema(dataset_type):
@@ -191,7 +197,7 @@ def process_gpt_summary(ocr_response, document, container):
         document['extracted_data']['classification'] = classification
         document['extracted_data']['gpt_summary_output'] = gpt_summary.content
     except Exception as e:
-        print('hello world opneai error')
         document['errors'].append(f"NL processing error: {str(e)}")
         update_state(document, container, 'gpt_summary_completed', False)
+        sys.exit(1)  # Exit with error
         raise

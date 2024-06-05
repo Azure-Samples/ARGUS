@@ -179,8 +179,8 @@ resource appServicePlan 'Microsoft.Web/serverfarms@2021-03-01' = {
   location: location
   kind: 'Linux'
   sku: {
-    name: 'P0V3'
-    tier: 'Premium'
+    name: 'B1'
+    tier: 'Basic'
   }
   properties: {
     reserved: true

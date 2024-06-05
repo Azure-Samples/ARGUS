@@ -9,6 +9,7 @@ python-dotenv
 azure-ai-documentintelligence
 azure-identity
 PyMuPDF
+PyPDF2
 langchain
 langchain_core
 langchain_community
