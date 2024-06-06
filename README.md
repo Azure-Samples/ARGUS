@@ -8,20 +8,19 @@
 
 Classic OCR (Object Character Recognition) models lack reasoning ability based on context when extracting information from documents. In this project we demonstrate how to use a hybrid approach with OCR and LLM (multimodal Large Language Model) to get better results without any pre-training.
 
-This solution uses Azure Document Intelligence combined with GPT4 and GPT-Vision. Each of the tools have their strong points and the hybrid approach is better than any of them alone.
+This solution uses Azure Document Intelligence combined with GPT4-Vision. Each of the tools have their strong points and the hybrid approach is better than any of them alone.
 
 > Notes:
 > - The document-intelligence resource needs to use the markdown preview feature (limited regions: West EU adn East US at the moment). 
-> - The Azure Openai model needs to be vision capable i.e. GPT-4T-0125 or 0409
+> - The Azure OpenAI model needs to be vision capable i.e. GPT-4T-0125, 0409 or Omni
 
 
 ## Solution Overview
 
 - **Frontend**: A Streamlit Python web-app for user interaction. UNDER CONSTRUCTION
-- **Backend**: An Azure Function for core logic, Cosmos DB for auditing, logging, and storing output schemas, Azure Document Intelligence and GPT-4 Vision.
+- **Backend**: An Azure Function for core logic, Cosmos DB for auditing, logging, and storing output schemas, Azure Document Intelligence, GPT-4 Vision and a Logic App for integrating with Outlook Inbox.
 - **Demo**: Sample documents, system prompts, and output schemas.
-
-
+![results](/ArchitectureOverview.png)
 ## Prerequisites
 ### OpenAI Resource
 
@@ -31,7 +30,7 @@ Before deploying the solution, you need to create an OpenAI resource and deploy 
    - Follow the instructions [here](https://learn.microsoft.com/en-us/azure/cognitive-services/openai/how-to/create-resource) to create an OpenAI resource in Azure.
 
 2. **Deploy a Vision-Capable Model**:
-   - Ensure the deployed model supports vision, such as GPT-4T-0125 or GPT-4T-0409.
+   - Ensure the deployed model supports vision, such as GPT-4T-0125, GPT-4T-0409 or GPT-4-Omni.
 
 
 ## Deployment
@@ -42,14 +41,17 @@ Before deploying the solution, you need to create an OpenAI resource and deploy 
    - Install [Azure Developer CLI](https://learn.microsoft.com/en-us/azure/developer/azure-developer-cli/install-azd).
    - Ensure you have access to an Azure subscription.
    - Create an OpenAI resource and deploy a vision-capable model.
+   - Ensure Docker is running
 
 2. **Deployment Steps**:
    - Run the following command to deploy all resources:
      ```sh
+     azd init
      azd up
+     If you finished. You can run azd down or delete the resources manually to avoid unnecessary spending.
      ```
 
-### Manual Deployment
+### Alternative: Manual Deployment
 
 1. **Bicep Template Deployment**:
    - Use the provided `main.bicep` file to deploy resources manually:
@@ -95,7 +97,7 @@ Extract all financial data, including transaction amounts, dates, and descriptio
 
 ### `JSON Template`
 
-The JSON template defines the schema of the data to be extracted. This can be an empty JSON object `{}` if the model is supposed to create its own schema. Alternatively, it can be more specific to guide the model on what data to extract. Here are some examples:
+The JSON template defines the schema of the data to be extracted. This can be an empty JSON object `{}` if the model is supposed to create its own schema. Alternatively, it can be more specific to guide the model on what data to extract or for further processing in a structured database. Here are some examples:
 
 1. Empty JSON Template (default):
 ```json
@@ -120,13 +122,14 @@ By providing a prompt and a JSON template, users can control the behavior of the
 - Introduction of datasets that are specific to one schema and model instructions
 - Additional backend APIs for administration
 - Integrate evaluator for processing
+- Integration of Logic App
 
 
 ## Team behind ARGUS
 
 - [Alberto Gallo](https://github.com/albertaga27)
 - [Petteri Johansson](https://github.com/piizei)
-- Christin Pohl
+- [Christin Pohl](https://github.com/pohlchri)
 - [Konstantinos Mavrodis](https://github.com/kmavrodis_microsoft)
 
 
