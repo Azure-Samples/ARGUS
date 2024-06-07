@@ -67,6 +67,29 @@ Before deploying the solution, you need to create an OpenAI resource and deploy 
      func azure functionapp publish <your-function-app-name> --build remote
      ```
 
+## Running the Streamlit Frontend (recommended)
+
+To run the Streamlit app `app.py` located in the `frontend` folder, follow these steps:
+
+1. Install the required dependencies by running the following command in your terminal:
+   ```sh
+   pip install -r frontend/requirements.txt
+   ```
+
+2. Rename the `.env.temp` file to `.env`:
+   ```sh
+   mv frontend/.env.temp frontend/.env
+   ```
+
+3. Populate the `.env` file with the necessary environment variables. Open the `.env` file in a text editor and provide the required values for each variable.
+
+4. Start the Streamlit app by running the following command in your terminal:
+   ```sh
+   streamlit run frontend/app.py
+   ```
+
+
+
 ## How to Use
 
 ### Upload and Process Documents

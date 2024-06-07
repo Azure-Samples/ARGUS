@@ -1,6 +1,6 @@
 import streamlit as st
 
-def show_instructions():
+def instructions_tab():
     st.markdown("""
     ## How to Use the ARGUS System
 
