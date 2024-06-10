@@ -271,14 +271,14 @@ def explore_data_tab():
 
                 col5, col6 = st.columns([1, 1])
                 with col5:
-                    # Processing time by request timestamp
+                    # Processing time devided per page by request timestamp (excluding files with 0 pages)
                     try:
-                        fig6 = px.scatter(filtered_df, x='Request Timestamp', y='Total Time',
-                                           title='Processing Time by Request Timestamp',
+                        fig4 = px.scatter(filtered_df[filtered_df['Pages'] > 0], x='Request Timestamp', y='Total Time',
+                                           color='Pages', title='Processing Time per Page by Request Timestamp',
                                            labels={'x': 'Request Timestamp', 'y': 'Processing Time (seconds)'})
-                        fig6.update_layout(xaxis_title_text='Request Timestamp',
+                        fig4.update_layout(xaxis_title_text='Request Timestamp',
                                            yaxis_title_text='Processing Time (seconds)')
-                        st.plotly_chart(fig6)
+                        st.plotly_chart(fig4)
                     except Exception as e:
                         st.error(f"Error in creating the scatter plot: {e}")
                 with col6:

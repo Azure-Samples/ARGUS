@@ -296,6 +296,75 @@ resource functionApp 'Microsoft.Web/sites@2021-03-01' = {
     }
   }
 }
+
+
+param roleDefinitionId string = 'ba92f5b4-2d11-453d-a403-e96b0029c9fe' //Default as Storage Blob Data Contributor role
+ 
+var logicAppDefinition = json(loadTextContent('logic_app.json'))
+ 
+
+ 
+resource blobConnection 'Microsoft.Web/connections@2018-07-01-preview' = {
+  name: 'azureblob'
+  location: location
+  kind: 'V1'
+  properties: {
+    alternativeParameterValues: {}
+    api: {
+      id: 'subscriptions/${subscription().subscriptionId}/providers/Microsoft.Web/locations/${location}/managedApis/azureblob'
+    }
+    customParameterValues: {}
+    displayName: 'azureblob'
+    parameterValueSet: {
+      name: 'managedIdentityAuth'
+      values: {}
+    }
+  }
+}
+ 
+resource logicapp 'Microsoft.Logic/workflows@2019-05-01' = {
+  name: 'logicAppName'
+  location: location
+  identity: {
+    type: 'SystemAssigned'
+  }
+  properties: {
+    state: 'Enabled'
+    definition: logicAppDefinition.definition
+    parameters: {
+      '$connections': {
+        value: {
+            azureblob: {
+                connectionId: '/subscriptions/${subscription().subscriptionId}/resourceGroups/${resourceGroup().name}/providers/Microsoft.Web/connections/azureblob'
+                connectionName: 'azureblob'
+                connectionProperties: {
+                    authentication: {
+                        type: 'ManagedServiceIdentity'
+                    }
+                }
+                id: '/subscriptions/${subscription().subscriptionId}/providers/Microsoft.Web/locations/${location}/managedApis/azureblob'
+            }
+        }
+    }
+    'storageAccount': {
+      value: storageAccountName
+    }
+    }
+  }
+}
+ 
+resource logicAppStorageAccountRoleAssignment 'Microsoft.Authorization/roleAssignments@2020-10-01-preview' = {
+  scope: storageAccount
+  name: guid('ra-uniqueString(resourceGroup().id)-${roleDefinitionId}')
+  properties: {
+    principalType: 'ServicePrincipal'
+    roleDefinitionId: subscriptionResourceId('Microsoft.Authorization/roleDefinitions', roleDefinitionId)
+    principalId: logicapp.identity.principalId
+  }
+}
+ 
+
+
 output resourceGroup string = resourceGroup().name
 output functionAppEndpoint string = functionApp.properties.defaultHostName
 output functionAppName string = functionApp.name
