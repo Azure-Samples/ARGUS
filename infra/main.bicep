@@ -38,6 +38,9 @@ param azureOpenaiEndpoint string
 param azureOpenaiKey string
 param azureOpenaiModelDeploymentName string
 
+// Define if the outlook integration is enabled
+param outlookIntegration bool
+
 // Define the storage account
 resource storageAccount 'Microsoft.Storage/storageAccounts@2022-05-01' = {
   name: storageAccountName
@@ -304,7 +307,7 @@ var logicAppDefinition = json(loadTextContent('logic_app.json'))
  
 
  
-resource blobConnection 'Microsoft.Web/connections@2018-07-01-preview' = {
+resource blobConnection 'Microsoft.Web/connections@2018-07-01-preview' = if (outlookIntegration){
   name: 'azureblob'
   location: location
   kind: 'V1'
@@ -322,9 +325,12 @@ resource blobConnection 'Microsoft.Web/connections@2018-07-01-preview' = {
   }
 }
  
-resource logicapp 'Microsoft.Logic/workflows@2019-05-01' = {
+resource logicapp 'Microsoft.Logic/workflows@2019-05-01' = if (outlookIntegration) {
   name: 'logicAppName'
   location: location
+  dependsOn: [
+    blobConnection
+  ]
   identity: {
     type: 'SystemAssigned'
   }
@@ -353,8 +359,11 @@ resource logicapp 'Microsoft.Logic/workflows@2019-05-01' = {
   }
 }
  
-resource logicAppStorageAccountRoleAssignment 'Microsoft.Authorization/roleAssignments@2020-10-01-preview' = {
+resource logicAppStorageAccountRoleAssignment 'Microsoft.Authorization/roleAssignments@2020-10-01-preview' = if (outlookIntegration){
   scope: storageAccount
+  dependsOn: [
+    logicapp
+  ]
   name: guid('ra-uniqueString(resourceGroup().id)-${roleDefinitionId}')
   properties: {
     principalType: 'ServicePrincipal'
@@ -362,8 +371,6 @@ resource logicAppStorageAccountRoleAssignment 'Microsoft.Authorization/roleAssig
     principalId: logicapp.identity.principalId
   }
 }
- 
-
 
 output resourceGroup string = resourceGroup().name
 output functionAppEndpoint string = functionApp.properties.defaultHostName
