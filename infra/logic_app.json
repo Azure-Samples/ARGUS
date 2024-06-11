@@ -1,0 +1,71 @@
+{
+    "definition": {
+      "$schema": "https://schema.management.azure.com/providers/Microsoft.Logic/schemas/2016-06-01/workflowdefinition.json#",
+      "contentVersion": "1.0.0.0",
+      "triggers": {},
+      "actions": {
+        "If_email_has_attachments_and_key_subject_phrase": {
+          "type": "If",
+          "expression": {
+            "and": [
+              {
+                "equals": [
+                  "@triggerBody()?['hasAttachments']",
+                  true
+                ]
+              }
+            ]
+          },
+          "actions": {
+            "For_each": {
+              "type": "Foreach",
+              "foreach": "@triggerBody()?['attachments']",
+              "actions": {
+                "Create_blob_(V2)_1": {
+                  "type": "ApiConnection",
+                  "inputs": {
+                    "host": {
+                      "connection": {
+                        "name": "@parameters('$connections')['azureblob']['connectionId']"
+                      }
+                    },
+                    "method": "post",
+                    "body": "@base64ToBinary(item()?['contentBytes'])",
+                    "headers": {
+                      "ReadFileMetadataFromServer": true
+                    },
+                    "path": "/v2/datasets/@{encodeURIComponent(encodeURIComponent(parameters('storageAccount')))}/files",
+                    "queries": {
+                      "folderPath": "datasets/default-dataset",
+                      "name": "@item()?['name']",
+                      "queryParametersSingleEncoded": true
+                    }
+                  },
+                  "runtimeConfiguration": {
+                    "contentTransfer": {
+                      "transferMode": "Chunked"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "else": {
+            "actions": {}
+          },
+          "runAfter": {}
+        }
+      },
+      "outputs": {},
+      "parameters": {
+        "storageAccount": {
+          "defaultValue": "",
+          "type": "String"
+        },
+        "$connections": {
+          "type": "Object",
+          "defaultValue": {}
+        }
+      }
+    }
+  }

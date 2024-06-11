@@ -1,5 +1,0 @@
-Classify the content provided into one of these categories:
-1) 'invoice'
-2) 'medical_report' based on your classification. 
-If you cannot determine that the content belongs to one of these categories then apply a classification 'N/A'.
-Your response must be the name of the category without brackets or apex or nothing else.

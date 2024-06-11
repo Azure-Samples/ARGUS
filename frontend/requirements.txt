@@ -1,2 +1,7 @@
-streamlit 
-requests
+streamlit
+streamlit_pdf_viewer
+pandas
+plotly
+azure-storage-blob
+azure-cosmos
+python-dotenv
