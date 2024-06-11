@@ -46,7 +46,6 @@ Before deploying the solution, you need to create an OpenAI resource and deploy 
 2. **Deployment Steps**:
    - Run the following command to deploy all resources:
      ```sh
-     azd init
      azd up
      If you finished. You can run azd down or delete the resources manually to avoid unnecessary spending.
      ```
