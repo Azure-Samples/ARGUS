@@ -39,7 +39,7 @@ Before deploying the solution, you need to create an OpenAI resource and deploy 
 
 Click the button to directly deploy to Azure: 
 
-[![Deploy to Azure](https://aka.ms/deploytoazurebutton)](https://raw.githubusercontent.com/albertaga27/azure-doc-extraction-gbb-ai/one-click-deployment/infra/main.json)
+[![Deploy to Azure](https://aka.ms/deploytoazurebutton)](https://portal.azure.com/#create/Microsoft.Template/uri/https%3A%2F%2Fraw.githubusercontent.com%2Falbertaga27%2Fazure-doc-extraction-gbb-ai%2Fmain%2Finfra%2Fmain.json)
 
 `Deploy to Azure` offers a one click deployment without cloning the code. Alternatively, follow the instructions below.
 
