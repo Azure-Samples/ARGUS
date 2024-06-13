@@ -35,7 +35,15 @@ Before deploying the solution, you need to create an OpenAI resource and deploy 
 
 ## Deployment
 
-### One-click Deployment with `azd up`
+### One-Click Deployment
+
+Click the button to directly deploy to Azure: 
+
+[![Deploy to Azure](https://aka.ms/deploytoazurebutton)](https://raw.githubusercontent.com/albertaga27/azure-doc-extraction-gbb-ai/one-click-deployment/infra/main.json)
+
+`Deploy to Azure` offers a one click deployment without cloning the code. Alternatively, follow the instructions below.
+
+### Deployment with `azd up`
 
 1. **Prerequisites**:
    - Install [Azure Developer CLI](https://learn.microsoft.com/en-us/azure/developer/azure-developer-cli/install-azd).
@@ -47,7 +55,6 @@ Before deploying the solution, you need to create an OpenAI resource and deploy 
    - Run the following command to deploy all resources:
      ```sh
      azd up
-     If you finished. You can run azd down or delete the resources manually to avoid unnecessary spending.
      ```
 
 ### Alternative: Manual Deployment
@@ -58,15 +65,7 @@ Before deploying the solution, you need to create an OpenAI resource and deploy 
      az deployment group create --resource-group <your-resource-group> --template-file main.bicep
      ```
 
-2. **Azure Function Deployment**:
-   - Navigate to the function app directory:
-     ```sh
-     cd src/functionapp
-     ```
-   - Deploy the Azure Function:
-     ```sh
-     func azure functionapp publish <your-function-app-name> --build remote
-     ```
+> Note: After deployment wait for about 10 minutes for the docker images to be pulled. You can check the progress in your Functionapp > Deployment Center > Logs.
 
 ## Running the Streamlit Frontend (recommended)
 
@@ -96,10 +95,11 @@ To run the Streamlit app `app.py` located in the `frontend` folder, follow these
 ### Upload and Process Documents
 
 1. **Upload PDF Files**:
-   - Upload PDF files to the `sa-uniqueID` storage account under the `myblobcontainer` container.
+   - Navigate to the `sa-uniqueID` storage account and the `datasets` container
+   - Create a new folder called `default-dataset` and upload your PDF files.
 
 2. **View Results**:
-   - Processed results will be available in your Cosmos DB database under the `doc-extracts` database and the `documents` container.
+   - Processed results will be available in your Cosmos DB database under the `doc-extracts` collection and the `documents` container.
 
 
 ## Model Input Instructions

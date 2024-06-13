@@ -220,7 +220,7 @@ resource functionApp 'Microsoft.Web/sites@2021-03-01' = {
     httpsOnly: true
     siteConfig: {
       pythonVersion: '3.11'
-      linuxFxVersion: 'python|3.11'
+      linuxFxVersion: 'DOCKER|kmavrodis/argus-functionapp:v1.0.0'
       alwaysOn: true
       appSettings: [
         {
@@ -230,6 +230,10 @@ resource functionApp 'Microsoft.Web/sites@2021-03-01' = {
         {
           name: 'WEBSITE_CONTENTAZUREFILECONNECTIONSTRING'
           value: 'DefaultEndpointsProtocol=https;AccountName=${functionAppStorage.name};AccountKey=${listKeys(functionAppStorage.id, functionAppStorage.apiVersion).keys[0].value};EndpointSuffix=core.windows.net'
+        }
+        {
+          name: 'WEBSITES_ENABLE_APP_SERVICE_STORAGE'
+          value: 'false'
         }
         {
           name: 'WEBSITE_CONTENTSHARE'
@@ -248,8 +252,8 @@ resource functionApp 'Microsoft.Web/sites@2021-03-01' = {
           value: 'python'
         }
         {
-          name: 'WEBSITE_RUN_FROM_PACKAGE'
-          value: '1'
+          name: 'DOCKER_REGISTRY_SERVER_URL'
+          value: 'https://index.docker.io'
         }
         {
           name: 'COSMOS_DB_ENDPOINT'
@@ -364,7 +368,7 @@ resource logicAppStorageAccountRoleAssignment 'Microsoft.Authorization/roleAssig
   dependsOn: [
     logicapp
   ]
-  name: guid('ra-uniqueString(resourceGroup().id)-${roleDefinitionId}')
+  name: guid('ra-uniqueString(resourceGroup().id)')
   properties: {
     principalType: 'ServicePrincipal'
     roleDefinitionId: subscriptionResourceId('Microsoft.Authorization/roleDefinitions', roleDefinitionId)

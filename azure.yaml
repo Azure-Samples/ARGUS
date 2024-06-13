@@ -6,32 +6,6 @@
 
 # Name of the application.
 name: azure-function-app
-services:
-  functionapp:
-    project: ./src/functionapp
-    language: python
-    host: appservice
-hooks:
-  postrestore: # Example of an inline script. (shell is required for inline scripts)
-    shell: sh
-    run: echo 'Publishing the function app and uploading example dataset if blob container is empty...'
-  postprovision: # Example of external script (Relative path from project root)
-    shell: sh
-    run: |
-      cd src/functionapp && sleep 60 && func azure functionapp publish $functionAppName --python --build remote
-      az functionapp restart --name $functionAppName --resource-group $resourceGroup 
-      cd ../..
-      echo 'Uploading PDF files from subfolders...'
-      # Check if the folder in the container is empty and upload examples if it is. This will happen only the first time of deployment.
-      blob_count=$(az storage blob list --account-name $storageAccountName --container-name $containerName --account-key $storageAccountKey --query "length([])")
-      if [ "$blob_count" -eq 0 ]; then
-        find demo -type f -name '*.pdf' | while read file; do
-          subfolder=$(basename $(dirname "$file"))          
-          echo "Uploading files..."
-          az storage blob upload --account-name $storageAccountName --container-name $containerName --name "$subfolder/$(basename "$file")" --file "$file" --auth-mode key --account-key $storageAccountKey 
-        done
-      else
-        echo "Folder $subfolder is not empty. Skipping upload."
-      fi
+
 
 
