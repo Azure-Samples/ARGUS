@@ -5,7 +5,6 @@
 azure-functions
 openai
 python-dotenv
-yfinance
 pillow
 requests_html
 azure-cosmos
