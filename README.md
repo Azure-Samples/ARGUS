@@ -88,6 +88,9 @@ To run the Streamlit app `app.py` located in the `frontend` folder, follow these
    streamlit run frontend/app.py
    ```
 
+## Running the Outlook integration with Logic App
+
+You can connect a Outlook inbox to send incoming attachments directly to the blob storage to trigger the extraction process. For that a Logic App was already built for you. The only thing you need to do is to open the resource "LogicAppName" add a trigger and connect it to your Outlook inbox. Open this [Microsoft Learn page](https://learn.microsoft.com/en-us/azure/logic-apps/tutorial-process-email-attachments-workflow) and search for "Add a trigger to check incoming email" follow the described steps then activate it with the "Run" button. 
 
 
 ## How to Use
@@ -144,7 +147,6 @@ By providing a prompt and a JSON template, users can control the behavior of the
 - Introduction of datasets that are specific to one schema and model instructions
 - Additional backend APIs for administration
 - Integrate evaluator for processing
-- Integration of Logic App
 
 
 ## Team behind ARGUS
