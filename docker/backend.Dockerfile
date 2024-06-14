@@ -1,14 +1,11 @@
 # To enable ssh & remote debugging on app service change the base image to the one below
-# FROM mcr.microsoft.com/azure-functions/python:4-python3.9-appservice
-FROM mcr.microsoft.com/azure-functions/python:4-python3.11
+# FROM mcr.microsoft.com/azure-functions/python:4-python3.10-appservice
+FROM mcr.microsoft.com/azure-functions/python:4-python3.10
 
 ENV AzureWebJobsScriptRoot=/home/site/wwwroot \
-    AzureFunctionsJobHost__Logging__Console__IsEnabled=true \
-    AzureWebJobsFeatureFlags=EnableWorkerIndexing
+    AzureFunctionsJobHost__Logging__Console__IsEnabled=true
 
-COPY ./backend/requirements.txt /
-RUN pip install -r /requirements.txt
+COPY ../src/requirements.txt /
+RUN pip install -r ../src/requirements.txt
 
-COPY ./backend /home/site/wwwroot
-
-RUN ln -sf /usr/share/zoneinfo/Europe/Rome /etc/localtime
+COPY ../src /home/site/wwwroot

@@ -12,4 +12,4 @@ services:
     ports: 
       - "8082:80"
     env_file:
-      - ../backend/.env
+      - ../src/.env
