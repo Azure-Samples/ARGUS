@@ -5,36 +5,7 @@ from langchain_core.prompts import HumanMessagePromptTemplate
 
 from ai_ocr.azure.openai_ops import get_llm
 
-
-# def get_structured_data(pages: str, prompt: str, json_schema: str, images=[]) -> any:
-#     messages = [
-#         ("system",
-#          prompt
-#          ),
-#         ("human", "{input}"),
-#         ("human", "{schema}"),
-#     ]
-
-#     schema_prompt = """
-#     The output should be formatted as a JSON instance that conforms to the JSON schema template below. RETURN ONLY THE JSON schema template filled with data from the document and no other comments.
-
-#     As an example, for the schema {"properties": {"foo": {"title": "Foo", "description": "a list of strings", "type": "array", "items": {"type": "string"}}}, "required": ["foo"]}
-#     the object {"foo": ["bar", "baz"]} is a well-formatted instance of the schema. The object {"properties": {"foo": ["bar", "baz"]}} is not well-formatted. If JSON schema template
-#     is empty, then create a structure that you think is appropriate for the given document.
-
-#     Here is the JSON schema template:
-#     ```""" + str(json_schema) + "```"
-
-#     prompt = ChatPromptTemplate.from_messages(messages)
-#     if len(images) > 0:
-#         prompt.append(HumanMessage("There are also images available that you can use to verify the ocr information: "))
-#     for img in images:
-#         prompt.append(
-#             HumanMessage(content=[{"type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{img}"}}]))
-#     prompt.append('The JSON object extracted is:\n\n')    
-#     model = get_llm()
-#     chain = prompt | model
-#     return chain.invoke({"input": pages, "schema": schema_prompt})
+import logging
 
 def get_structured_data(pages: str, prompt: str, json_schema: str, images=[]) -> any:
     messages = [
@@ -56,15 +27,19 @@ def get_structured_data(pages: str, prompt: str, json_schema: str, images=[]) ->
     ```""" + str(json_schema) + "```"
 
     prompt = ChatPromptTemplate.from_messages(messages)
-    # if len(images) > 0:
-    #     prompt.append(HumanMessage("There are also images available that you can use to verify the ocr information: "))
-    # for img in images:
-    #     prompt.append(
-    #         HumanMessage(content=[{"type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{img}"}}]))
+    if len(images) > 0:
+        prompt.append(HumanMessage("There are also images available that you can use to verify the ocr information: "))
+        logging.debug("There are also images available that you can use to verify the ocr information:")
+    for img in images:
+        logging.debug("Adding 1 image to the prompt...")
+        prompt.append(
+            HumanMessage(content=[{"type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{img}"}}]))
     prompt.append('The JSON object extracted is:\n\n')    
     model = get_llm()
     chain = prompt | model
     return chain.invoke({"input": pages, "schema": schema_prompt})
+
+
 
 def get_summary_with_gpt(mkd_output_json: str) -> any:
     reasoning_prompt = """
