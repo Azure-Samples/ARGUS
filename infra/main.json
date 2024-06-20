@@ -5,7 +5,7 @@
     "_generator": {
       "name": "bicep",
       "version": "0.28.1.47646",
-      "templateHash": "7961199775264597216"
+      "templateHash": "6034136191518273577"
     }
   },
   "parameters": {
@@ -61,8 +61,9 @@
     "azureOpenaiModelDeploymentName": {
       "type": "string"
     },
-    "outlookIntegration": {
-      "type": "bool"
+    "timestamp": {
+      "type": "string",
+      "defaultValue": "[utcNow('yyyy-MM-ddTHH:mm:ssZ')]"
     },
     "roleDefinitionId": {
       "type": "string",
@@ -71,6 +72,8 @@
   },
   "variables": {
     "$fxv#0": "{\n    \"definition\": {\n      \"$schema\": \"https://schema.management.azure.com/providers/Microsoft.Logic/schemas/2016-06-01/workflowdefinition.json#\",\n      \"contentVersion\": \"1.0.0.0\",\n      \"triggers\": {},\n      \"actions\": {\n        \"If_email_has_attachments_and_key_subject_phrase\": {\n          \"type\": \"If\",\n          \"expression\": {\n            \"and\": [\n              {\n                \"equals\": [\n                  \"@triggerBody()?['hasAttachments']\",\n                  true\n                ]\n              }\n            ]\n          },\n          \"actions\": {\n            \"For_each\": {\n              \"type\": \"Foreach\",\n              \"foreach\": \"@triggerBody()?['attachments']\",\n              \"actions\": {\n                \"Create_blob_(V2)_1\": {\n                  \"type\": \"ApiConnection\",\n                  \"inputs\": {\n                    \"host\": {\n                      \"connection\": {\n                        \"name\": \"@parameters('$connections')['azureblob']['connectionId']\"\n                      }\n                    },\n                    \"method\": \"post\",\n                    \"body\": \"@base64ToBinary(item()?['contentBytes'])\",\n                    \"headers\": {\n                      \"ReadFileMetadataFromServer\": true\n                    },\n                    \"path\": \"/v2/datasets/@{encodeURIComponent(encodeURIComponent(parameters('storageAccount')))}/files\",\n                    \"queries\": {\n                      \"folderPath\": \"datasets/default-dataset\",\n                      \"name\": \"@item()?['name']\",\n                      \"queryParametersSingleEncoded\": true\n                    }\n                  },\n                  \"runtimeConfiguration\": {\n                    \"contentTransfer\": {\n                      \"transferMode\": \"Chunked\"\n                    }\n                  }\n                }\n              }\n            }\n          },\n          \"else\": {\n            \"actions\": {}\n          },\n          \"runAfter\": {}\n        }\n      },\n      \"outputs\": {},\n      \"parameters\": {\n        \"storageAccount\": {\n          \"defaultValue\": \"\",\n          \"type\": \"String\"\n        },\n        \"$connections\": {\n          \"type\": \"Object\",\n          \"defaultValue\": {}\n        }\n      }\n    }\n  }",
+    "sanitizedTimestamp": "[replace(replace(parameters('timestamp'), '-', ''), ':', '')]",
+    "roleAssignmentName": "[guid(format('ra-uniqueString-{0}-{1}-{2}', resourceGroup().id, parameters('roleDefinitionId'), variables('sanitizedTimestamp')))]",
     "logicAppDefinition": "[json(variables('$fxv#0'))]"
   },
   "resources": [
@@ -364,7 +367,6 @@
       ]
     },
     {
-      "condition": "[parameters('outlookIntegration')]",
       "type": "Microsoft.Web/connections",
       "apiVersion": "2018-07-01-preview",
       "name": "azureblob",
@@ -384,7 +386,6 @@
       }
     },
     {
-      "condition": "[parameters('outlookIntegration')]",
       "type": "Microsoft.Logic/workflows",
       "apiVersion": "2019-05-01",
       "name": "logicAppName",
@@ -420,11 +421,10 @@
       ]
     },
     {
-      "condition": "[parameters('outlookIntegration')]",
       "type": "Microsoft.Authorization/roleAssignments",
       "apiVersion": "2020-10-01-preview",
       "scope": "[format('Microsoft.Storage/storageAccounts/{0}', parameters('storageAccountName'))]",
-      "name": "[guid('ra-uniqueString(resourceGroup().id)')]",
+      "name": "[variables('roleAssignmentName')]",
       "properties": {
         "principalType": "ServicePrincipal",
         "roleDefinitionId": "[subscriptionResourceId('Microsoft.Authorization/roleDefinitions', parameters('roleDefinitionId'))]",
