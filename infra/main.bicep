@@ -42,6 +42,11 @@ param timestamp string = utcNow('yyyy-MM-ddTHH:mm:ssZ')
 var sanitizedTimestamp = replace(replace(timestamp, '-', ''), ':', '')  
 var roleAssignmentName = guid('ra-uniqueString-${resourceGroup().id}-${roleDefinitionId}-${sanitizedTimestamp}')  
 
+// Define common tags  
+var commonTags = {  
+  solution: 'ARGUS-1.0'    
+}
+
 // Define the storage account
 resource storageAccount 'Microsoft.Storage/storageAccounts@2022-05-01' = {
   name: storageAccountName
@@ -53,6 +58,7 @@ resource storageAccount 'Microsoft.Storage/storageAccounts@2022-05-01' = {
   properties: {
     accessTier: 'Hot'
   }
+  tags: commonTags
 }
 
 // Define the blob service
@@ -93,6 +99,7 @@ resource cosmosDbAccount 'Microsoft.DocumentDB/databaseAccounts@2021-04-15' = {
       }
     ]
   }
+  tags: commonTags
 }
 
 // Define the Cosmos DB database
@@ -104,6 +111,7 @@ resource cosmosDbDatabase 'Microsoft.DocumentDB/databaseAccounts/sqlDatabases@20
       id: cosmosDbDatabaseName
     }
   }
+  tags: commonTags
 }
 
 // Define the Cosmos DB container for documents
@@ -120,6 +128,7 @@ resource cosmosDbContainer 'Microsoft.DocumentDB/databaseAccounts/sqlDatabases/c
       defaultTtl: -1
     }
   }
+  tags: commonTags
 }
 
 // Define the Cosmos DB container for configuration
@@ -136,6 +145,7 @@ resource cosmosDbContainerConf 'Microsoft.DocumentDB/databaseAccounts/sqlDatabas
       defaultTtl: -1
     }
   }
+  tags: commonTags
 }
 
 // Define the storage account for function app
@@ -149,6 +159,7 @@ resource functionAppStorage 'Microsoft.Storage/storageAccounts@2022-05-01' = {
   properties: {
     accessTier: 'Hot'
   }
+  tags: commonTags
 }
 
 // Define the blob service for function app storage
@@ -175,6 +186,7 @@ resource applicationInsights 'Microsoft.Insights/components@2020-02-02' = {
     Application_Type: 'web'
     Request_Source: 'rest'
   }
+  tags: commonTags
 }
 
 // Define the App Service Plan
@@ -189,6 +201,7 @@ resource appServicePlan 'Microsoft.Web/serverfarms@2021-03-01' = {
   properties: {
     reserved: true
   }
+  tags: commonTags
 }
 
 // Define the Document Intelligence resource
@@ -203,6 +216,7 @@ resource documentIntelligence 'Microsoft.CognitiveServices/accounts@2021-04-30' 
     apiProperties: {}
     customSubDomainName: documentIntelligenceName
   }
+  tags: commonTags
 }
 
 // Define the Function App
@@ -213,9 +227,7 @@ resource functionApp 'Microsoft.Web/sites@2021-03-01' = {
     type: 'SystemAssigned'
   }
   kind: 'functionapp'
-  tags: {
-    'azd-service-name': 'functionapp'
-  }
+  tags: commonTags
   properties: {
     serverFarmId: appServicePlan.id
     httpsOnly: true
@@ -328,6 +340,7 @@ resource blobConnection 'Microsoft.Web/connections@2018-07-01-preview' = {
       values: {}
     }
   }
+  tags: commonTags
 }
  
 resource logicapp 'Microsoft.Logic/workflows@2019-05-01' = {
@@ -362,6 +375,7 @@ resource logicapp 'Microsoft.Logic/workflows@2019-05-01' = {
     }
     }
   }
+  tags: commonTags
 }
  
 resource logicAppStorageAccountRoleAssignment 'Microsoft.Authorization/roleAssignments@2020-10-01-preview' = {

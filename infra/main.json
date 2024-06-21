@@ -5,7 +5,7 @@
     "_generator": {
       "name": "bicep",
       "version": "0.28.1.47646",
-      "templateHash": "6034136191518273577"
+      "templateHash": "9209550498400166691"
     }
   },
   "parameters": {
@@ -71,9 +71,12 @@
     }
   },
   "variables": {
-    "$fxv#0": "{\n    \"definition\": {\n      \"$schema\": \"https://schema.management.azure.com/providers/Microsoft.Logic/schemas/2016-06-01/workflowdefinition.json#\",\n      \"contentVersion\": \"1.0.0.0\",\n      \"triggers\": {},\n      \"actions\": {\n        \"If_email_has_attachments_and_key_subject_phrase\": {\n          \"type\": \"If\",\n          \"expression\": {\n            \"and\": [\n              {\n                \"equals\": [\n                  \"@triggerBody()?['hasAttachments']\",\n                  true\n                ]\n              }\n            ]\n          },\n          \"actions\": {\n            \"For_each\": {\n              \"type\": \"Foreach\",\n              \"foreach\": \"@triggerBody()?['attachments']\",\n              \"actions\": {\n                \"Create_blob_(V2)_1\": {\n                  \"type\": \"ApiConnection\",\n                  \"inputs\": {\n                    \"host\": {\n                      \"connection\": {\n                        \"name\": \"@parameters('$connections')['azureblob']['connectionId']\"\n                      }\n                    },\n                    \"method\": \"post\",\n                    \"body\": \"@base64ToBinary(item()?['contentBytes'])\",\n                    \"headers\": {\n                      \"ReadFileMetadataFromServer\": true\n                    },\n                    \"path\": \"/v2/datasets/@{encodeURIComponent(encodeURIComponent(parameters('storageAccount')))}/files\",\n                    \"queries\": {\n                      \"folderPath\": \"datasets/default-dataset\",\n                      \"name\": \"@item()?['name']\",\n                      \"queryParametersSingleEncoded\": true\n                    }\n                  },\n                  \"runtimeConfiguration\": {\n                    \"contentTransfer\": {\n                      \"transferMode\": \"Chunked\"\n                    }\n                  }\n                }\n              }\n            }\n          },\n          \"else\": {\n            \"actions\": {}\n          },\n          \"runAfter\": {}\n        }\n      },\n      \"outputs\": {},\n      \"parameters\": {\n        \"storageAccount\": {\n          \"defaultValue\": \"\",\n          \"type\": \"String\"\n        },\n        \"$connections\": {\n          \"type\": \"Object\",\n          \"defaultValue\": {}\n        }\n      }\n    }\n  }",
+    "$fxv#0": "{\r\n    \"definition\": {\r\n      \"$schema\": \"https://schema.management.azure.com/providers/Microsoft.Logic/schemas/2016-06-01/workflowdefinition.json#\",\r\n      \"contentVersion\": \"1.0.0.0\",\r\n      \"triggers\": {},\r\n      \"actions\": {\r\n        \"If_email_has_attachments_and_key_subject_phrase\": {\r\n          \"type\": \"If\",\r\n          \"expression\": {\r\n            \"and\": [\r\n              {\r\n                \"equals\": [\r\n                  \"@triggerBody()?['hasAttachments']\",\r\n                  true\r\n                ]\r\n              }\r\n            ]\r\n          },\r\n          \"actions\": {\r\n            \"For_each\": {\r\n              \"type\": \"Foreach\",\r\n              \"foreach\": \"@triggerBody()?['attachments']\",\r\n              \"actions\": {\r\n                \"Create_blob_(V2)_1\": {\r\n                  \"type\": \"ApiConnection\",\r\n                  \"inputs\": {\r\n                    \"host\": {\r\n                      \"connection\": {\r\n                        \"name\": \"@parameters('$connections')['azureblob']['connectionId']\"\r\n                      }\r\n                    },\r\n                    \"method\": \"post\",\r\n                    \"body\": \"@base64ToBinary(item()?['contentBytes'])\",\r\n                    \"headers\": {\r\n                      \"ReadFileMetadataFromServer\": true\r\n                    },\r\n                    \"path\": \"/v2/datasets/@{encodeURIComponent(encodeURIComponent(parameters('storageAccount')))}/files\",\r\n                    \"queries\": {\r\n                      \"folderPath\": \"datasets/default-dataset\",\r\n                      \"name\": \"@item()?['name']\",\r\n                      \"queryParametersSingleEncoded\": true\r\n                    }\r\n                  },\r\n                  \"runtimeConfiguration\": {\r\n                    \"contentTransfer\": {\r\n                      \"transferMode\": \"Chunked\"\r\n                    }\r\n                  }\r\n                }\r\n              }\r\n            }\r\n          },\r\n          \"else\": {\r\n            \"actions\": {}\r\n          },\r\n          \"runAfter\": {}\r\n        }\r\n      },\r\n      \"outputs\": {},\r\n      \"parameters\": {\r\n        \"storageAccount\": {\r\n          \"defaultValue\": \"\",\r\n          \"type\": \"String\"\r\n        },\r\n        \"$connections\": {\r\n          \"type\": \"Object\",\r\n          \"defaultValue\": {}\r\n        }\r\n      }\r\n    }\r\n  }",
     "sanitizedTimestamp": "[replace(replace(parameters('timestamp'), '-', ''), ':', '')]",
     "roleAssignmentName": "[guid(format('ra-uniqueString-{0}-{1}-{2}', resourceGroup().id, parameters('roleDefinitionId'), variables('sanitizedTimestamp')))]",
+    "commonTags": {
+      "solution": "ARGUS-1.0"
+    },
     "logicAppDefinition": "[json(variables('$fxv#0'))]"
   },
   "resources": [
@@ -88,7 +91,8 @@
       "kind": "StorageV2",
       "properties": {
         "accessTier": "Hot"
-      }
+      },
+      "tags": "[variables('commonTags')]"
     },
     {
       "type": "Microsoft.Storage/storageAccounts/blobServices",
@@ -132,7 +136,8 @@
             "name": "EnableServerless"
           }
         ]
-      }
+      },
+      "tags": "[variables('commonTags')]"
     },
     {
       "type": "Microsoft.DocumentDB/databaseAccounts/sqlDatabases",
@@ -143,6 +148,7 @@
           "id": "[parameters('cosmosDbDatabaseName')]"
         }
       },
+      "tags": "[variables('commonTags')]",
       "dependsOn": [
         "[resourceId('Microsoft.DocumentDB/databaseAccounts', parameters('cosmosDbAccountName'))]"
       ]
@@ -163,6 +169,7 @@
           "defaultTtl": -1
         }
       },
+      "tags": "[variables('commonTags')]",
       "dependsOn": [
         "[resourceId('Microsoft.DocumentDB/databaseAccounts/sqlDatabases', parameters('cosmosDbAccountName'), parameters('cosmosDbDatabaseName'))]"
       ]
@@ -183,6 +190,7 @@
           "defaultTtl": -1
         }
       },
+      "tags": "[variables('commonTags')]",
       "dependsOn": [
         "[resourceId('Microsoft.DocumentDB/databaseAccounts/sqlDatabases', parameters('cosmosDbAccountName'), parameters('cosmosDbDatabaseName'))]"
       ]
@@ -198,7 +206,8 @@
       "kind": "StorageV2",
       "properties": {
         "accessTier": "Hot"
-      }
+      },
+      "tags": "[variables('commonTags')]"
     },
     {
       "type": "Microsoft.Storage/storageAccounts/blobServices",
@@ -228,7 +237,8 @@
       "properties": {
         "Application_Type": "web",
         "Request_Source": "rest"
-      }
+      },
+      "tags": "[variables('commonTags')]"
     },
     {
       "type": "Microsoft.Web/serverfarms",
@@ -242,7 +252,8 @@
       },
       "properties": {
         "reserved": true
-      }
+      },
+      "tags": "[variables('commonTags')]"
     },
     {
       "type": "Microsoft.CognitiveServices/accounts",
@@ -256,7 +267,8 @@
       "properties": {
         "apiProperties": {},
         "customSubDomainName": "[parameters('documentIntelligenceName')]"
-      }
+      },
+      "tags": "[variables('commonTags')]"
     },
     {
       "type": "Microsoft.Web/sites",
@@ -267,9 +279,7 @@
         "type": "SystemAssigned"
       },
       "kind": "functionapp",
-      "tags": {
-        "azd-service-name": "functionapp"
-      },
+      "tags": "[variables('commonTags')]",
       "properties": {
         "serverFarmId": "[resourceId('Microsoft.Web/serverfarms', parameters('appServicePlanName'))]",
         "httpsOnly": true,
@@ -383,7 +393,8 @@
           "name": "managedIdentityAuth",
           "values": {}
         }
-      }
+      },
+      "tags": "[variables('commonTags')]"
     },
     {
       "type": "Microsoft.Logic/workflows",
@@ -416,6 +427,7 @@
           }
         }
       },
+      "tags": "[variables('commonTags')]",
       "dependsOn": [
         "[resourceId('Microsoft.Web/connections', 'azureblob')]"
       ]

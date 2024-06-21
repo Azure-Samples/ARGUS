@@ -8,6 +8,7 @@ config = get_config()
 kwargs = {"api_version": "2023-10-31-preview"}
 client = document_analysis_client = DocumentIntelligenceClient(endpoint=config["doc_intelligence_endpoint"],
                                                                credential=AzureKeyCredential(config["doc_intelligence_key"]),
+                                                               headers={"solution":"ARGUS-1.0"},
                                                                **kwargs)
 client.mode = "page"
 
