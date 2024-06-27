@@ -55,13 +55,13 @@ def reprocess_item(dataset_name, file_name):
     except Exception as e:
         st.error(f"Failed to re-process {file_name}: {e}")
 
-def fetch_pdf_from_blob(blob_name):
+def fetch_blob_from_blob(blob_name):
     blob_service_client = BlobServiceClient.from_connection_string(st.session_state.blob_conn_str)
     container_client = blob_service_client.get_container_client(st.session_state.container_name)
     blob_client = container_client.get_blob_client(blob_name)
 
-    pdf_data = blob_client.download_blob().readall()
-    return pdf_data
+    blob_data = blob_client.download_blob().readall()
+    return blob_data
 
 def fetch_json_from_cosmosdb(item_id):
     cosmos_client = CosmosClient(st.session_state.cosmos_url, st.session_state.cosmos_key)
@@ -157,6 +157,7 @@ def explore_data_tab():
                     if st.button('Delete Selected', key='delete_selected'):
                         for _, row in selected_rows.iterrows():
                             delete_item(row['Dataset'], row['File Name'], row['id'])
+                        st.rerun()
 
                 with sub_col[2]:
                     if st.button('Re-process Selected', key='reprocess_selected'):
@@ -169,7 +170,7 @@ def explore_data_tab():
                     st.markdown(f"###### {selected_rows.iloc[0]['File Name']}")
 
                     selected_item = selected_rows.iloc[0]
-                    pdf_blob_name = f"{selected_item['Dataset']}/{selected_item['File Name']}"
+                    blob_name = f"{selected_item['Dataset']}/{selected_item['File Name']}"
                     json_item_id = selected_item['id']
                     
                     with st.expander("Human in the loop Feedback"):
@@ -188,12 +189,12 @@ def explore_data_tab():
                             save_feedback_to_cosmosdb(json_item_id, rating, comments)
                             st.success("Feedback submitted!")
 
-                    pdf_data = fetch_pdf_from_blob(pdf_blob_name)
-                    with st.spinner('Fetching PDF and JSON data...'):
-                        if pdf_data:
-                            st.toast('PDF fetched successfully!')
+                    blob_data = fetch_blob_from_blob(blob_name)
+                    with st.spinner('Fetching blob and JSON data...'):
+                        if blob_data:
+                            st.toast('Blob fetched successfully!')
                         else:
-                            st.error('Failed to fetch PDF data.')
+                            st.error('Failed to fetch blob data.')
 
                         json_data = fetch_json_from_cosmosdb(json_item_id)
                         if json_data:
@@ -203,15 +204,26 @@ def explore_data_tab():
 
                     pdf_col, json_col = st.columns(2)
                     with pdf_col:
-                        if pdf_data:
-                            if sys.getsizeof(pdf_data) > 1500000:
-                                st.toast('PDF file is too large to display in iframe.')
-                                download_link = f'<a href="data:application/octet-stream;base64,{base64.b64encode(pdf_data).decode("utf-8")}" download="{pdf_blob_name.split("/")[-1]}">Download PDF</a>'
-                                pdf_viewer(pdf_data, height=1200)
+                        if blob_data:
+                            file_extension = selected_item['File Name'].split('.')[-1].lower()
+                            if file_extension in ['pdf']:
+                                if sys.getsizeof(blob_data) > 1500000:
+                                    st.toast('PDF file is too large to display in iframe.')
+                                    download_link = f'<a href="data:application/octet-stream;base64,{base64.b64encode(blob_data).decode("utf-8")}" download="{blob_name.split("/")[-1]}">Download PDF</a>'
+                                    pdf_viewer(blob_data, height=1200)
+                                    st.markdown(download_link, unsafe_allow_html=True)
+                                pdf_base64 = base64.b64encode(blob_data).decode('utf-8')
+                                pdf_display = f'<iframe src="data:application/pdf;base64,{pdf_base64}" width="100%" height="1200" type="application/pdf"></iframe>'
+                                st.markdown(pdf_display, unsafe_allow_html=True)
+                            elif file_extension in ['jpeg', 'jpg', 'png', 'bmp', 'tiff', 'heif']:
+                                image_base64 = base64.b64encode(blob_data).decode('utf-8')
+                                image_display = f'<img src="data:image/{file_extension};base64,{image_base64}" width="100%"/>'
+                                st.markdown(image_display, unsafe_allow_html=True)
+                            elif file_extension in ['docx', 'xlsx', 'pptx', 'html']:
+                                download_link = f'<a href="data:application/octet-stream;base64,{base64.b64encode(blob_data).decode("utf-8")}" download="{blob_name.split("/")[-1]}">Download {file_extension.upper()}</a>'
                                 st.markdown(download_link, unsafe_allow_html=True)
-                            pdf_base64 = base64.b64encode(pdf_data).decode('utf-8')
-                            pdf_display = f'<iframe src="data:application/pdf;base64,{pdf_base64}" width="100%" height="1200" type="application/pdf"></iframe>'
-                            st.markdown(pdf_display, unsafe_allow_html=True)
+                            else:
+                                st.warning(f'Unsupported file type: {file_extension}')
 
                     with json_col:
                         if json_data:
@@ -281,4 +293,3 @@ def explore_data_tab():
 
     else:
         st.error('Failed to fetch data or no data found. If you submitted files for processing, please wait a few seconds and refresh the page.')
-

@@ -70,7 +70,9 @@ def process_files_tab():
 
     with col2:
         # Allow the user to upload files to the selected dataset in Blob storage
-        uploaded_files = st.file_uploader("Choose files to attach to the request", type=['pdf'], accept_multiple_files=True)
+        uploaded_files = st.file_uploader("Choose files to attach to the request", 
+                          type=['pdf', 'jpeg', 'jpg', 'png', 'bmp', 'tiff', 'heif', 'docx', 'xlsx', 'pptx', 'html'], 
+                          accept_multiple_files=True)
 
         if st.button('Submit'):
             if uploaded_files:
@@ -102,3 +104,4 @@ def process_files_tab():
                     st.experimental_rerun()
                 else:
                     st.warning('Please enter a unique dataset name.')
+    st.warning("This is a demo solution shared across Microsoft. Please upload sample files only.")

@@ -1,3 +1,6 @@
+// Change to your docker image if you edit the functionapp code
+param functionAppDockerImage string = 'DOCKER|kmavrodis/argus-backend:v1.2.0'
+
 // Define the resource group location
 param location string = resourceGroup().location
 
@@ -233,7 +236,7 @@ resource functionApp 'Microsoft.Web/sites@2021-03-01' = {
     httpsOnly: true
     siteConfig: {
       pythonVersion: '3.11'
-      linuxFxVersion: 'DOCKER|kmavrodis/argus-functionapp:v1.0.0'
+      linuxFxVersion: functionAppDockerImage
       alwaysOn: true
       appSettings: [
         {

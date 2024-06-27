@@ -69,9 +69,13 @@ def write_blob_to_temp_file(myblob):
         file_to_write.write(file_content)
     # Get the size of the file
     file_size = os.path.getsize(temp_file_path)
-    # Calculate the number of pages in the PDF
-    pdf_reader = PdfReader(temp_file_path)
-    number_of_pages = len(pdf_reader.pages)
+    # If file is PDF calculate the number of pages in the PDF   
+    if file_name.lower().endswith('.pdf'):
+        pdf_reader = PdfReader(temp_file_path)
+        number_of_pages = len(pdf_reader.pages)
+    else:
+        number_of_pages = None
+
     return temp_file_path, number_of_pages, file_size
 
 
