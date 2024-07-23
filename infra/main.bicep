@@ -1,5 +1,5 @@
 // Change to your docker image if you edit the functionapp code
-param functionAppDockerImage string = 'DOCKER|kmavrodis/argus-backend:v1.2.0'
+param functionAppDockerImage string = 'DOCKER|argus.azurecr.io/argus-backend:v1.3.0'
 
 // Define the resource group location
 param location string = resourceGroup().location
@@ -381,15 +381,15 @@ resource logicapp 'Microsoft.Logic/workflows@2019-05-01' = {
   tags: commonTags
 }
  
-resource logicAppStorageAccountRoleAssignment 'Microsoft.Authorization/roleAssignments@2020-10-01-preview' = {
-  scope: storageAccount
-  name: roleAssignmentName
-  properties: {
-    principalType: 'ServicePrincipal'
-    roleDefinitionId: subscriptionResourceId('Microsoft.Authorization/roleDefinitions', roleDefinitionId)
-    principalId: logicapp.identity.principalId
-  }
-}
+// resource logicAppStorageAccountRoleAssignment 'Microsoft.Authorization/roleAssignments@2020-10-01-preview' = {
+//   scope: storageAccount
+//   name: roleAssignmentName
+//   properties: {
+//     principalType: 'ServicePrincipal'
+//     roleDefinitionId: subscriptionResourceId('Microsoft.Authorization/roleDefinitions', roleDefinitionId)
+//     principalId: logicapp.identity.principalId
+//   }
+// }
 
 output resourceGroup string = resourceGroup().name
 output functionAppEndpoint string = functionApp.properties.defaultHostName

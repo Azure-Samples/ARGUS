@@ -4,14 +4,14 @@
   "metadata": {
     "_generator": {
       "name": "bicep",
-      "version": "0.28.1.47646",
-      "templateHash": "9200133260131766004"
+      "version": "0.29.45.22436",
+      "templateHash": "13557102053090695454"
     }
   },
   "parameters": {
     "functionAppDockerImage": {
       "type": "string",
-      "defaultValue": "DOCKER|kmavrodis/argus-backend:v1.2.0"
+      "defaultValue": "DOCKER|argus.azurecr.io/argus-backend:v1.3.0"
     },
     "location": {
       "type": "string",
@@ -434,21 +434,6 @@
       "tags": "[variables('commonTags')]",
       "dependsOn": [
         "[resourceId('Microsoft.Web/connections', 'azureblob')]"
-      ]
-    },
-    {
-      "type": "Microsoft.Authorization/roleAssignments",
-      "apiVersion": "2020-10-01-preview",
-      "scope": "[format('Microsoft.Storage/storageAccounts/{0}', parameters('storageAccountName'))]",
-      "name": "[variables('roleAssignmentName')]",
-      "properties": {
-        "principalType": "ServicePrincipal",
-        "roleDefinitionId": "[subscriptionResourceId('Microsoft.Authorization/roleDefinitions', parameters('roleDefinitionId'))]",
-        "principalId": "[reference(resourceId('Microsoft.Logic/workflows', 'logicAppName'), '2019-05-01', 'full').identity.principalId]"
-      },
-      "dependsOn": [
-        "[resourceId('Microsoft.Logic/workflows', 'logicAppName')]",
-        "[resourceId('Microsoft.Storage/storageAccounts', parameters('storageAccountName'))]"
       ]
     }
   ],
