@@ -5,7 +5,7 @@ FROM mcr.microsoft.com/azure-functions/python:4-python3.10
 ENV AzureWebJobsScriptRoot=/home/site/wwwroot \
     AzureFunctionsJobHost__Logging__Console__IsEnabled=true
 
-COPY src/requirements.txt /
-RUN pip install -r src/requirements.txt
+COPY src/functionapp/requirements.txt /
+RUN pip install -r src/functionapp/requirements.txt
 
 COPY src /home/site/wwwroot
