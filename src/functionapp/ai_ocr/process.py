@@ -9,7 +9,7 @@ from ai_ocr.azure.doc_intelligence import get_ocr_results
 from ai_ocr.azure.openai_ops import load_image, get_size_of_base64_images
 from ai_ocr.chains import get_structured_data, get_summary_with_gpt
 from ai_ocr.model import Config
-from ai_ocr.azure.images import extract_images_from_pdf
+from ai_ocr.azure.images import convert_pdf_into_image
 
 def connect_to_cosmos():
     endpoint = os.environ['COSMOS_DB_ENDPOINT']
@@ -148,7 +148,7 @@ def run_ocr_and_gpt(file_to_ocr: str, prompt: str, json_schema: str, document: d
     update_state(document, container, 'ocr_completed', True, ocr_processing_time)
     
     # Extract images from the PDF
-    extract_images_from_pdf(file_to_ocr)
+    convert_pdf_into_image(file_to_ocr)
     
     # Ensure the /tmp/ directory exists
     imgs_path = "/tmp/"
