@@ -1,0 +1,46 @@
+{
+    "Customer Name": "",
+    "Invoice Number": "",
+    "Date": "",
+    "Billing info": {
+        "Customer": "",
+        "Customer ID": "",
+        "Address": "",
+        "Phone": ""
+    },
+    "Payment Due": "",
+    "Salesperson": "",
+    "Payment Terms": "",
+    "Shipping info": {
+        "Recipient": "",
+        "Address": "",
+        "Phone": ""
+    },
+    "Delivery Date": "",
+    "Shipping Method": "",
+    "Shipping Terms": "",
+    "Table": {
+        "Items": [
+            {
+                "Qty": "",
+                "Item#": "",
+                "Description": "",
+                "Unit price": "",
+                "Discount": "",
+                "Line total": ""
+            },
+        ],
+        "Total Discount": "",
+        "Subtotal": "",
+        "Sales Tax": "",
+        "Total": ""
+    },
+    "Footer": {
+        "Customer Name": "",
+        "Address": "",
+        "Website": "",
+        "Phone number": "",
+        "Fax number": "",
+        "Email": ""
+    }
+}
