@@ -4,7 +4,7 @@ from pathlib import Path
 import io
 import os
 
-def extract_images_from_pdf(pdf_path):
+def convert_pdf_into_image(pdf_path):
     # Open the PDF file
     pdf_document = fitz.open(pdf_path)
     
