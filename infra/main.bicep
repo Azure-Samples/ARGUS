@@ -1,5 +1,5 @@
 // Change to your docker image if you edit the functionapp code
-param functionAppDockerImage string = 'DOCKER|argus.azurecr.io/argus-backend:v1.3.0'
+param functionAppDockerImage string = 'DOCKER|argus.azurecr.io/argus-backend:latest'
 
 // Define the resource group location
 param location string = resourceGroup().location
