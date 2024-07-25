@@ -1,0 +1,68 @@
+{
+    "Customer Name": [
+        {
+            "evaluator": "MatchEvaluator",
+            "config": {
+                "IGNORE_DOTS": "True"
+            }
+        },
+        {
+            "evaluator": "FuzzyMatchEvaluator",
+            "config": {
+                "threshold": "0.5"
+            }
+        }
+    ],
+    "Invoice Number": {{
+        "evaluator": "MatchEvaluator",
+        "config": {
+            "IGNORE_NUMBER_SIGN": "True"
+        }},
+    "Date": {},
+    "Billing info": {
+        "Customer": {},
+        "Customer ID": {},
+        "Address": {},
+        "Phone": {}
+    },
+    "Payment Due": {},
+    "Salesperson": {},
+    "Payment Terms": {},
+    "Shipping info": {
+        "Recipient": {},
+        "Address": {},
+        "Phone": {}
+    },
+    "Delivery Date": {},
+    "Shipping Method": {},
+    "Shipping Terms": {},
+    "Table": {
+        "Items": [
+            {
+                "Qty": {},
+                "Item#": {},
+                "Description": {},
+                "Unit price": {},
+                "Discount":  {
+                    "evaluator": "MatchEvaluator",
+                    "config": {
+                        "IGNORE_PERCENTAGE_SIGN": "True"
+                    }
+                },
+                "Line total": {}
+            }
+        ],
+        "Total Discount": {},
+        "Subtotal": {},
+        "Sales Tax": {},
+        "Total": {}
+    },
+    "Footer": {
+        "Customer Name": {},
+        "Address": {},
+        "Website": {},
+        "Phone number": {},
+        "Fax number": {},
+        "Email": {}
+    }
+}
