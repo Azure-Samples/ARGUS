@@ -18,3 +18,5 @@ langchain_community
 langchain_openai
 tiktoken
 python-multipart
+promptflow-evals
+jsonpath-ng
