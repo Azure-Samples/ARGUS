@@ -104,4 +104,3 @@ def process_files_tab():
                     st.experimental_rerun()
                 else:
                     st.warning('Please enter a unique dataset name.')
-    st.warning("This is a demo solution shared across Microsoft. Please upload sample files only.")

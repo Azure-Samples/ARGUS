@@ -43,7 +43,7 @@ def get_structured_data(markdown_content: str, prompt: str, json_schema: str, im
     messages = chat_template.format_messages(markdown=markdown_content)
 
     if images:
-        messages.append(HumanMessage(content="Here are images from the document:"))
+        messages.append(HumanMessage(content="Here are the images from the document:"))
         for img in images:
             messages.append(HumanMessage(content=[{"type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{img}"}}]))
 

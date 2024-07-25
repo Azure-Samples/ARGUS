@@ -1,5 +1,4 @@
 # ARGUS: Automated Retrieval and GPT Understanding System
-### 
 
 > Argus Panoptes, in ancient Greek mythology, was a giant with a hundred eyes and a servant of the goddess Hera. His many eyes made him an excellent watchman, as some of his eyes would always remain open while the others slept, allowing him to be ever-vigilant.
 
