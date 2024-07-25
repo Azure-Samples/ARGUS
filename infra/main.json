@@ -4,14 +4,14 @@
   "metadata": {
     "_generator": {
       "name": "bicep",
-      "version": "0.28.1.47646",
-      "templateHash": "9200133260131766004"
+      "version": "0.29.45.22436",
+      "templateHash": "3777948844674789636"
     }
   },
   "parameters": {
     "functionAppDockerImage": {
       "type": "string",
-      "defaultValue": "DOCKER|kmavrodis/argus-backend:v1.2.0"
+      "defaultValue": "DOCKER|kmavrodis/argus-backend:v1.5.0"
     },
     "location": {
       "type": "string",
