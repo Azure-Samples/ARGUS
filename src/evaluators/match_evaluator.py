@@ -2,13 +2,13 @@ from jsonpath_ng import parse
 from src.evaluators.string_evaluator import StringEvaluator
 
 class MatchEvaluator:
-    """Basic evaluator example."""
+
+    KEY_NOT_FOUND = "Key Not Found"
 
     class Config(StringEvaluator.Config):
         pass
 
     def __init__(self, key: str, config = {}):
-        """Initialize the object of the class."""
         self._key = key
         self._string_evaluator = StringEvaluator(config)
 
@@ -26,13 +26,13 @@ class MatchEvaluator:
         return None
 
 
-    def __call__(self, *, actual, ground_truth, **kwargs):
+    def __call__(self, actual, ground_truth, **kwargs):
         result = {"output": 0}
         try:
             gt_value = self.get_values(ground_truth)
             actual_value = self.get_values(actual)
             if actual_value is None:
-                result["error"] = "Not Found"
+                result["error"] = self.KEY_NOT_FOUND
                 return result
 
             if self._string_evaluator(gt_value, actual_value):

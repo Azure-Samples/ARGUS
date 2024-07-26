@@ -7,7 +7,6 @@ class JsonEvaluator:
         pass
 
     def __init__(self, config = {}):
-        # self.config = config
         self.string_evaluator = StringEvaluator(config)
         self.wrong_answers = []
         self.total_strings_compared = 0
@@ -28,13 +27,11 @@ class JsonEvaluator:
             return self.compare_dicts(ground_truth, actual)
         elif isinstance(ground_truth, list) and isinstance(actual, list):
             return self.compare_lists(ground_truth, actual)
-        elif isinstance(ground_truth, str) and isinstance(actual, str):
+        else:
             strings_considered_equal = self.string_evaluator(ground_truth, actual)
             self.total_strings_compared += 1
             if strings_considered_equal:
                 self.total_matches += 1
-        else:
-            return False
 
     def compare_dicts(self, ground_truth_dict, actual_dict):
         for key in ground_truth_dict:
