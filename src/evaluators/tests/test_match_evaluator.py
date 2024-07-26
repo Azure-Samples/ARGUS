@@ -74,3 +74,4 @@ class TestMatchEvaluator(unittest.TestCase):
 
 
         # TODO: add test for lists
+        # TODO: add test for load_match_evaluators
