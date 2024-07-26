@@ -1,6 +1,7 @@
 {
     "Customer Name": [
         {
+            "type":"string",
             "evaluator": "MatchEvaluator",
             "config": {
                 "IGNORE_DOTS": "True"
