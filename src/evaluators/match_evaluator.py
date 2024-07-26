@@ -4,6 +4,7 @@ from src.evaluators.string_evaluator import StringEvaluator
 class MatchEvaluator:
 
     VALUE_NOT_FOUND = "Value Not Found"
+    MATCH_EVAL_PREFIX = "match_evaluator"
 
     class Config(StringEvaluator.Config):
         pass
@@ -59,7 +60,7 @@ def load_match_evaluators(ground_truth, collumn_mapping: dict, config = {}):
             for i, item in enumerate(ground_truth):
                 evaluators, evaluator_config = load_recursive(item, config, evaluators, evaluator_config, f"{prev_key}[{i}]", f"{prev_eval_output_key}[{i}]")
         else:
-            eval_name = f"match_evaluator.{prev_eval_output_key}"
+            eval_name = f"{MatchEvaluator.MATCH_EVAL_PREFIX}.{prev_eval_output_key}"
             match_evaluator = MatchEvaluator(key=prev_key, config=config)
             evaluators[eval_name] = match_evaluator
             evaluator_config[eval_name] = collumn_mapping

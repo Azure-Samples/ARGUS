@@ -18,11 +18,12 @@ class TestMatchEvaluator(unittest.TestCase):
             "key2": "wrong_value"
         }
 
-        correct_key = "key1"
-        correct_key_evaluator = MatchEvaluator(key=correct_key)
-        incorrect_key = "key2"
-        incorrect_key_evaluator = MatchEvaluator(key=incorrect_key)
+        evaluators, config = load_match_evaluators(ground_truth_data, {})
+
+        correct_key_evaluator = evaluators[f'{MatchEvaluator.MATCH_EVAL_PREFIX}.key1']
         assert correct_key_evaluator(actual_data, ground_truth_data)["output"] == True
+        
+        incorrect_key_evaluator = evaluators[f'{MatchEvaluator.MATCH_EVAL_PREFIX}.key2']
         assert incorrect_key_evaluator(actual_data, ground_truth_data)["output"] == False
 
     def test_match_evaluator_nested_object(
@@ -51,24 +52,21 @@ class TestMatchEvaluator(unittest.TestCase):
                 },
             }
         }
-        nested_key_correct = "key1.key1"
-        nested_key_correct_evaluator = MatchEvaluator(key=nested_key_correct)
+
+        evaluators, config = load_match_evaluators(ground_truth_data, {})
+        nested_key_correct_evaluator = evaluators[f'{MatchEvaluator.MATCH_EVAL_PREFIX}.key1.key1']
         assert nested_key_correct_evaluator(actual_data, ground_truth_data)["output"] == 1
         
-        nested_key_wrong = "key1.key2"
-        nested_key_wrong_evaluator = MatchEvaluator(key=nested_key_wrong)
+        nested_key_wrong_evaluator = evaluators[f'{MatchEvaluator.MATCH_EVAL_PREFIX}.key1.key2']
         assert nested_key_wrong_evaluator(actual_data, ground_truth_data)["output"] == 0
         
-        doubled_nested_key_correct = "key1.key3.key1"
-        doubled_nested_key_correct_evaluator = MatchEvaluator(key=doubled_nested_key_correct)
+        doubled_nested_key_correct_evaluator = evaluators[f'{MatchEvaluator.MATCH_EVAL_PREFIX}.key1.key3.key1']
         assert doubled_nested_key_correct_evaluator(actual_data, ground_truth_data)["output"] == 1
 
-        doubled_nested_key_wrong = "key1.key3.key2"
-        doubled_nested_key_wrong_evaluator = MatchEvaluator(key=doubled_nested_key_wrong)
+        doubled_nested_key_wrong_evaluator = evaluators[f'{MatchEvaluator.MATCH_EVAL_PREFIX}.key1.key3.key2']
         assert doubled_nested_key_wrong_evaluator(actual_data, ground_truth_data)["output"] == 0
         
-        not_exist_key= "key1.key3.key3"
-        not_exist_key_evaluator = MatchEvaluator(key=not_exist_key)
+        not_exist_key_evaluator = evaluators[f'{MatchEvaluator.MATCH_EVAL_PREFIX}.key1.key3.key3']
         assert not_exist_key_evaluator(actual_data, ground_truth_data)["output"] == 0
         assert not_exist_key_evaluator(actual_data, ground_truth_data)["error"] == MatchEvaluator.VALUE_NOT_FOUND
 
@@ -101,27 +99,20 @@ class TestMatchEvaluator(unittest.TestCase):
             ]
         }
 
-        correct_key = "key1[0]"
-        correct_key_evaluator = MatchEvaluator(key=correct_key)
+        evaluators, config = load_match_evaluators(ground_truth_data, {})
+
+        correct_key_evaluator = evaluators[f'{MatchEvaluator.MATCH_EVAL_PREFIX}.key1[0]']        
         assert correct_key_evaluator(actual_data, ground_truth_data)["output"] == 1
         
-        incorrect_key = "key1[1]"
-        incorrect_key_evaluator = MatchEvaluator(key=incorrect_key)
+        incorrect_key_evaluator = evaluators[f'{MatchEvaluator.MATCH_EVAL_PREFIX}.key1[1]']
         assert incorrect_key_evaluator(actual_data, ground_truth_data)["output"] == 0
         
-        correct_key_nested = "key2[0].key1[0]"
-        correct_key_nested_evaluator = MatchEvaluator(key=correct_key_nested)
+        correct_key_nested_evaluator = evaluators[f'{MatchEvaluator.MATCH_EVAL_PREFIX}.key2[0].key1[0]']
         assert correct_key_nested_evaluator(actual_data, ground_truth_data)["output"] == 1
 
-        incorrect_key_nested = "key2[0].key1[1]"
-        incorrect_key_nested_evaluator = MatchEvaluator(key=incorrect_key_nested)
+        incorrect_key_nested_evaluator = evaluators[f'{MatchEvaluator.MATCH_EVAL_PREFIX}.key2[0].key1[1]']
         assert incorrect_key_nested_evaluator(actual_data, ground_truth_data)["output"] == 0
 
-        not_exist_key = "key2[0].key1[2]"
-        not_exist_key_evaluator = MatchEvaluator(key=not_exist_key)
+        not_exist_key_evaluator = evaluators[f'{MatchEvaluator.MATCH_EVAL_PREFIX}.key2[0].key1[2]']
         assert not_exist_key_evaluator(actual_data, ground_truth_data)["output"] == 0
         assert not_exist_key_evaluator(actual_data, ground_truth_data)["error"] == MatchEvaluator.VALUE_NOT_FOUND
-
-        
-
-    # TODO: add test for load_match_evaluators
