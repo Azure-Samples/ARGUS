@@ -14,32 +14,40 @@ class TestStringEvaluator(unittest.TestCase):
         assert exact_match == True
         assert no_match == False
 
-    def test_string_evaluator_puctuation_ignored(
+    def test_string_evaluator_commas_ignored(
         self
     ):
-        evaluator = StringEvaluator(config={StringEvaluator.Config.IGNORE_PUNCTUATION_MARKS: True})
-        match_1 = evaluator("value", "va.lue")
-        # when contains a number, punctuation is NOT ignored
-        match_2 = evaluator("1.0", "10")
+        evaluator = StringEvaluator(config={StringEvaluator.Config.IGNORE_COMAS: True})
+        match_1 = evaluator("value", "va,lue")
+        assert match_1 == True
+
+
+    def test_string_evaluator_commas_not_ignored(
+        self
+    ):
+        evaluator = StringEvaluator(config={StringEvaluator.Config.IGNORE_COMAS: False})
+        match_1 = evaluator("value", "value")
+        match_2 = evaluator("value", "va,lue")
         assert match_1 == True
         assert match_2 == False
 
 
-    def test_string_evaluator_puctuation_not_ignored(
+    def test_string_evaluator_dots_ignored(
         self
     ):
-        evaluator = StringEvaluator(config={StringEvaluator.Config.IGNORE_PUNCTUATION_MARKS: False})
+        evaluator = StringEvaluator(config={StringEvaluator.Config.IGNORE_DOTS: True})
+        match_1 = evaluator("value", "va.lue")
+        assert match_1 == True
+
+
+    def test_string_evaluator_dots_not_ignored(
+        self
+    ):
+        evaluator = StringEvaluator(config={StringEvaluator.Config.IGNORE_DOTS: False})
         match_1 = evaluator("value", "value")
         match_2 = evaluator("value", "va.lue")
         assert match_1 == True
         assert match_2 == False
-
-    def test_string_evaluator_puctuation_not_ignored(
-        self
-    ):
-        evaluator = StringEvaluator(config={StringEvaluator.Config.IGNORE_PUNCTUATION_MARKS: False})
-        match_1 = evaluator("value", "va.lue")
-        assert match_1 == False
 
 
     def test_string_evaluator_dollar_sign_ignored(
