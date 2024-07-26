@@ -3,7 +3,7 @@ from src.evaluators.string_evaluator import StringEvaluator
 
 class MatchEvaluator:
 
-    KEY_NOT_FOUND = "Key Not Found"
+    VALUE_NOT_FOUND = "Value Not Found"
 
     class Config(StringEvaluator.Config):
         pass
@@ -32,7 +32,7 @@ class MatchEvaluator:
             gt_value = self.get_values(ground_truth)
             actual_value = self.get_values(actual)
             if actual_value is None:
-                result["error"] = self.KEY_NOT_FOUND
+                result["error"] = self.VALUE_NOT_FOUND
                 return result
 
             if self._string_evaluator(gt_value, actual_value):
