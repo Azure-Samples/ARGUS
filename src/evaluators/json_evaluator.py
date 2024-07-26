@@ -41,11 +41,7 @@ class JsonEvaluator:
             if key not in actual_dict:
                 self.total_strings_compared += 1
             else:
-                try:
-                    actual_value = actual_dict[key]
-                except Exception as e:
-                    actual_value = None
-                self.compare_values(ground_truth_dict[key], actual_value)
+                self.compare_values(ground_truth_dict[key], actual_dict[key])
                     
 
     def compare_lists(self, ground_truth_list, actual_list):
