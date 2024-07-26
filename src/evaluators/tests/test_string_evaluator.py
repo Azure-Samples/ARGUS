@@ -58,7 +58,7 @@ class TestStringEvaluator(unittest.TestCase):
         assert match_1 == False
 
 
-    def test_string_evaluator_dollar_sign_not_ignored(
+    def test_string_evaluator_additional_matches(
         self
     ):
         evaluator = StringEvaluator(config={StringEvaluator.Config.ADDITIONAL_MATCHES: ["yes", "true"]})
