@@ -9,9 +9,10 @@ class MatchEvaluator:
     class Config(StringEvaluator.Config):
         pass
 
-    def __init__(self, key: str, config = {}):
+    def __init__(self, key: str, default_config = {}):
         self._key = key
-        self._string_evaluator = StringEvaluator(config)
+        self.default_config=default_config
+        self._string_evaluator = StringEvaluator()
 
     def get_value(data, key):
         try:
@@ -36,7 +37,7 @@ class MatchEvaluator:
                 result["error"] = self.VALUE_NOT_FOUND
                 return result
 
-            if self._string_evaluator(gt_value, actual_value):
+            if self._string_evaluator(gt_value, actual_value, self.default_config):
                 result['output'] = 1
             else:
                 result['output'] = 0

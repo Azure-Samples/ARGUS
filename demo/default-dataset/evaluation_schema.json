@@ -1,69 +1,100 @@
 {
-    "Customer Name": [
-        {
-            "type":"string",
-            "evaluator": "MatchEvaluator",
-            "config": {
-                "IGNORE_DOTS": "True"
+    "Customer Name": {
+        "MatchEvaluator": {
+            "IGNORE_DOTS": "True"
+        }
+    },
+    "Invoice Number": {
+        "MatchEvaluator": {
+            "IGNORE_NUMBER_SIGN": "True"
+        },
+        "Date": {},
+        "Billing info": {
+            "Customer": {},
+            "Customer ID": {},
+            "Address": {
+                "MatchEvaluator": {
+                    "IGNORE_COMAS": "True"
+                }
+            },
+            "Phone": {
+                "MatchEvaluator": {
+                    "IGNORE_DASHES": "True",
+                    "IGNORE_PARENTHETHIS": "True"
+                }
             }
         },
-        {
-            "evaluator": "FuzzyMatchEvaluator",
-            "config": {
-                "threshold": "0.5"
+        "Payment Due": {},
+        "Salesperson": {},
+        "Payment Terms": {},
+        "Shipping info": {
+            "Recipient": {},
+            "Address": {},
+            "Phone": {
+                "MatchEvaluator": {
+                    "IGNORE_DASHES": "True",
+                    "IGNORE_PARENTHETHIS": "True"
+                }
             }
-        }
-    ],
-    "Invoice Number": {{
-        "evaluator": "MatchEvaluator",
-        "config": {
-            "IGNORE_NUMBER_SIGN": "True"
-        }},
-    "Date": {},
-    "Billing info": {
-        "Customer": {},
-        "Customer ID": {},
-        "Address": {},
-        "Phone": {}
-    },
-    "Payment Due": {},
-    "Salesperson": {},
-    "Payment Terms": {},
-    "Shipping info": {
-        "Recipient": {},
-        "Address": {},
-        "Phone": {}
-    },
-    "Delivery Date": {},
-    "Shipping Method": {},
-    "Shipping Terms": {},
-    "Table": {
-        "Items": [
-            {
-                "Qty": {},
-                "Item#": {},
-                "Description": {},
-                "Unit price": {},
-                "Discount":  {
-                    "evaluator": "MatchEvaluator",
-                    "config": {
-                        "IGNORE_PERCENTAGE_SIGN": "True"
-                    }
+        },
+        "Delivery Date": {
+            "MatchEvaluator": {
+                "IGNORE_COMAS": "True"
+            }
+        },
+        "Shipping Method": {},
+        "Shipping Terms": {},
+        "Table": {
+            "Items": [
+                {
+                    "Qty": {},
+                    "Item#": {},
+                    "Description": {},
+                    "Unit price": {},
+                    "Discount": {
+                        "MatchEvaluator": {
+                            "IGNORE_PERCENTAGE_SIGN": "True"
+                        }
+                    },
+                    "Line total": {}
                 },
-                "Line total": {}
-            }
-        ],
-        "Total Discount": {},
-        "Subtotal": {},
-        "Sales Tax": {},
-        "Total": {}
-    },
-    "Footer": {
-        "Customer Name": {},
-        "Address": {},
-        "Website": {},
-        "Phone number": {},
-        "Fax number": {},
-        "Email": {}
+                {
+                    "Qty": {},
+                    "Item#": {},
+                    "Description": {},
+                    "Unit price": {},
+                    "Discount": {
+                        "MatchEvaluator": {
+                            "IGNORE_PERCENTAGE_SIGN": "True"
+                        }
+                    },
+                    "Line total": {}
+                },
+                {
+                    "Qty": {},
+                    "Item#": {},
+                    "Description": {},
+                    "Unit price": {},
+                    "Discount": {
+                        "MatchEvaluator": {
+                            "IGNORE_PERCENTAGE_SIGN": "True"
+                        }
+                    },
+                    "Line total": {}
+                }
+            ],
+            "Total Discount": {},
+            "Subtotal": {},
+            "Sales Tax": {},
+            "Total": {}
+        },
+        "Footer": {
+            "Customer Name": {},
+            "Address": {},
+            "Website": {},
+            "Phone number": {},
+            "Fax number": {},
+            "Email": {}
+        }
     }
 }
