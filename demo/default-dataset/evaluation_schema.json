@@ -1,11 +1,11 @@
 {
     "Customer Name": {
-        "MatchEvaluator": {
+        "CustomStringEvaluator": {
             "IGNORE_DOTS": "True"
         }
     },
     "Invoice Number": {
-        "MatchEvaluator": {
+        "CustomStringEvaluator": {
             "IGNORE_NUMBER_SIGN": "True"
         },
         "Date": {},
@@ -13,12 +13,12 @@
             "Customer": {},
             "Customer ID": {},
             "Address": {
-                "MatchEvaluator": {
+                "CustomStringEvaluator": {
                     "IGNORE_COMAS": "True"
                 }
             },
             "Phone": {
-                "MatchEvaluator": {
+                "CustomStringEvaluator": {
                     "IGNORE_DASHES": "True",
                     "IGNORE_PARENTHETHIS": "True"
                 }
@@ -31,14 +31,14 @@
             "Recipient": {},
             "Address": {},
             "Phone": {
-                "MatchEvaluator": {
+                "CustomStringEvaluator": {
                     "IGNORE_DASHES": "True",
                     "IGNORE_PARENTHETHIS": "True"
                 }
             }
         },
         "Delivery Date": {
-            "MatchEvaluator": {
+            "CustomStringEvaluator": {
                 "IGNORE_COMAS": "True"
             }
         },
@@ -52,7 +52,7 @@
                     "Description": {},
                     "Unit price": {},
                     "Discount": {
-                        "MatchEvaluator": {
+                        "CustomStringEvaluator": {
                             "IGNORE_PERCENTAGE_SIGN": "True"
                         }
                     },
@@ -64,7 +64,7 @@
                     "Description": {},
                     "Unit price": {},
                     "Discount": {
-                        "MatchEvaluator": {
+                        "CustomStringEvaluator": {
                             "IGNORE_PERCENTAGE_SIGN": "True"
                         }
                     },
@@ -76,7 +76,7 @@
                     "Description": {},
                     "Unit price": {},
                     "Discount": {
-                        "MatchEvaluator": {
+                        "CustomStringEvaluator": {
                             "IGNORE_PERCENTAGE_SIGN": "True"
                         }
                     },
