@@ -56,11 +56,8 @@ class JsonEvaluator:
                     eval_schema.get(string_evaluator_name, self.default_eval_config),
                 )
                 string_evaluator["total_strings_compared"] += 1
-                # if strings_considered_equal:
                 self.result[f"{string_evaluator_name}.{curr_key}"] = score
                 string_evaluator["total_score"] += score
-                # else:
-                #     self.result[f"{string_evaluator_name}.{curr_key}"] = 0
 
     def compare_dicts(self, ground_truth_dict, actual_dict, eval_schema, curr_key = None):
         for key in ground_truth_dict:
@@ -74,7 +71,8 @@ class JsonEvaluator:
                 )
 
     def compare_lists(self, ground_truth_list, actual_list, eval_schema, curr_key):
-        i = 0
-        for ground_truth_item, actual_item, eval_schema in zip(ground_truth_list, actual_list, eval_schema):
-            self.compare_values(ground_truth_item, actual_item, eval_schema, f"{curr_key}[{i}]")
-            i += 1
+        if not eval_schema:
+            eval_schema = [{}] * len(ground_truth_list)
+        
+        for i, (ground_truth_item, actual_item, schema) in enumerate(zip(ground_truth_list, actual_list, eval_schema)):
+            self.compare_values(ground_truth_item, actual_item, schema, f"{curr_key}[{i}]")
