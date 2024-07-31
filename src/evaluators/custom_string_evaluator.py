@@ -2,12 +2,12 @@
 class CustomStringEvaluator:
 
     class Config:
-        IGNORE_DOLLAR_SIGN = "ignore_dollar_sign"
-        ADDITIONAL_MATCHES = "additional_matches"
-        IGNORE_DOTS = "ignore_dots"
-        IGNORE_COMAS = "ignore_comas"
-        IGNORE_PARENTHETHIS = "ignore_parenthesis"
-        IGNORE_DASHES = "ignore_dashes"
+        IGNORE_DOLLAR_SIGN = "IGNORE_DOLLAR_SIGN"
+        ADDITIONAL_MATCHES = "ADDITIONAL_MATCHES"
+        IGNORE_DOTS = "IGNORE_DOTS"
+        IGNORE_COMMAS = "IGNORE_COMMAS"
+        IGNORE_PARENTHETHES = "IGNORE_PARENTHETHES"
+        IGNORE_DASHES = "IGNORE_DASHES"
 
 
     def __call__(self, ground_truth: str, actual: str, config: dict = {}):
@@ -18,7 +18,7 @@ class CustomStringEvaluator:
             actual_processed = actual_processed.replace('.', '')
             ground_truth_processed = ground_truth_processed.replace('.', '')
 
-        if config.get(self.Config.IGNORE_COMAS, False):
+        if config.get(self.Config.IGNORE_COMMAS, False):
             actual_processed = actual_processed.replace(',', '')
             ground_truth_processed = ground_truth_processed.replace(',', '')
 
@@ -26,7 +26,7 @@ class CustomStringEvaluator:
             actual_processed = actual_processed.replace('-', '')
             ground_truth_processed = ground_truth_processed.replace('-', '')
         
-        if config.get(self.Config.IGNORE_PARENTHETHIS, False):
+        if config.get(self.Config.IGNORE_PARENTHETHES, False):
             actual_processed = actual_processed.replace('(', '')
             ground_truth_processed = ground_truth_processed.replace('(', '')
             actual_processed = actual_processed.replace(')', '')
@@ -43,7 +43,7 @@ class CustomStringEvaluator:
         additional_matches.append(ground_truth_processed)
 
         if actual_processed in additional_matches:
-            return True
+            return 1
 
-        return False
+        return 0
 

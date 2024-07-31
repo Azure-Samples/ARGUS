@@ -17,29 +17,29 @@ class JsonEvaluator:
             "CustomStringEvaluator": {
                 "instance": CustomStringEvaluator(),
                 "total_strings_compared": 0,
-                "total_matches": 0,
+                "total_score": 0,
                 "ratio": 0,
             },
             "FuzzStringEvaluator": {
                 "instance": FuzzStringEvaluator(),
                 "total_strings_compared": 0,
-                "total_matches": 0,
+                "total_score": 0,
                 "ratio": 0,
             },
         }
 
     def __call__(self, ground_truth, actual, eval_schema={}):
         self.compare_dicts(ground_truth, actual, eval_schema)
-        for string_evaluator_name in self.string_evaluators:
+        for string_evaluator_name, eval_dict in self.string_evaluators.items():
             self.string_evaluators[string_evaluator_name]["ratio"] = (
-                self.string_evaluators[string_evaluator_name]["total_matches"]
+                self.string_evaluators[string_evaluator_name]["total_score"]
                 / self.string_evaluators[string_evaluator_name]["total_strings_compared"]
                 if self.string_evaluators[string_evaluator_name]["total_strings_compared"]
                 > 0
                 else 0
             )
-        for k, v in self.string_evaluators.items():
-            self.result[f"{k}.ratio"] = v["ratio"]
+            self.result[f"{string_evaluator_name}.ratio"] = eval_dict["ratio"]
+
         return self.result
 
     def compare_values(self, ground_truth, actual, eval_schema, curr_key):
@@ -50,17 +50,17 @@ class JsonEvaluator:
         else:
             for string_evaluator_name in self.string_evaluators:
                 string_evaluator = self.string_evaluators[string_evaluator_name]
-                strings_considered_equal = string_evaluator["instance"](
+                score = string_evaluator["instance"](
                     ground_truth,
                     actual,
                     eval_schema.get(string_evaluator_name, self.default_eval_config),
                 )
                 string_evaluator["total_strings_compared"] += 1
-                if strings_considered_equal:
-                    self.result[f"{string_evaluator_name}.{curr_key}"] = 1
-                    string_evaluator["total_matches"] += 1
-                else:
-                    self.result[f"{string_evaluator_name}.{curr_key}"] = 0
+                # if strings_considered_equal:
+                self.result[f"{string_evaluator_name}.{curr_key}"] = score
+                string_evaluator["total_score"] += score
+                # else:
+                #     self.result[f"{string_evaluator_name}.{curr_key}"] = 0
 
     def compare_dicts(self, ground_truth_dict, actual_dict, eval_schema, curr_key = None):
         for key in ground_truth_dict:

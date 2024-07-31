@@ -14,13 +14,13 @@
             "Customer ID": {},
             "Address": {
                 "CustomStringEvaluator": {
-                    "IGNORE_COMAS": "True"
+                    "IGNORE_COMMAS": "True"
                 }
             },
             "Phone": {
                 "CustomStringEvaluator": {
                     "IGNORE_DASHES": "True",
-                    "IGNORE_PARENTHETHIS": "True"
+                    "IGNORE_PARENTHETHES": "True"
                 }
             }
         },
@@ -33,13 +33,13 @@
             "Phone": {
                 "CustomStringEvaluator": {
                     "IGNORE_DASHES": "True",
-                    "IGNORE_PARENTHETHIS": "True"
+                    "IGNORE_PARENTHETHES": "True"
                 }
             }
         },
         "Delivery Date": {
             "CustomStringEvaluator": {
-                "IGNORE_COMAS": "True"
+                "IGNORE_COMMAS": "True"
             }
         },
         "Shipping Method": {},
