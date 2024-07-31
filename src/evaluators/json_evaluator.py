@@ -12,7 +12,7 @@ class JsonEvaluator:
         default_eval_config={}
     ):
         self.default_eval_config = default_eval_config
-
+        self.result = {}
         self.string_evaluators = {
             "CustomStringEvaluator": {
                 "instance": CustomStringEvaluator(),
@@ -38,14 +38,15 @@ class JsonEvaluator:
                 > 0
                 else 0
             )
+        for k, v in self.string_evaluators.items():
+            self.result[f"{k}.ratio"] = v["ratio"]
+        return self.result
 
-        return self.string_evaluators
-
-    def compare_values(self, ground_truth, actual, eval_schema):
+    def compare_values(self, ground_truth, actual, eval_schema, curr_key):
         if isinstance(ground_truth, dict) and isinstance(actual, dict):
-            return self.compare_dicts(ground_truth, actual, eval_schema)
+            return self.compare_dicts(ground_truth, actual, eval_schema, curr_key)
         elif isinstance(ground_truth, list) and isinstance(actual, list):
-            return self.compare_lists(ground_truth, actual, eval_schema)
+            return self.compare_lists(ground_truth, actual, eval_schema, curr_key)
         else:
             for string_evaluator_name in self.string_evaluators:
                 string_evaluator = self.string_evaluators[string_evaluator_name]
@@ -56,18 +57,24 @@ class JsonEvaluator:
                 )
                 string_evaluator["total_strings_compared"] += 1
                 if strings_considered_equal:
+                    self.result[f"{string_evaluator_name}.{curr_key}"] = 1
                     string_evaluator["total_matches"] += 1
+                else:
+                    self.result[f"{string_evaluator_name}.{curr_key}"] = 0
 
-    def compare_dicts(self, ground_truth_dict, actual_dict, eval_schema):
+    def compare_dicts(self, ground_truth_dict, actual_dict, eval_schema, curr_key = None):
         for key in ground_truth_dict:
             if key not in actual_dict:
                 for string_evaluator_name in self.string_evaluators:
                     self.string_evaluators[string_evaluator_name]["total_strings_compared"] += 1
             else:
+                next_key = f"{curr_key}.{key}" if curr_key is not None else key
                 self.compare_values(
-                    ground_truth_dict[key], actual_dict[key], eval_schema.get(key, {})
+                    ground_truth_dict[key], actual_dict[key], eval_schema.get(key, {}), next_key
                 )
 
-    def compare_lists(self, ground_truth_list, actual_list, eval_schema):
-        for ground_truth_item, actual_item in zip(ground_truth_list, actual_list):
-            self.compare_values(ground_truth_item, actual_item, eval_schema)
+    def compare_lists(self, ground_truth_list, actual_list, eval_schema, curr_key):
+        i = 0
+        for ground_truth_item, actual_item, eval_schema in zip(ground_truth_list, actual_list, eval_schema):
+            self.compare_values(ground_truth_item, actual_item, eval_schema, f"{curr_key}[{i}]")
+            i += 1
