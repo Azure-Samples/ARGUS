@@ -18,7 +18,7 @@ class TestCustomStringEvaluator(unittest.TestCase):
         self
     ):
         evaluator = CustomStringEvaluator()
-        match_1 = evaluator("value", "va,lue",config={CustomStringEvaluator.Config.IGNORE_COMAS: True})
+        match_1 = evaluator("value", "va,lue",config={CustomStringEvaluator.Config.IGNORE_COMMAS: True})
         assert match_1 == True
 
 
@@ -26,8 +26,8 @@ class TestCustomStringEvaluator(unittest.TestCase):
         self
     ):
         evaluator = CustomStringEvaluator()
-        match_1 = evaluator("value", "value", config={CustomStringEvaluator.Config.IGNORE_COMAS: False})
-        match_2 = evaluator("value", "va,lue", config={CustomStringEvaluator.Config.IGNORE_COMAS: False})
+        match_1 = evaluator("value", "value", config={CustomStringEvaluator.Config.IGNORE_COMMAS: False})
+        match_2 = evaluator("value", "va,lue", config={CustomStringEvaluator.Config.IGNORE_COMMAS: False})
         assert match_1 == True
         assert match_2 == False
 
@@ -71,7 +71,7 @@ class TestCustomStringEvaluator(unittest.TestCase):
         self
     ):
         evaluator = CustomStringEvaluator()
-        match_1 = evaluator("(256)3300488", "2563300488",config={CustomStringEvaluator.Config.IGNORE_PARENTHETHIS: True})
+        match_1 = evaluator("(256)3300488", "2563300488",config={CustomStringEvaluator.Config.IGNORE_PARENTHETHES: True})
         assert match_1 == True
 
 
@@ -79,7 +79,7 @@ class TestCustomStringEvaluator(unittest.TestCase):
         self
     ):
         evaluator = CustomStringEvaluator()
-        match_1 = evaluator("(256)3300488", "2563300488",config={CustomStringEvaluator.Config.IGNORE_PARENTHETHIS: False})
+        match_1 = evaluator("(256)3300488", "2563300488",config={CustomStringEvaluator.Config.IGNORE_PARENTHETHES: False})
         assert match_1 == False
 
     def test_string_evaluator_dashes_ignored(
