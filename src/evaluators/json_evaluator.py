@@ -29,18 +29,17 @@ class JsonEvaluator:
             "FuzzStringEvaluator": {},
         },
     ):
-        self.default_eval_config = default_eval_config
         self.result = {}
         self.string_evaluators = [
             self.StringEvaluatorWrapper(
                 "CustomStringEvaluator",
                 CustomStringEvaluator(),
-                default_eval_config["CustomStringEvaluator"],
+                default_eval_config.get("CustomStringEvaluator", {}),
             ),
             self.StringEvaluatorWrapper(
                 "FuzzStringEvaluator",
                 FuzzStringEvaluator(),
-                default_eval_config["FuzzStringEvaluator"],
+                default_eval_config.get("FuzzStringEvaluator", {}),
             ),
         ]
 
@@ -63,7 +62,7 @@ class JsonEvaluator:
                 score = string_evaluator.instance(
                     ground_truth,
                     actual,
-                    eval_schema.get(string_evaluator.name, self.default_eval_config),
+                    eval_schema.get(string_evaluator.name, string_evaluator.default_eval_config),
                 )
                 string_evaluator.total_strings_compared += 1
                 self.result[f"{string_evaluator.name}.{curr_key}"] = score
