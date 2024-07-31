@@ -46,6 +46,7 @@ class TestJsonEvaluator(unittest.TestCase):
         json_evaluator = JsonEvaluator()
         result = json_evaluator(ground_truth_data, actual_data)
         assert result["CustomStringEvaluator.ratio"] == 0.6
+        assert result['FuzzStringEvaluator.ratio'] == 0.782
 
     def test_json_evaluator_with_eval_schema(self):
         ground_truth_data = {
@@ -109,6 +110,7 @@ class TestJsonEvaluator(unittest.TestCase):
 
         json_evaluator = JsonEvaluator()
         result = json_evaluator(ground_truth_data, actual_data, eval_schema)
+        assert result['FuzzStringEvaluator.ratio'] == 0.764
         assert result["CustomStringEvaluator.ratio"] == 0.6
 
     def test_json_evaluator_no_eval_schema_with_default_config(self):
@@ -161,3 +163,4 @@ class TestJsonEvaluator(unittest.TestCase):
         json_evaluator = JsonEvaluator(default_eval_config)
         result = json_evaluator(ground_truth_data, actual_data)
         assert result["CustomStringEvaluator.ratio"] == 0.5
+        assert result['FuzzStringEvaluator.ratio'] == 0.764
