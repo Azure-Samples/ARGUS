@@ -1,6 +1,6 @@
 import unittest
 
-from src.evaluators.string_evaluator import StringEvaluator
+from src.evaluators.custom_string_evaluator import StringEvaluator
 
 
 class TestStringEvaluator(unittest.TestCase):

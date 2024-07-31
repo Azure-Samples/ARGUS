@@ -1,5 +1,5 @@
 from jsonpath_ng import parse
-from src.evaluators.string_evaluator import StringEvaluator
+from src.evaluators.custom_string_evaluator import StringEvaluator
 
 class MatchEvaluator:
 

@@ -44,8 +44,8 @@ class TestJsonEvaluator(unittest.TestCase):
         # ratio = 6/10 = 0.6
 
         json_evaluator = JsonEvaluator()
-        ratio = json_evaluator(ground_truth_data, actual_data)
-        assert ratio == 0.6
+        result = json_evaluator(ground_truth_data, actual_data)
+        assert result["CustomStringEvaluator"]['ratio'] == 0.6
 
     def test_json_evaluator_with_eval_schema(self):
         ground_truth_data = {
@@ -86,13 +86,13 @@ class TestJsonEvaluator(unittest.TestCase):
         eval_schema = {
             "key1": {},
             "key2": {
-                "key1": {"MatchEvaluator": {"ignore_dots": "True"}},
-                "key2": {"key1": {"MatchEvaluator": {"ignore_dollar_sign": "True"}}},
+                "key1": {"CustomStringEvaluator": {"ignore_dots": "True"}},
+                "key2": {"key1": {"CustomStringEvaluator": {"ignore_dollar_sign": "True"}}},
                 "key3": {},
                 "key4": {
                     "key1": {
                         "key1": {
-                            "MatchEvaluator": {"ignore_comas": "True"},
+                            "CustomStringEvaluator": {"ignore_comas": "True"},
                         },
                         "key2": {},
                     }
@@ -104,8 +104,8 @@ class TestJsonEvaluator(unittest.TestCase):
         }
 
         json_evaluator = JsonEvaluator()
-        ratio = json_evaluator(ground_truth_data, actual_data, eval_schema)
-        assert ratio == 0.6
+        result = json_evaluator(ground_truth_data, actual_data, eval_schema)
+        assert result["CustomStringEvaluator"]['ratio'] == 0.6
 
     def test_json_evaluator_no_eval_schema_with_default_config(self):
         ground_truth_data = {
@@ -153,5 +153,5 @@ class TestJsonEvaluator(unittest.TestCase):
         # ratio = 5/10 = 0.5
 
         json_evaluator = JsonEvaluator(default_eval_config)
-        ratio = json_evaluator(ground_truth_data, actual_data)
-        assert ratio == 0.5
+        result = json_evaluator(ground_truth_data, actual_data)
+        assert result["CustomStringEvaluator"]['ratio'] == 0.5

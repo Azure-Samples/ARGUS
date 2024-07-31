@@ -1,5 +1,5 @@
 
-class StringEvaluator:
+class CustomStringEvaluator:
 
     class Config:
         IGNORE_DOLLAR_SIGN = "ignore_dollar_sign"

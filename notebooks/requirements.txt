@@ -20,3 +20,4 @@ tiktoken
 python-multipart
 promptflow-evals
 jsonpath-ng
+thefuzz
