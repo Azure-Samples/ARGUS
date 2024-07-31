@@ -8,15 +8,19 @@ class JsonEvaluator:
         pass
 
     class StringEvaluatorWrapper:
-        def __init__(self, name, evaluator_instance):
+        def __init__(self, name, evaluator_instance, default_eval_config={}):
             self.name = name
             self.instance = evaluator_instance
             self.total_strings_compared = 0
             self.total_score = 0
+            self.default_eval_config = default_eval_config
 
         def calculate_ratio(self):
-            return self.total_score / self.total_strings_compared if self.total_strings_compared > 0 else 0
-            
+            return (
+                self.total_score / self.total_strings_compared
+                if self.total_strings_compared > 0
+                else 0
+            )
 
     def __init__(
         self,
@@ -27,12 +31,25 @@ class JsonEvaluator:
     ):
         self.default_eval_config = default_eval_config
         self.result = {}
-        self.string_evaluators =[self.StringEvaluatorWrapper("CustomStringEvaluator", CustomStringEvaluator()),self.StringEvaluatorWrapper("FuzzStringEvaluator", FuzzStringEvaluator())]
+        self.string_evaluators = [
+            self.StringEvaluatorWrapper(
+                "CustomStringEvaluator",
+                CustomStringEvaluator(),
+                default_eval_config["CustomStringEvaluator"],
+            ),
+            self.StringEvaluatorWrapper(
+                "FuzzStringEvaluator",
+                FuzzStringEvaluator(),
+                default_eval_config["FuzzStringEvaluator"],
+            ),
+        ]
 
     def __call__(self, ground_truth, actual, eval_schema={}):
         self.compare_dicts(ground_truth, actual, eval_schema)
         for score_calculator in self.string_evaluators:
-            self.result[f"{score_calculator.name}.ratio"] = score_calculator.calculate_ratio()
+            self.result[f"{score_calculator.name}.ratio"] = (
+                score_calculator.calculate_ratio()
+            )
 
         return self.result
 
@@ -48,7 +65,7 @@ class JsonEvaluator:
                     actual,
                     eval_schema.get(string_evaluator.name, self.default_eval_config),
                 )
-                string_evaluator.total_strings_compared+= 1
+                string_evaluator.total_strings_compared += 1
                 self.result[f"{string_evaluator.name}.{curr_key}"] = score
                 string_evaluator.total_score += score
 
@@ -56,7 +73,7 @@ class JsonEvaluator:
         for key in ground_truth_dict:
             if key not in actual_dict:
                 for string_evaluator in self.string_evaluators:
-                    string_evaluator.total_strings_compared+= 1
+                    string_evaluator.total_strings_compared += 1
             else:
                 next_key = f"{curr_key}.{key}" if curr_key is not None else key
                 self.compare_values(
@@ -71,7 +88,8 @@ class JsonEvaluator:
             eval_schema = [{}] * len(ground_truth_list)
 
         for i, (ground_truth_item, actual_item, schema) in enumerate(
-            zip(ground_truth_list, actual_list, eval_schema)):
+            zip(ground_truth_list, actual_list, eval_schema)
+        ):
             self.compare_values(
                 ground_truth_item, actual_item, schema, f"{curr_key}[{i}]"
             )
