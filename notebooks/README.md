@@ -32,7 +32,7 @@ Install requirements.txt provided.
 
 This approach provides a way to evaluate actual JSON against ground truth data.
 The ground truth data suppose to be manually verified by the human and adhere to the schema provided to Argus solution.
-The end result is a combination of total summary (ratio) with detailed information of comparison for each field. The output is a JSON file stored in [outputs folder](./outputs)
+The end result is a combination of total summary (ratio) with detailed information of comparison for each field. The output is a JSON file stored in [outputs folder](./outputs).
 [Json evaluator](../src/evaluators/json_evaluator.py) can use different mechanisms of comparing string values. For now we provide configurable [custom string evaluator](src/evaluators/custom_string_evaluator.py) and [fuzzy match evaluator](src/evaluators/fuzz_string_evaluator.py). It can be expanded to support other string evaluation techniques that might include LLM calls in combination with ground truth.
 The ratio is calculated based on the total number of strings being matched between ground truth and actual divided by the total number of values being compared.
 
@@ -46,16 +46,16 @@ The notebook will create the actual data. To update the [ground truth](../demo/d
 
 #### Evaluation schema
 
-The [evaluation schema](../demo/default-dataset/evaluation_schema.json) is optional and used by the `JsonEvaluator` to configure how to evaluate each field in the ground truth with the actual value. If a field is not present in the evaluation schema that is present in the ground truth, then the default evalautors will be used. By default, each field will get a `CustomStringEvalautor` and `FuzzyMatchEvaluator`. The default configuration for `CustomStringEvalaution` will be an exact match. 
+The [evaluation schema](../demo/default-dataset/evaluation_schema.json) is optional and used by the `JsonEvaluator` to configure how to evaluate each field in the ground truth with the actual value. If a field is not present in the evaluation schema that is present in the ground truth, then the default evaluators will be used. By default, each field will get a `CustomStringEvaluator` and `FuzzyMatchEvaluator`. If no default configuration and no evaluation schema provided for `CustomStringEvalaution` the evaluator will use exact match for value comparisons ignoring the case.
 
-Each field evalautor must implement the following method with the same arguments:
+Each field evaluator must implement the following method with the same arguments:
 
 ```python
 def __call__(self, ground_truth: str, actual: str, config: dict = None) -> int:
     # implementation here
 ```
 
-Example custom configuration using the `CustomStringEvaluator`:
+Example of default configuration for `CustomStringEvaluator`. This configuration will be applied to all fields unless specified in evaluation schema for a particular field
 
 
 ```python
@@ -97,7 +97,7 @@ evaluation_schema = {
     "address": {}, # default config will be used for CustomStringEvaluator
     "is_employed": {
         "CustomStringEvaluator": {
-            "ADDITIONAL_MATCHES": ["yes", "yup"], # additional values that will be marked correct if any of these match the actual value
+            "ADDITIONAL_MATCHES": ["yes", "yup", "true"], # additional values that will be marked correct if any of these match the actual value
         }
     }
 }
@@ -105,9 +105,9 @@ evaluation_schema = {
 
 ```python 
 actual = {
-    "name": "Smith Bob", # correct, commas are ignored by default
+    "name": "Smith Bob", # correct, commas are ignored by default config for all fields
     "phone": {
-        "home_phone_number": "555 5555555", # correct, parentheses and dashes are ignored
+        "home_phone_number": "555 5555555", # correct, parentheses and dashes are ignored by evaluation shcema for this field
         "work_phone_number": "555 1231234," # incorrect, parentheses and dashes are NOT ignored for this field
     },
     "address": "1234 Fake Street, FakeCity", # correct, exact match
@@ -124,6 +124,6 @@ result = json_evaluator(ground_truth, actual, evaluation_schema)
 #     'CustomStringEvaluator.phone.work_phone_number': 0,
 #     'CustomStringEvaluator.address': 1,
 #     'CustomStringEvaluator.is_employed': 1,
-#     'CustomStringEvaluator.ratio': 0.8
+#     'CustomStringEvaluator.ratio': 0.8  # 4 correct fields / 5 total fields 
 # }
 ```

@@ -20,10 +20,10 @@ class JsonEvaluator:
 
     def __init__(
         self,
-        evaluators: list = [CustomStringEvaluator(), FuzzStringEvaluator()],
+        field_evaluators: list = [CustomStringEvaluator(), FuzzStringEvaluator()],
     ):
         self.eval_wrappers = []
-        for evaluator in evaluators:
+        for evaluator in field_evaluators:
             self.eval_wrappers.append(self.FieldEvaluatorWrapper(evaluator))
 
         self.result = {}
