@@ -1,5 +1,6 @@
+from src.evaluators.field_evaluator_base import FieldEvaluatorBase
 
-class CustomStringEvaluator:
+class CustomStringEvaluator(FieldEvaluatorBase):
 
     class Config:
         IGNORE_DOLLAR_SIGN = "IGNORE_DOLLAR_SIGN"
@@ -9,8 +10,13 @@ class CustomStringEvaluator:
         IGNORE_PARENTHETHES = "IGNORE_PARENTHETHES"
         IGNORE_DASHES = "IGNORE_DASHES"
 
+    def __init__(self, default_config = {}) -> None:
+        self.default_config = default_config
 
-    def __call__(self, ground_truth: str, actual: str, config: dict = {}):
+    def __call__(self, ground_truth: str, actual: str, config: dict = None):
+        if not config:
+            config = self.default_config
+
         actual_processed = str(actual).lower()
         ground_truth_processed = str(ground_truth).lower()
 

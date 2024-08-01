@@ -1,5 +1,7 @@
 import unittest
 
+from src.evaluators.custom_string_evaluator import CustomStringEvaluator
+from src.evaluators.fuzz_string_evaluator import FuzzStringEvaluator
 from src.evaluators.json_evaluator import JsonEvaluator
 
 
@@ -149,18 +151,19 @@ class TestJsonEvaluator(unittest.TestCase):
         # Total correct = 6
         # ratio = 6/10 = 0.6
 
-        default_eval_config = {
-            "CustomStringEvaluator": {
-                JsonEvaluator.Config.IGNORE_DOLLAR_SIGN: True,
-                JsonEvaluator.Config.IGNORE_DASHES: True,
-                JsonEvaluator.Config.IGNORE_DOTS: True,
-            }
-        }
+        evaluators = [
+            CustomStringEvaluator({
+                CustomStringEvaluator.Config.IGNORE_DOLLAR_SIGN: True,
+                CustomStringEvaluator.Config.IGNORE_DASHES: True,
+                CustomStringEvaluator.Config.IGNORE_DOTS: True,
+            }), 
+            FuzzStringEvaluator(),
+        ]
 
         # Total correct = 5
         # ratio = 5/10 = 0.5
 
-        json_evaluator = JsonEvaluator(default_eval_config)
+        json_evaluator = JsonEvaluator(evaluators)
         result = json_evaluator(ground_truth_data, actual_data)
         assert result["CustomStringEvaluator.ratio"] == 0.5
         assert result['FuzzStringEvaluator.ratio'] == 0.764
