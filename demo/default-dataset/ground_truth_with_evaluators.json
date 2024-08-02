@@ -1,0 +1,197 @@
+{
+    "Customer Name": {
+        "value": "Happiest Valley Farms",
+        "evaluators": {
+            "MatchEvaluator": {
+                "IGNORE_DOTS": "True"
+            }
+        }
+    },
+    "Invoice Number": {
+        "value": "1234",
+        "evaluators": {
+            "MatchEvaluator": {
+                "IGNORE_NUMBER_SIGN": "True"
+            }
+        }
+    },
+    "Date": {
+        "value": "November 30, 2022"
+    },
+    "Billing info": {
+        "Customer": {
+            "value": "Henry Ross"
+        },
+        "Customer ID": {
+            "value": "8675309"
+        },
+        "Address": {
+            "value": "123 Avenue A, Metropolis",
+            "evaluators": {
+                "MatchEvaluator": {
+                    "IGNORE_COMAS": "True"
+                }
+            }
+        },
+        "Phone": {
+            "value": "(123) 456-7890",
+            "evaluators": {
+                "MatchEvaluator": {
+                    "IGNORE_DASHES": "True",
+                    "IGNORE_PARENTHETHIS": "True"
+                }
+            }
+        }
+    },
+    "Payment Due": {
+        "value": "December 30, 2022"
+    },
+    "Salesperson": {
+        "value": "Luca Richter"
+    },
+    "Payment Terms": {
+        "value": "Cash or check"
+    },
+    "Shipping info": {
+        "Recipient": {
+            "value": "Henry Ross"
+        },
+        "Address": {
+            "value": "123 Avenue A, Metropolis"
+        },
+        "Phone": {
+            "value": "(123) 456-7890",
+            "evaluators": {
+                "MatchEvaluator": {
+                    "IGNORE_DASHES": "True",
+                    "IGNORE_PARENTHETHIS": "True"
+                }
+            }
+        }
+    },
+    "Delivery Date": {
+        "value": "December 7, 2022",
+        "evaluators": {
+            "MatchEvaluator": {
+                "IGNORE_COMAS": "True"
+            }
+        }
+    },
+    "Shipping Method": {
+        "value": "Ground"
+    },
+    "Shipping Terms": {
+        "value": "Returns not accepted"
+    },
+    "Table": {
+        "Items": [
+            {
+                "Qty": {
+                    "value": 10
+                },
+                "Item#": {
+                    "value": 123
+                },
+                "Description": {
+                    "value": "Baby chicks"
+                },
+                "Unit price": {
+                    "value": 5.00
+                },
+                "Discount": {
+                    "value": "10%",
+                    "evaluators": {
+                        "MatchEvaluator": {
+                            "IGNORE_PERCENTAGE_SIGN": "True"
+                        }
+                    }
+                },
+                "Line total": {
+                    "value": 45.00
+                }
+            },
+            {
+                "Qty": {
+                    "value": 2
+                },
+                "Item#": {
+                    "value": 444
+                },
+                "Description": {
+                    "value": "Heat lamps"
+                },
+                "Unit price": {
+                    "value": 24.00
+                },
+                "Discount": {
+                    "value": "",
+                    "evaluators": {
+                        "MatchEvaluator": {
+                            "IGNORE_PERCENTAGE_SIGN": "True"
+                        }
+                    }
+                },
+                "Line total": {
+                    "value": 48.00
+                }
+            },
+            {
+                "Qty": {
+                    "value": 6
+                },
+                "Item#": {
+                    "value": 120
+                },
+                "Description": {
+                    "value": "Chicken roosts"
+                },
+                "Unit price": {
+                    "value": 30.00
+                },
+                "Discount": {
+                    "value": "",
+                    "evaluators": {
+                        "MatchEvaluator": {
+                            "IGNORE_PERCENTAGE_SIGN": "True"
+                        }
+                    }
+                },
+                "Line total": {
+                    "value": 180.00
+                }
+            }
+        ],
+        "Total Discount": {
+            "value": 5.00
+        },
+        "Subtotal": {
+            "value": 278.00
+        },
+        "Sales Tax": {
+            "value": 13.90
+        },
+        "Total": {
+            "value": 286.90
+        }
+    },
+    "Footer": {
+        "Customer Name": {
+            "value": "Happiest Valley Farms"
+        },
+        "Address": {
+            "value": "456 Anyroad, Anywhere"
+        },
+        "Website": {
+            "value": "interstingsite.com"
+        },
+        "Phone number": {
+            "value": "(123)987-6543"
+        },
+        "Fax number": {
+            "value": "(123)987-6542"
+        },
+        "Email": {
+            "value": "happiest@example.com"
+        }
+    }
+}
