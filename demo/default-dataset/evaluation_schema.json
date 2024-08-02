@@ -1,0 +1,100 @@
+{
+    "Customer Name": {
+        "CustomStringEvaluator": {
+            "IGNORE_DOTS": "True"
+        }
+    },
+    "Invoice Number": {
+        "CustomStringEvaluator": {
+            "IGNORE_NUMBER_SIGN": "True"
+        },
+        "Date": {},
+        "Billing info": {
+            "Customer": {},
+            "Customer ID": {},
+            "Address": {
+                "CustomStringEvaluator": {
+                    "IGNORE_COMMAS": "True"
+                }
+            },
+            "Phone": {
+                "CustomStringEvaluator": {
+                    "IGNORE_DASHES": "True",
+                    "IGNORE_PARENTHETHES": "True"
+                }
+            }
+        },
+        "Payment Due": {},
+        "Salesperson": {},
+        "Payment Terms": {},
+        "Shipping info": {
+            "Recipient": {},
+            "Address": {},
+            "Phone": {
+                "CustomStringEvaluator": {
+                    "IGNORE_DASHES": "True",
+                    "IGNORE_PARENTHETHES": "True"
+                }
+            }
+        },
+        "Delivery Date": {
+            "CustomStringEvaluator": {
+                "IGNORE_COMMAS": "True"
+            }
+        },
+        "Shipping Method": {},
+        "Shipping Terms": {},
+        "Table": {
+            "Items": [
+                {
+                    "Qty": {},
+                    "Item#": {},
+                    "Description": {},
+                    "Unit price": {},
+                    "Discount": {
+                        "CustomStringEvaluator": {
+                            "IGNORE_PERCENTAGE_SIGN": "True"
+                        }
+                    },
+                    "Line total": {}
+                },
+                {
+                    "Qty": {},
+                    "Item#": {},
+                    "Description": {},
+                    "Unit price": {},
+                    "Discount": {
+                        "CustomStringEvaluator": {
+                            "IGNORE_PERCENTAGE_SIGN": "True"
+                        }
+                    },
+                    "Line total": {}
+                },
+                {
+                    "Qty": {},
+                    "Item#": {},
+                    "Description": {},
+                    "Unit price": {},
+                    "Discount": {
+                        "CustomStringEvaluator": {
+                            "IGNORE_PERCENTAGE_SIGN": "True"
+                        }
+                    },
+                    "Line total": {}
+                }
+            ],
+            "Total Discount": {},
+            "Subtotal": {},
+            "Sales Tax": {},
+            "Total": {}
+        },
+        "Footer": {
+            "Customer Name": {},
+            "Address": {},
+            "Website": {},
+            "Phone number": {},
+            "Fax number": {},
+            "Email": {}
+        }
+    }
+}
