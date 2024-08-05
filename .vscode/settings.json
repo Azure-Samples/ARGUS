@@ -1,0 +1,19 @@
+{
+    "azureFunctions.deploySubpath": "backend",
+    "azureFunctions.scmDoBuildDuringDeployment": true,
+    "azureFunctions.pythonVenv": ".venv",
+    "azureFunctions.projectLanguage": "Python",
+    "azureFunctions.projectRuntime": "~4",
+    "debug.internalConsoleOptions": "neverOpen",
+    "azureFunctions.projectLanguageModel": 2,
+    "azureFunctions.projectSubpath": "src",
+    "python.testing.unittestArgs": [
+        "-v",
+        "-s",
+        "./src",
+        "-p",
+        "test_*.py"
+    ],
+    "python.testing.pytestEnabled": false,
+    "python.testing.unittestEnabled": true
+}

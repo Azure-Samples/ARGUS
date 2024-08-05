@@ -9,7 +9,7 @@ from ai_ocr.azure.doc_intelligence import get_ocr_results
 from ai_ocr.azure.openai_ops import load_image, get_size_of_base64_images
 from ai_ocr.chains import get_structured_data, get_summary_with_gpt
 from ai_ocr.model import Config
-from ai_ocr.azure.images import extract_images_from_pdf
+from ai_ocr.azure.images import convert_pdf_into_image
 
 def connect_to_cosmos():
     endpoint = os.environ['COSMOS_DB_ENDPOINT']
@@ -147,15 +147,15 @@ def run_ocr_and_gpt(file_to_ocr: str, prompt: str, json_schema: str, document: d
     # Update state after OCR processing
     update_state(document, container, 'ocr_completed', True, ocr_processing_time)
     
-    # Extract images from the PDF
-    extract_images_from_pdf(file_to_ocr)
-    
     # Ensure the /tmp/ directory exists
     imgs_path = "/tmp/"
     os.makedirs(imgs_path, exist_ok=True)
     
+    # Extract images from the PDF
+    convert_pdf_into_image(file_to_ocr)
+    
     # Determine the path for the temporary images
-    imgs = glob.glob(f"{imgs_path}/page*.jpeg")
+    imgs = glob.glob(f"{imgs_path}/page*.png")
     
     # Limit images by config
     imgs = imgs[:config.max_images]
@@ -176,7 +176,7 @@ def run_ocr_and_gpt(file_to_ocr: str, prompt: str, json_schema: str, document: d
     update_state(document, container, 'gpt_extraction_completed', True, gpt_extraction_time)
     
     # Delete all generated images created after processing
-    for img_path in glob.glob(f"{imgs_path}/page*.jpeg"):
+    for img_path in glob.glob(f"{imgs_path}/page*.png"):
         try:
             os.remove(img_path)
             print(f"Deleted image: {img_path}")
