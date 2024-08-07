@@ -52,7 +52,9 @@ class JsonEvaluator:
                         actual,
                         eval_schema.get(wrapper.name, None),
                     )
-                self.add_score(wrapper, score, curr_key)
+                wrapper.total_strings_compared += 1
+                self.result[f"{wrapper.name}.{curr_key}"] = score
+                wrapper.total_score += score
 
     def compare_dicts(self, ground_truth_dict, actual_dict, eval_schema, curr_key=None):
         for key in ground_truth_dict:
@@ -87,8 +89,3 @@ class JsonEvaluator:
                 curr_eval_schema,
                 next_key,
             )
-
-    def add_score(self, wrapper, score, key):
-        wrapper.total_strings_compared += 1
-        self.result[f"{wrapper.name}.{key}"] = score
-        wrapper.total_score += score
