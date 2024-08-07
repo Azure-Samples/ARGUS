@@ -39,8 +39,8 @@ class TestJsonEvaluator(unittest.TestCase):
                 },
                 # key5 is missing
             },
+            # key3 is missing
             "key4": "value10",  # correct 6
-            # key2 is missing
         }
         # Total correct = 6
         # ratio = 6/10 = 0.6
