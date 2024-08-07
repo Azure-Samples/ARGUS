@@ -21,3 +21,4 @@ python-multipart
 promptflow-evals
 jsonpath-ng
 thefuzz
+seaborn

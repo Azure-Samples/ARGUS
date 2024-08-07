@@ -1,0 +1,413 @@
+{
+    "rows": [
+        {
+            "inputs.ground_truth": {
+                "Customer Name": "Happiest Valley Farms",
+                "Invoice Number": "1234",
+                "Date": "November 30, 2022",
+                "Billing info": {
+                    "Customer": "Henry Ross",
+                    "Customer ID": "8675309",
+                    "Address": "123 Avenue A, Metropolis",
+                    "Phone": "(123) 456-7890"
+                },
+                "Payment Due": "December 30, 2022",
+                "Salesperson": "Luca Richter",
+                "Payment Terms": "Cash or check",
+                "Shipping info": {
+                    "Recipient": "Henry Ross",
+                    "Address": "123 Avenue A, Metropolis",
+                    "Phone": "(123) 456-7890"
+                },
+                "Delivery Date": "December 7, 2022",
+                "Shipping Method": "Ground",
+                "Shipping Terms": "Returns not accepted",
+                "Table": {
+                    "Items": [
+                        {
+                            "Qty": 10,
+                            "Item#": 123,
+                            "Description": "Baby chicks",
+                            "Unit price": 5.0,
+                            "Discount": "10%",
+                            "Line total": 45.0
+                        },
+                        {
+                            "Qty": 2,
+                            "Item#": 444,
+                            "Description": "Heat lamps",
+                            "Discount": "",
+                            "Unit price": 24.0,
+                            "Line total": 48.0
+                        },
+                        {
+                            "Qty": 6,
+                            "Item#": 120,
+                            "Description": "Chicken roosts",
+                            "Discount": "",
+                            "Unit price": 30.0,
+                            "Line total": 180.0
+                        }
+                    ],
+                    "Total Discount": 5.0,
+                    "Subtotal": 278.0,
+                    "Sales Tax": 13.9,
+                    "Total": 286.9
+                },
+                "Footer": {
+                    "Customer Name": "Happiest Valley Farms",
+                    "Address": "456 Anyroad, Anywhere",
+                    "Website": "interstingsite.com",
+                    "Phone number": "(123)987-6543",
+                    "Fax number": "(123)987-6542",
+                    "Email": "happiest@example.com"
+                }
+            },
+            "inputs.actual": {
+                "Customer Name": "Henry Ross",
+                "Invoice Number": "1234",
+                "Date": "November 30, 2022",
+                "Billing info": {
+                    "Customer": "Henry Ross",
+                    "Customer ID": "8675309",
+                    "Address": "123 Avenue A, Metropolis",
+                    "Phone": "(123) 456-7890"
+                },
+                "Payment Due": "December 30, 2022",
+                "Salesperson": "Luca Richter",
+                "Payment Terms": "Cash or check",
+                "Shipping info": {
+                    "Recipient": "Henry Ross",
+                    "Address": "123 Avenue A, Metropolis",
+                    "Phone": "(123) 456-7890"
+                },
+                "Delivery Date": "December 7, 2022",
+                "Shipping Method": "Ground",
+                "Shipping Terms": "Returns not accepted",
+                "Table": {
+                    "Items": [
+                        {
+                            "Qty": "10",
+                            "Item#": "123",
+                            "Description": "Baby chicks",
+                            "Unit price": "5.00",
+                            "Discount": "10%",
+                            "Line total": "45.00"
+                        },
+                        {
+                            "Qty": "2",
+                            "Item#": "444",
+                            "Description": "Heat lamps",
+                            "Unit price": "24.00",
+                            "Discount": "",
+                            "Line total": "48.00"
+                        },
+                        {
+                            "Qty": "6",
+                            "Item#": "120",
+                            "Description": "Chicken roosts",
+                            "Unit price": "30.00",
+                            "Discount": "",
+                            "Line total": "180.00"
+                        }
+                    ],
+                    "Total Discount": "5.00",
+                    "Subtotal": "278,00",
+                    "Sales Tax": "13.90",
+                    "Total": "286.90"
+                },
+                "Footer": {
+                    "Customer Name": "Happiest Valley Farms",
+                    "Address": "456 Anyroad, Anywhere",
+                    "Website": "interestingsite.com",
+                    "Phone number": "(123) 987-6543",
+                    "Fax number": "(123) 987-6542",
+                    "Email": "happiest@example.com"
+                }
+            },
+            "inputs.eval_schema": {
+                "Customer Name": {
+                    "CustomStringEvaluator": {
+                        "IGNORE_DOTS": "True"
+                    }
+                },
+                "Invoice Number": {
+                    "CustomStringEvaluator": {
+                        "IGNORE_NUMBER_SIGN": "True"
+                    },
+                    "Date": {},
+                    "Billing info": {
+                        "Customer": {},
+                        "Customer ID": {},
+                        "Address": {
+                            "CustomStringEvaluator": {
+                                "IGNORE_COMMAS": "True"
+                            }
+                        },
+                        "Phone": {
+                            "CustomStringEvaluator": {
+                                "IGNORE_DASHES": "True",
+                                "IGNORE_PARENTHETHES": "True"
+                            }
+                        }
+                    },
+                    "Payment Due": {},
+                    "Salesperson": {},
+                    "Payment Terms": {},
+                    "Shipping info": {
+                        "Recipient": {},
+                        "Address": {},
+                        "Phone": {
+                            "CustomStringEvaluator": {
+                                "IGNORE_DASHES": "True",
+                                "IGNORE_PARENTHETHES": "True"
+                            }
+                        }
+                    },
+                    "Delivery Date": {
+                        "CustomStringEvaluator": {
+                            "IGNORE_COMMAS": "True"
+                        }
+                    },
+                    "Shipping Method": {},
+                    "Shipping Terms": {},
+                    "Table": {
+                        "Items": [
+                            {
+                                "Qty": {},
+                                "Item#": {},
+                                "Description": {},
+                                "Unit price": {},
+                                "Discount": {
+                                    "CustomStringEvaluator": {
+                                        "IGNORE_PERCENTAGE_SIGN": "True"
+                                    }
+                                },
+                                "Line total": {}
+                            },
+                            {
+                                "Qty": {},
+                                "Item#": {},
+                                "Description": {},
+                                "Unit price": {},
+                                "Discount": {
+                                    "CustomStringEvaluator": {
+                                        "IGNORE_PERCENTAGE_SIGN": "True"
+                                    }
+                                },
+                                "Line total": {}
+                            },
+                            {
+                                "Qty": {},
+                                "Item#": {},
+                                "Description": {},
+                                "Unit price": {},
+                                "Discount": {
+                                    "CustomStringEvaluator": {
+                                        "IGNORE_PERCENTAGE_SIGN": "True"
+                                    }
+                                },
+                                "Line total": {}
+                            }
+                        ],
+                        "Total Discount": {},
+                        "Subtotal": {},
+                        "Sales Tax": {},
+                        "Total": {}
+                    },
+                    "Footer": {
+                        "Customer Name": {},
+                        "Address": {},
+                        "Website": {},
+                        "Phone number": {},
+                        "Fax number": {},
+                        "Email": {}
+                    }
+                }
+            },
+            "outputs.json_evaluator.CustomStringEvaluator.Customer Name": 0,
+            "outputs.json_evaluator.FuzzStringEvaluator.Customer Name": 0.33,
+            "outputs.json_evaluator.CustomStringEvaluator.Invoice Number": 1,
+            "outputs.json_evaluator.FuzzStringEvaluator.Invoice Number": 1,
+            "outputs.json_evaluator.CustomStringEvaluator.Date": 1,
+            "outputs.json_evaluator.FuzzStringEvaluator.Date": 1,
+            "outputs.json_evaluator.CustomStringEvaluator.Billing info.Customer": 1,
+            "outputs.json_evaluator.FuzzStringEvaluator.Billing info.Customer": 1,
+            "outputs.json_evaluator.CustomStringEvaluator.Billing info.Customer ID": 1,
+            "outputs.json_evaluator.FuzzStringEvaluator.Billing info.Customer ID": 1,
+            "outputs.json_evaluator.CustomStringEvaluator.Billing info.Address": 1,
+            "outputs.json_evaluator.FuzzStringEvaluator.Billing info.Address": 1,
+            "outputs.json_evaluator.CustomStringEvaluator.Billing info.Phone": 1,
+            "outputs.json_evaluator.FuzzStringEvaluator.Billing info.Phone": 1,
+            "outputs.json_evaluator.CustomStringEvaluator.Payment Due": 1,
+            "outputs.json_evaluator.FuzzStringEvaluator.Payment Due": 1,
+            "outputs.json_evaluator.CustomStringEvaluator.Salesperson": 1,
+            "outputs.json_evaluator.FuzzStringEvaluator.Salesperson": 1,
+            "outputs.json_evaluator.CustomStringEvaluator.Payment Terms": 1,
+            "outputs.json_evaluator.FuzzStringEvaluator.Payment Terms": 1,
+            "outputs.json_evaluator.CustomStringEvaluator.Shipping info.Recipient": 1,
+            "outputs.json_evaluator.FuzzStringEvaluator.Shipping info.Recipient": 1,
+            "outputs.json_evaluator.CustomStringEvaluator.Shipping info.Address": 1,
+            "outputs.json_evaluator.FuzzStringEvaluator.Shipping info.Address": 1,
+            "outputs.json_evaluator.CustomStringEvaluator.Shipping info.Phone": 1,
+            "outputs.json_evaluator.FuzzStringEvaluator.Shipping info.Phone": 1,
+            "outputs.json_evaluator.CustomStringEvaluator.Delivery Date": 1,
+            "outputs.json_evaluator.FuzzStringEvaluator.Delivery Date": 1,
+            "outputs.json_evaluator.CustomStringEvaluator.Shipping Method": 1,
+            "outputs.json_evaluator.FuzzStringEvaluator.Shipping Method": 1,
+            "outputs.json_evaluator.CustomStringEvaluator.Shipping Terms": 1,
+            "outputs.json_evaluator.FuzzStringEvaluator.Shipping Terms": 1,
+            "outputs.json_evaluator.CustomStringEvaluator.Table.Items[0].Qty": 1,
+            "outputs.json_evaluator.FuzzStringEvaluator.Table.Items[0].Qty": 1,
+            "outputs.json_evaluator.CustomStringEvaluator.Table.Items[0].Item#": 1,
+            "outputs.json_evaluator.FuzzStringEvaluator.Table.Items[0].Item#": 1,
+            "outputs.json_evaluator.CustomStringEvaluator.Table.Items[0].Description": 1,
+            "outputs.json_evaluator.FuzzStringEvaluator.Table.Items[0].Description": 1,
+            "outputs.json_evaluator.CustomStringEvaluator.Table.Items[0].Unit price": 0,
+            "outputs.json_evaluator.FuzzStringEvaluator.Table.Items[0].Unit price": 1,
+            "outputs.json_evaluator.CustomStringEvaluator.Table.Items[0].Discount": 1,
+            "outputs.json_evaluator.FuzzStringEvaluator.Table.Items[0].Discount": 1,
+            "outputs.json_evaluator.CustomStringEvaluator.Table.Items[0].Line total": 0,
+            "outputs.json_evaluator.FuzzStringEvaluator.Table.Items[0].Line total": 1,
+            "outputs.json_evaluator.CustomStringEvaluator.Table.Items[1].Qty": 1,
+            "outputs.json_evaluator.FuzzStringEvaluator.Table.Items[1].Qty": 1,
+            "outputs.json_evaluator.CustomStringEvaluator.Table.Items[1].Item#": 1,
+            "outputs.json_evaluator.FuzzStringEvaluator.Table.Items[1].Item#": 1,
+            "outputs.json_evaluator.CustomStringEvaluator.Table.Items[1].Description": 1,
+            "outputs.json_evaluator.FuzzStringEvaluator.Table.Items[1].Description": 1,
+            "outputs.json_evaluator.CustomStringEvaluator.Table.Items[1].Discount": 1,
+            "outputs.json_evaluator.FuzzStringEvaluator.Table.Items[1].Discount": 0,
+            "outputs.json_evaluator.CustomStringEvaluator.Table.Items[1].Unit price": 0,
+            "outputs.json_evaluator.FuzzStringEvaluator.Table.Items[1].Unit price": 1,
+            "outputs.json_evaluator.CustomStringEvaluator.Table.Items[1].Line total": 0,
+            "outputs.json_evaluator.FuzzStringEvaluator.Table.Items[1].Line total": 1,
+            "outputs.json_evaluator.CustomStringEvaluator.Table.Items[2].Qty": 1,
+            "outputs.json_evaluator.FuzzStringEvaluator.Table.Items[2].Qty": 1,
+            "outputs.json_evaluator.CustomStringEvaluator.Table.Items[2].Item#": 1,
+            "outputs.json_evaluator.FuzzStringEvaluator.Table.Items[2].Item#": 1,
+            "outputs.json_evaluator.CustomStringEvaluator.Table.Items[2].Description": 1,
+            "outputs.json_evaluator.FuzzStringEvaluator.Table.Items[2].Description": 1,
+            "outputs.json_evaluator.CustomStringEvaluator.Table.Items[2].Discount": 1,
+            "outputs.json_evaluator.FuzzStringEvaluator.Table.Items[2].Discount": 0,
+            "outputs.json_evaluator.CustomStringEvaluator.Table.Items[2].Unit price": 0,
+            "outputs.json_evaluator.FuzzStringEvaluator.Table.Items[2].Unit price": 1,
+            "outputs.json_evaluator.CustomStringEvaluator.Table.Items[2].Line total": 0,
+            "outputs.json_evaluator.FuzzStringEvaluator.Table.Items[2].Line total": 1,
+            "outputs.json_evaluator.CustomStringEvaluator.Table.Total Discount": 0,
+            "outputs.json_evaluator.FuzzStringEvaluator.Table.Total Discount": 1,
+            "outputs.json_evaluator.CustomStringEvaluator.Table.Subtotal": 0,
+            "outputs.json_evaluator.FuzzStringEvaluator.Table.Subtotal": 1,
+            "outputs.json_evaluator.CustomStringEvaluator.Table.Sales Tax": 0,
+            "outputs.json_evaluator.FuzzStringEvaluator.Table.Sales Tax": 1,
+            "outputs.json_evaluator.CustomStringEvaluator.Table.Total": 0,
+            "outputs.json_evaluator.FuzzStringEvaluator.Table.Total": 1,
+            "outputs.json_evaluator.CustomStringEvaluator.Footer.Customer Name": 1,
+            "outputs.json_evaluator.FuzzStringEvaluator.Footer.Customer Name": 1,
+            "outputs.json_evaluator.CustomStringEvaluator.Footer.Address": 1,
+            "outputs.json_evaluator.FuzzStringEvaluator.Footer.Address": 1,
+            "outputs.json_evaluator.CustomStringEvaluator.Footer.Website": 0,
+            "outputs.json_evaluator.FuzzStringEvaluator.Footer.Website": 1,
+            "outputs.json_evaluator.CustomStringEvaluator.Footer.Phone number": 0,
+            "outputs.json_evaluator.FuzzStringEvaluator.Footer.Phone number": 1,
+            "outputs.json_evaluator.CustomStringEvaluator.Footer.Fax number": 0,
+            "outputs.json_evaluator.FuzzStringEvaluator.Footer.Fax number": 1,
+            "outputs.json_evaluator.CustomStringEvaluator.Footer.Email": 1,
+            "outputs.json_evaluator.FuzzStringEvaluator.Footer.Email": 1,
+            "outputs.json_evaluator.CustomStringEvaluator.ratio": 0.6818181818,
+            "outputs.json_evaluator.FuzzStringEvaluator.ratio": 0.9393181818
+        }
+    ],
+    "metrics":{
+        "json_evaluator.CustomStringEvaluator.Customer Name": 0.0,
+        "json_evaluator.FuzzStringEvaluator.Customer Name": 0.33,
+        "json_evaluator.CustomStringEvaluator.Invoice Number": 0.0,
+        "json_evaluator.FuzzStringEvaluator.Invoice Number": 0.0,
+        "json_evaluator.CustomStringEvaluator.Date": 1.0,
+        "json_evaluator.FuzzStringEvaluator.Date": 1.0,
+        "json_evaluator.CustomStringEvaluator.Billing info.Customer": 1.0,
+        "json_evaluator.FuzzStringEvaluator.Billing info.Customer": 0.0,
+        "json_evaluator.CustomStringEvaluator.Billing info.Customer ID": 0.0,
+        "json_evaluator.FuzzStringEvaluator.Billing info.Customer ID": 0.0,
+        "json_evaluator.CustomStringEvaluator.Billing info.Address": 0.0,
+        "json_evaluator.FuzzStringEvaluator.Billing info.Address": 0.0,
+        "json_evaluator.CustomStringEvaluator.Billing info.Phone": 1.0,
+        "json_evaluator.FuzzStringEvaluator.Billing info.Phone": 1.0,
+        "json_evaluator.CustomStringEvaluator.Payment Due": 1.0,
+        "json_evaluator.FuzzStringEvaluator.Payment Due": 0.0,
+        "json_evaluator.CustomStringEvaluator.Salesperson": 0.0,
+        "json_evaluator.FuzzStringEvaluator.Salesperson": 0.0,
+        "json_evaluator.CustomStringEvaluator.Payment Terms": 0.0,
+        "json_evaluator.FuzzStringEvaluator.Payment Terms": 0.0,
+        "json_evaluator.CustomStringEvaluator.Shipping info.Recipient": 1.0,
+        "json_evaluator.FuzzStringEvaluator.Shipping info.Recipient": 0.0,
+        "json_evaluator.CustomStringEvaluator.Shipping info.Address": 0.0,
+        "json_evaluator.FuzzStringEvaluator.Shipping info.Address": 1.0,
+        "json_evaluator.CustomStringEvaluator.Shipping info.Phone": 1.0,
+        "json_evaluator.FuzzStringEvaluator.Shipping info.Phone": 1.0,
+        "json_evaluator.CustomStringEvaluator.Delivery Date": 0.0,
+        "json_evaluator.FuzzStringEvaluator.Delivery Date": 0.0,
+        "json_evaluator.CustomStringEvaluator.Shipping Method": 0.0,
+        "json_evaluator.FuzzStringEvaluator.Shipping Method": 1.0,
+        "json_evaluator.CustomStringEvaluator.Shipping Terms": 0.0,
+        "json_evaluator.FuzzStringEvaluator.Shipping Terms": 1.0,
+        "json_evaluator.CustomStringEvaluator.Table.Items[0].Qty": 0.0,
+        "json_evaluator.FuzzStringEvaluator.Table.Items[0].Qty": 0.0,
+        "json_evaluator.CustomStringEvaluator.Table.Items[0].Item#": 1.0,
+        "json_evaluator.FuzzStringEvaluator.Table.Items[0].Item#": 1.0,
+        "json_evaluator.CustomStringEvaluator.Table.Items[0].Description": 1.0,
+        "json_evaluator.FuzzStringEvaluator.Table.Items[0].Description": 1.0,
+        "json_evaluator.CustomStringEvaluator.Table.Items[0].Unit price": 1.0,
+        "json_evaluator.FuzzStringEvaluator.Table.Items[0].Unit price": 1.0,
+        "json_evaluator.CustomStringEvaluator.Table.Items[0].Discount": 1.0,
+        "json_evaluator.FuzzStringEvaluator.Table.Items[0].Discount": 0.0,
+        "json_evaluator.CustomStringEvaluator.Table.Items[0].Line total": 1.0,
+        "json_evaluator.FuzzStringEvaluator.Table.Items[0].Line total": 0.0,
+        "json_evaluator.CustomStringEvaluator.Table.Items[1].Qty": 0.0,
+        "json_evaluator.FuzzStringEvaluator.Table.Items[1].Qty": 1.0,
+        "json_evaluator.CustomStringEvaluator.Table.Items[1].Item#": 1.0,
+        "json_evaluator.FuzzStringEvaluator.Table.Items[1].Item#": 0.0,
+        "json_evaluator.CustomStringEvaluator.Table.Items[1].Description": 0.0,
+        "json_evaluator.FuzzStringEvaluator.Table.Items[1].Description": 1.0,
+        "json_evaluator.CustomStringEvaluator.Table.Items[1].Discount": 1.0,
+        "json_evaluator.FuzzStringEvaluator.Table.Items[1].Discount": 0.0,
+        "json_evaluator.CustomStringEvaluator.Table.Items[1].Unit price": 1.0,
+        "json_evaluator.FuzzStringEvaluator.Table.Items[1].Unit price": 0.0,
+        "json_evaluator.CustomStringEvaluator.Table.Items[1].Line total": 0.0,
+        "json_evaluator.FuzzStringEvaluator.Table.Items[1].Line total": 0.0,
+        "json_evaluator.CustomStringEvaluator.Table.Items[2].Qty": 1.0,
+        "json_evaluator.FuzzStringEvaluator.Table.Items[2].Qty": 1.0,
+        "json_evaluator.CustomStringEvaluator.Table.Items[2].Item#": 1.0,
+        "json_evaluator.FuzzStringEvaluator.Table.Items[2].Item#": 1.0,
+        "json_evaluator.CustomStringEvaluator.Table.Items[2].Description": 1.0,
+        "json_evaluator.FuzzStringEvaluator.Table.Items[2].Description": 0.0,
+        "json_evaluator.CustomStringEvaluator.Table.Items[2].Discount": 1.0,
+        "json_evaluator.FuzzStringEvaluator.Table.Items[2].Discount": 0.0,
+        "json_evaluator.CustomStringEvaluator.Table.Items[2].Unit price": 1.0,
+        "json_evaluator.FuzzStringEvaluator.Table.Items[2].Unit price": 1.0,
+        "json_evaluator.CustomStringEvaluator.Table.Items[2].Line total": 0.0,
+        "json_evaluator.FuzzStringEvaluator.Table.Items[2].Line total": 1.0,
+        "json_evaluator.CustomStringEvaluator.Table.Total Discount": 0.0,
+        "json_evaluator.FuzzStringEvaluator.Table.Total Discount": 0.0,
+        "json_evaluator.CustomStringEvaluator.Table.Subtotal": 1.0,
+        "json_evaluator.FuzzStringEvaluator.Table.Subtotal": 1.0,
+        "json_evaluator.CustomStringEvaluator.Table.Sales Tax": 0.0,
+        "json_evaluator.FuzzStringEvaluator.Table.Sales Tax": 0.0,
+        "json_evaluator.CustomStringEvaluator.Table.Total": 0.0,
+        "json_evaluator.FuzzStringEvaluator.Table.Total": 1.0,
+        "json_evaluator.CustomStringEvaluator.Footer.Customer Name": 0.0,
+        "json_evaluator.FuzzStringEvaluator.Footer.Customer Name": 0.0,
+        "json_evaluator.CustomStringEvaluator.Footer.Address": 0.0,
+        "json_evaluator.FuzzStringEvaluator.Footer.Address": 0.0,
+        "json_evaluator.CustomStringEvaluator.Footer.Website": 1.0,
+        "json_evaluator.FuzzStringEvaluator.Footer.Website": 1.0,
+        "json_evaluator.CustomStringEvaluator.Footer.Phone number": 0.0,
+        "json_evaluator.FuzzStringEvaluator.Footer.Phone number": 0.0,
+        "json_evaluator.CustomStringEvaluator.Footer.Fax number": 0.0,
+        "json_evaluator.FuzzStringEvaluator.Footer.Fax number": 1.0,
+        "json_evaluator.CustomStringEvaluator.Footer.Email": 0.0,
+        "json_evaluator.FuzzStringEvaluator.Footer.Email": 0.0,
+        "json_evaluator.CustomStringEvaluator.ratio": 0.88,
+        "json_evaluator.FuzzStringEvaluator.ratio": 0.9393181818
+    },
+    "studio_url": null
+}
