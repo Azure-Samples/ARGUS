@@ -29,7 +29,7 @@ class JsonEvaluator:
         self.result = {}
 
     def __call__(self, ground_truth, actual, eval_schema={}):
-        self.compare_dicts(ground_truth, actual, eval_schema)
+        self.compare_values(ground_truth, actual, eval_schema, None)
         for wrapper in self.eval_wrappers:
             self.result[f"{wrapper.name}.ratio"] = (
                 wrapper.calculate_ratio()
@@ -38,42 +38,54 @@ class JsonEvaluator:
         return self.result
 
     def compare_values(self, ground_truth, actual, eval_schema, curr_key):
-        if isinstance(ground_truth, dict) and isinstance(actual, dict):
+        if isinstance(ground_truth, dict):
             return self.compare_dicts(ground_truth, actual, eval_schema, curr_key)
-        elif isinstance(ground_truth, list) and isinstance(actual, list):
+        elif isinstance(ground_truth, list):
             return self.compare_lists(ground_truth, actual, eval_schema, curr_key)
         else:
             for wrapper in self.eval_wrappers:
-                score = wrapper.instance(
-                    ground_truth,
-                    actual,
-                    eval_schema.get(wrapper.name, None),
-                )
+                if actual is None:
+                    score = 0
+                else:
+                    score = wrapper.instance(
+                        ground_truth,
+                        actual,
+                        eval_schema.get(wrapper.name, None),
+                    )
                 wrapper.total_strings_compared += 1
                 self.result[f"{wrapper.name}.{curr_key}"] = score
                 wrapper.total_score += score
 
     def compare_dicts(self, ground_truth_dict, actual_dict, eval_schema, curr_key=None):
         for key in ground_truth_dict:
-            if key not in actual_dict:
-                for string_evaluator in self.eval_wrappers:
-                    string_evaluator.total_strings_compared += 1
-            else:
-                next_key = f"{curr_key}.{key}" if curr_key is not None else key
-                self.compare_values(
-                    ground_truth_dict[key],
-                    actual_dict[key],
-                    eval_schema.get(key, {}),
-                    next_key,
-                )
+            # handle defaults if is None
+            next_key = f"{curr_key}.{key}" if curr_key is not None else key
+            actual = actual_dict.get(key, None) if actual_dict is not None else None
+            curr_eval_schema = eval_schema.get(key, {}) if eval_schema is not None else {}
+            
+            self.compare_values(
+                ground_truth_dict[key],
+                actual,
+                curr_eval_schema,
+                next_key,
+            )
 
     def compare_lists(self, ground_truth_list, actual_list, eval_schema, curr_key):
-        if not eval_schema:
-            eval_schema = [{}] * len(ground_truth_list)
+        for i in range(len(ground_truth_list)):
+            # handle defaults if is None
+            next_key = f"{curr_key}[{i}]" if curr_key is not None else f"[{i}]"
+            try:
+                actual = actual_list[i]
+            except Exception:
+                actual = None
+            try:
+                curr_eval_schema = eval_schema[i]
+            except Exception:
+                curr_eval_schema = {}
 
-        for i, (ground_truth_item, actual_item, schema) in enumerate(
-            zip(ground_truth_list, actual_list, eval_schema)
-        ):
             self.compare_values(
-                ground_truth_item, actual_item, schema, f"{curr_key}[{i}]"
+                ground_truth_list[i],
+                actual,
+                curr_eval_schema,
+                next_key,
             )

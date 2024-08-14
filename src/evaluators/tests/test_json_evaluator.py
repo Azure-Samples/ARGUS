@@ -39,8 +39,8 @@ class TestJsonEvaluator(unittest.TestCase):
                 },
                 # key5 is missing
             },
+            # key3 is missing
             "key4": "value10",  # correct 6
-            # key2 is missing
         }
         # Total correct = 6
         # ratio = 6/10 = 0.6
@@ -167,3 +167,84 @@ class TestJsonEvaluator(unittest.TestCase):
         result = json_evaluator(ground_truth_data, actual_data)
         assert result["CustomStringEvaluator.ratio"] == 0.5
         assert result['FuzzStringEvaluator.ratio'] == 0.764
+
+    def test_json_evaluator_different_array_length_in_actual(self):
+        ground_truth_data = {
+            "key1": "value1",  # value 1
+            "key2": ["test1", "test2", "test3"],  # Values 2, 3, 4
+        }
+        # Total values = 4
+
+        actual_data = {
+            "key1": "value1",   # correct 1
+            "key2": ["test1"],  # correct 2, wrong 1, wrong 2 (missing index 1, 2)
+        }
+
+        evaluators = [CustomStringEvaluator()]
+
+        # Total correct = 2
+        # ratio = 2/4 = 0.5
+
+        json_evaluator = JsonEvaluator(evaluators)
+        result = json_evaluator(ground_truth_data, actual_data)
+        assert result["CustomStringEvaluator.ratio"] == 0.5
+        assert result['CustomStringEvaluator.key1'] == 1
+        assert result['CustomStringEvaluator.key2[0]'] == 1
+        assert result['CustomStringEvaluator.key2[1]'] == 0
+        assert result['CustomStringEvaluator.key2[2]'] == 0
+
+    def test_json_evaluator_handles_array_first_value(self):
+        ground_truth_data = [
+            {"key1": "value1"},  # value 1
+            {"key2": ["1", "2", "3"]},
+            "array_value_3"
+        ]
+        # Total values = 5
+
+        actual_data = [
+            {"key1": "value1"},  # correct 1
+            {"key2": ["1", "wrong", "3"]}, # correct 2, wrong 1, correct 3
+            "array_value_3" # correct 4
+        ]
+
+        # Total correct = 4
+        # ratio = 4/5 = 0.8
+
+        evaluators = [CustomStringEvaluator()]
+
+        json_evaluator = JsonEvaluator(evaluators)
+        result = json_evaluator(ground_truth_data, actual_data)
+        assert result["CustomStringEvaluator.ratio"] == 0.8
+        assert result['CustomStringEvaluator.[0].key1'] == 1
+        assert result['CustomStringEvaluator.[1].key2[0]'] == 1
+        assert result['CustomStringEvaluator.[1].key2[1]'] == 0
+        assert result['CustomStringEvaluator.[1].key2[2]'] == 1
+        assert result['CustomStringEvaluator.[2]'] == 1
+
+    def test_json_evaluator_handles_array_dict_mismatch(self):
+        ground_truth_data = [
+            {"key1": "value1"},  # value 1
+            {"key2": ["1", "2", "3"]},
+            "array_value_3"
+        ]
+        # Total values = 5
+
+        # all values should be wrong, as this is a dict and not an array
+        actual_data = {
+            "key1": "value1",
+            "key2": ["1", "wrong", "3"],  
+        }
+
+        # Total correct = 0
+        # ratio = 0/5 = 0
+
+        evaluators = [CustomStringEvaluator()]
+
+        json_evaluator = JsonEvaluator(evaluators)
+        result = json_evaluator(ground_truth_data, actual_data)
+        assert result["CustomStringEvaluator.ratio"] == 0
+        assert result['CustomStringEvaluator.[0].key1'] == 0
+        assert result['CustomStringEvaluator.[1].key2[0]'] == 0
+        assert result['CustomStringEvaluator.[1].key2[1]'] == 0
+        assert result['CustomStringEvaluator.[1].key2[2]'] == 0
+        assert result['CustomStringEvaluator.[2]'] == 0
