@@ -50,13 +50,16 @@ def handle_timeout_error(myblob, data_container):
         logging.error(f"Failed to upsert item to Cosmos DB: {str(e)}")
         
 
+# Update the main function to include GPT evaluation
 def process_blob(myblob: func.InputStream, data_container):
     temp_file_path, num_pages, file_size = write_blob_to_temp_file(myblob)
     document = initialize_document_data(myblob, temp_file_path, num_pages, file_size, data_container)
-    ocr_response, gpt_response, processing_times = run_ocr_and_gpt_processing(temp_file_path, document, data_container)
+    ocr_response, gpt_response, evaluation_result, processing_times = run_ocr_and_gpt_processing(temp_file_path, document, data_container)
     process_gpt_summary(ocr_response, document, data_container)
-    update_final_document(document, gpt_response, ocr_response, processing_times, data_container)
+    update_final_document(document, gpt_response, ocr_response, evaluation_result, processing_times, data_container)
     return document
+
+
 
 
 def initialize_document_data(myblob, temp_file_path, num_pages, file_size, data_container):
@@ -83,10 +86,11 @@ def run_ocr_and_gpt_processing(temp_file_path, document, data_container):
         sys.exit(1) 
         raise
 
-def update_final_document(document, gpt_response, ocr_response, processing_times, data_container):
+def update_final_document(document, gpt_response, ocr_response, evaluation_result, processing_times, data_container):
     timer_stop = datetime.now()
     document['properties']['total_time_seconds'] = (timer_stop - datetime.fromisoformat(document['properties']['request_timestamp'])).total_seconds()
     document['extracted_data'].update({
+        "gpt_extraction_output_with_evaluation": json.loads(evaluation_result),
         "gpt_extraction_output": json.loads(gpt_response),
         "ocr_output": ocr_response
     })

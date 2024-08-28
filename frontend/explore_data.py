@@ -106,6 +106,7 @@ def explore_data_tab():
                 'File Landed': format_finished(item.get('state.file_landed', False), errors),
                 'OCR Extraction': format_finished(item.get('state.ocr_completed', False), errors),
                 'GPT Extraction': format_finished(item.get('state.gpt_extraction_completed', False), errors),
+                'GPT Evaluation': format_finished(item.get('state.gpt_evaluation_completed', False), errors),
                 'GPT Summary': format_finished(item.get('state.gpt_summary_completed', False), errors),
                 'Finished': format_finished(item.get('state.processing_completed', False), errors),
                 'Request Timestamp': datetime.fromisoformat(item.get('properties.request_timestamp', '')),
@@ -227,7 +228,10 @@ def explore_data_tab():
 
                     with json_col:
                         if json_data:
-                            st.json(json_data['extracted_data']['gpt_extraction_output'])
+                            try:
+                                st.json(json_data['extracted_data']['gpt_extraction_output_with_evaluation'])
+                            except:
+                                st.json(json_data['extracted_data']['gpt_extraction_output'])
 
                 elif len(selected_rows) > 1:
                     st.warning('Please select exactly one item to show extraction.')

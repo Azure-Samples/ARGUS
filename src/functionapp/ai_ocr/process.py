@@ -7,7 +7,7 @@ from langchain_core.output_parsers.json import parse_json_markdown
 
 from ai_ocr.azure.doc_intelligence import get_ocr_results
 from ai_ocr.azure.openai_ops import load_image, get_size_of_base64_images
-from ai_ocr.chains import get_structured_data, get_summary_with_gpt
+from ai_ocr.chains import get_structured_data, get_summary_with_gpt, perform_gpt_evaluation_and_enrichment
 from ai_ocr.model import Config
 from ai_ocr.azure.images import convert_pdf_into_image
 
@@ -36,14 +36,14 @@ def initialize_document(file_name: str, file_size: int, num_pages:int, prompt: s
             "file_landed": False,
             "ocr_completed": False,
             "gpt_extraction_completed": False,
+            "gpt_evaluation_completed": False,
             "gpt_summary_completed": False,
             "processing_completed": False
         },
         "extracted_data": {
-            "classification": 'N/A',
-            "accuracy": 0,  # Placeholder for accuracy, add actual logic if needed
             "ocr_output": '',
             "gpt_extraction_output": {},
+            "gpt_extraction_output_with_evaluation": {},
             "gpt_summary_output": ''
         },
         "model_input":{
@@ -134,8 +134,7 @@ def fetch_model_prompt_and_schema(dataset_type):
     example_schema = config_item[dataset_type]['example_schema']
     return model_prompt, example_schema
 
-
-def run_ocr_and_gpt(file_to_ocr: str, prompt: str, json_schema: str, document: dict, container: any, config: Config = Config()) -> (any, dict):
+def run_ocr_and_gpt(file_to_ocr: str, prompt: str, json_schema: str, document: dict, container: any, config: Config = Config()) -> (any, dict, dict):
     processing_times = {}
 
     # Get OCR results
@@ -175,6 +174,18 @@ def run_ocr_and_gpt(file_to_ocr: str, prompt: str, json_schema: str, document: d
     # Update state after GPT extraction
     update_state(document, container, 'gpt_extraction_completed', True, gpt_extraction_time)
     
+    # Parse structured data
+    extracted_data = parse_json_markdown(structured.content)
+
+    # Perform GPT evaluation and enrichment
+    evaluation_start_time = datetime.now()
+    enriched_data = perform_gpt_evaluation_and_enrichment(imgs, extracted_data, json_schema)
+    evaluation_time = (datetime.now() - evaluation_start_time).total_seconds()
+    processing_times['gpt_evaluation_time'] = evaluation_time
+
+    # Update state after GPT evaluation
+    update_state(document, container, 'gpt_evaluation_completed', True, evaluation_time)
+
     # Delete all generated images created after processing
     for img_path in glob.glob(f"{imgs_path}/page*.png"):
         try:
@@ -182,10 +193,11 @@ def run_ocr_and_gpt(file_to_ocr: str, prompt: str, json_schema: str, document: d
             print(f"Deleted image: {img_path}")
         except Exception as e:
             print(f"Error deleting image {img_path}: {e}")
-    
-    # Parse structured data and return as JSON
-    x = parse_json_markdown(structured.content)  
-    return ocr_result.content, json.dumps(x), processing_times
+
+    return ocr_result.content, json.dumps(extracted_data), json.dumps(enriched_data), processing_times
+
+
+
 
 def process_gpt_summary(ocr_response, document, container):
     try:
@@ -205,3 +217,4 @@ def process_gpt_summary(ocr_response, document, container):
         update_state(document, container, 'gpt_summary_completed', False)
         sys.exit(1)  # Exit with error
         raise
+
