@@ -16,3 +16,4 @@ langchain_openai==0.1.10
 tiktoken==0.7.0
 python-multipart==0.0.9
 azure-ai-formrecognizer==3.3.3
+pandas==2.2.0

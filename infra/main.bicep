@@ -30,6 +30,10 @@ param documentIntelligenceName string = 'di${uniqueString(resourceGroup().id)}'
 // Define the location for the Document Intelligence resource
 @allowed([
   'westeurope'
+  'switzerlandnorth'
+  'uksouth'
+  'swedencentral'
+  'francecentral'
   'eastus'
 ])
 param documentIntelligenceLocation string
