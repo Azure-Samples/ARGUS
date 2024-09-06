@@ -1,6 +1,5 @@
 import fitz  # PyMuPDF
 from PIL import Image
-from pathlib import Path
 import io
 import os
 

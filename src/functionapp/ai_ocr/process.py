@@ -1,15 +1,21 @@
-import glob, logging, json, os, sys
+import glob
+import logging
+import json
+import os
+import sys
+from typing import Tuple
 from datetime import datetime
 import tempfile 
 from azure.cosmos import CosmosClient, exceptions
 from PyPDF2 import PdfReader
-from langchain_core.output_parsers.json import parse_json_markdown
 
 from ai_ocr.azure.doc_intelligence import get_ocr_results
-from ai_ocr.azure.openai_ops import load_image, get_size_of_base64_images
-from ai_ocr.chains import get_structured_data, get_summary_with_gpt, perform_gpt_evaluation_and_enrichment
 from ai_ocr.model import Config
 from ai_ocr.azure.images import convert_pdf_into_image
+
+from ai_ocr.azure.openai_ops import load_image, get_size_of_base64_images
+from ai_ocr.genai_operations import get_structured_data, get_summary_with_gpt, perform_gpt_evaluation_and_enrichment
+
 
 def connect_to_cosmos():
     endpoint = os.environ['COSMOS_DB_ENDPOINT']
@@ -134,7 +140,7 @@ def fetch_model_prompt_and_schema(dataset_type):
     example_schema = config_item[dataset_type]['example_schema']
     return model_prompt, example_schema
 
-def run_ocr_and_gpt(file_to_ocr: str, prompt: str, json_schema: str, document: dict, container: any, config: Config = Config()) -> (any, dict, dict):
+def run_ocr_and_gpt(file_to_ocr: str, prompt: str, json_schema: str, document: dict, container: any, config: Config = Config()) -> Tuple[any, dict, dict]:
     processing_times = {}
 
     # Get OCR results
@@ -175,7 +181,8 @@ def run_ocr_and_gpt(file_to_ocr: str, prompt: str, json_schema: str, document: d
     update_state(document, container, 'gpt_extraction_completed', True, gpt_extraction_time)
     
     # Parse structured data
-    extracted_data = parse_json_markdown(structured.content)
+    stripped_content = structured.content.strip()
+    extracted_data = json.loads(stripped_content)
 
     # Perform GPT evaluation and enrichment
     evaluation_start_time = datetime.now()
