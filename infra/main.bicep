@@ -4,6 +4,14 @@ param functionAppDockerImage string = 'DOCKER|argus.azurecr.io/argus-backend:lat
 // Define the resource group location
 param location string = resourceGroup().location
 
+@allowed([
+  'westeurope'
+  'westus2'
+  'westus3'
+  'eastus2'
+])
+param appserviceLocation string
+
 // Define the storage account name
 param storageAccountName string = 'sa${uniqueString(resourceGroup().id)}'
 
@@ -195,7 +203,7 @@ resource applicationInsights 'Microsoft.Insights/components@2020-02-02' = {
 // Define the App Service Plan
 resource appServicePlan 'Microsoft.Web/serverfarms@2021-03-01' = {
   name: appServicePlanName
-  location: location
+  location: appserviceLocation
   kind: 'Linux'
   sku: {
     name: 'B1'

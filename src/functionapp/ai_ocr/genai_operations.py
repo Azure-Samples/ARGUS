@@ -1,5 +1,5 @@
 from semantic_kernel.contents import ChatHistory, ChatMessageContent, ImageContent
-from ai_ocr.azure.openai_ops_sk import get_completion_service
+from ai_ocr.azure.openai_ops import get_completion_service
 
 import logging
 import json
