@@ -2,6 +2,7 @@ import logging, os, json, traceback, sys
 import azure.functions as func
 from azure.functions.decorators import FunctionApp
 from datetime import datetime
+import asyncio
 from ai_ocr.process import (
     run_ocr_and_gpt, initialize_document, update_state, connect_to_cosmos, write_blob_to_temp_file, process_gpt_summary, fetch_model_prompt_and_schema
 )
@@ -18,7 +19,7 @@ async def main(myblob: func.InputStream):
     try:
         data_container, conf_container = connect_to_cosmos()
         try:
-            await process_blob(myblob, data_container)
+            await asyncio.wait_for(process_blob(myblob, data_container), MAX_TIMEOUT)
             logging.info("Item updated in Database.")
         except TimeoutError:
             logging.error("Function ran out of time.")
