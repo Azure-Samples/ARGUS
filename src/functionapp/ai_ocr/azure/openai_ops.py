@@ -13,7 +13,7 @@ def get_completion_service():
     chat_completion_service = AzureChatCompletion(
             deployment_name=get_config()["openai_model_deployment"],
             api_key=api_key,
-            base_url=get_config()["openai_api_endpoint"],
+            endpoint=get_config()["openai_api_endpoint"],
             api_version=get_config()["openai_api_version"])
     
     req_settings = PromptExecutionSettings(

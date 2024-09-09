@@ -140,7 +140,7 @@ def fetch_model_prompt_and_schema(dataset_type):
     example_schema = config_item[dataset_type]['example_schema']
     return model_prompt, example_schema
 
-def run_ocr_and_gpt(file_to_ocr: str, prompt: str, json_schema: str, document: dict, container: any, config: Config = Config()) -> Tuple[any, dict, dict]:
+async def run_ocr_and_gpt(file_to_ocr: str, prompt: str, json_schema: str, document: dict, container: any, config: Config = Config()) -> Tuple[any, dict, dict]:
     processing_times = {}
 
     # Get OCR results
@@ -173,7 +173,7 @@ def run_ocr_and_gpt(file_to_ocr: str, prompt: str, json_schema: str, document: d
     
     # Get structured data
     gpt_extraction_start_time = datetime.now()
-    structured = get_structured_data(ocr_result.content, prompt, json_schema, imgs)
+    structured = await get_structured_data(ocr_result.content, prompt, json_schema, imgs)
     gpt_extraction_time = (datetime.now() - gpt_extraction_start_time).total_seconds()
     processing_times['gpt_extraction_time'] = gpt_extraction_time
     
@@ -186,7 +186,7 @@ def run_ocr_and_gpt(file_to_ocr: str, prompt: str, json_schema: str, document: d
 
     # Perform GPT evaluation and enrichment
     evaluation_start_time = datetime.now()
-    enriched_data = perform_gpt_evaluation_and_enrichment(imgs, extracted_data, json_schema)
+    enriched_data = await perform_gpt_evaluation_and_enrichment(imgs, extracted_data, json_schema)
     evaluation_time = (datetime.now() - evaluation_start_time).total_seconds()
     processing_times['gpt_evaluation_time'] = evaluation_time
 
@@ -206,7 +206,7 @@ def run_ocr_and_gpt(file_to_ocr: str, prompt: str, json_schema: str, document: d
 
 
 
-def process_gpt_summary(ocr_response, document, container):
+async def process_gpt_summary(ocr_response, document, container):
     try:
         classification = 'N/A'
         try:
@@ -214,7 +214,7 @@ def process_gpt_summary(ocr_response, document, container):
         except AttributeError:
             logging.warning("Cannot find 'categorization' in output schema! Logging it as N/A...")
         summary_start_time = datetime.now()
-        gpt_summary = get_summary_with_gpt(ocr_response)
+        gpt_summary = await get_summary_with_gpt(ocr_response)
         summary_processing_time = (datetime.now() - summary_start_time).total_seconds()
         update_state(document, container, 'gpt_summary_completed', True, summary_processing_time)
         document['extracted_data']['classification'] = classification

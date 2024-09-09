@@ -33,6 +33,7 @@ Before deploying the solution, you need to create an OpenAI resource and deploy 
 
 2. **Deploy a Vision-Capable Model**:
    - Ensure the deployed model supports vision, such as GPT-4T-0125, GPT-4T-0409 or GPT-4-Omni.
+   - Currently, this solution also assumes the deployed model supports setting the `response_format` option to `json_object`. 
 
 
 ## Deployment
