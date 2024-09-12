@@ -2,6 +2,7 @@ import glob, logging, json, os, sys
 from datetime import datetime
 import tempfile 
 from azure.cosmos import CosmosClient, exceptions
+from azure.core.exceptions import ResourceNotFoundError
 from PyPDF2 import PdfReader
 from langchain_core.output_parsers.json import parse_json_markdown
 
@@ -139,7 +140,14 @@ def run_ocr_and_gpt(file_to_ocr: str, prompt: str, json_schema: str, document: d
 
     # Get OCR results
     ocr_start_time = datetime.now()
-    ocr_result = get_ocr_results(file_to_ocr)
+
+    ocr_result = None
+    try:
+        ocr_result = get_ocr_results(file_to_ocr)   
+    except Exception as e:
+        raise e
+    #----
+
     ocr_processing_time = (datetime.now() - ocr_start_time).total_seconds()
     processing_times['ocr_processing_time'] = ocr_processing_time
     
@@ -167,7 +175,7 @@ def run_ocr_and_gpt(file_to_ocr: str, prompt: str, json_schema: str, document: d
     
     # Get structured data
     gpt_extraction_start_time = datetime.now()
-    structured = get_structured_data(ocr_result.content, prompt, json_schema, imgs)
+    structured = get_structured_data(ocr_result, prompt, json_schema, imgs)
     gpt_extraction_time = (datetime.now() - gpt_extraction_start_time).total_seconds()
     processing_times['gpt_extraction_time'] = gpt_extraction_time
     
@@ -194,7 +202,7 @@ def run_ocr_and_gpt(file_to_ocr: str, prompt: str, json_schema: str, document: d
         except Exception as e:
             print(f"Error deleting image {img_path}: {e}")
 
-    return ocr_result.content, json.dumps(extracted_data), json.dumps(enriched_data), processing_times
+    return ocr_result, json.dumps(extracted_data), json.dumps(enriched_data), processing_times
 
 
 

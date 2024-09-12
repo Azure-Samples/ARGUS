@@ -101,6 +101,6 @@ def process_files_tab():
                     # Refresh configuration and select the new dataset
                     config_data = fetch_configuration()
                     st.session_state.selected_dataset = new_dataset_name
-                    st.experimental_rerun()
+                    st.rerun()
                 else:
                     st.warning('Please enter a unique dataset name.')

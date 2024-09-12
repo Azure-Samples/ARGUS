@@ -21,4 +21,5 @@ python-multipart
 promptflow-evals
 jsonpath-ng
 thefuzz
+azure-ai-formrecognizer
 seaborn
