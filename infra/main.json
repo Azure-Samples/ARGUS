@@ -5,7 +5,7 @@
     "_generator": {
       "name": "bicep",
       "version": "0.29.47.4906",
-      "templateHash": "8456380125901030418"
+      "templateHash": "8297822294804326917"
     }
   },
   "parameters": {
@@ -48,17 +48,6 @@
     "documentIntelligenceName": {
       "type": "string",
       "defaultValue": "[format('di{0}', uniqueString(resourceGroup().id))]"
-    },
-    "documentIntelligenceLocation": {
-      "type": "string",
-      "allowedValues": [
-        "westeurope",
-        "switzerlandnorth",
-        "uksouth",
-        "swedencentral",
-        "francecentral",
-        "eastus"
-      ]
     },
     "azureOpenaiEndpoint": {
       "type": "securestring"
@@ -267,7 +256,7 @@
       "type": "Microsoft.CognitiveServices/accounts",
       "apiVersion": "2021-04-30",
       "name": "[parameters('documentIntelligenceName')]",
-      "location": "[parameters('documentIntelligenceLocation')]",
+      "location": "[parameters('location')]",
       "sku": {
         "name": "S0"
       },

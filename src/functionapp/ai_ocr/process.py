@@ -6,7 +6,7 @@ from azure.core.exceptions import ResourceNotFoundError
 from PyPDF2 import PdfReader
 from langchain_core.output_parsers.json import parse_json_markdown
 
-from ai_ocr.azure.doc_intelligence import get_ocr_results, get_ocr_results_ga
+from ai_ocr.azure.doc_intelligence import get_ocr_results
 from ai_ocr.azure.openai_ops import load_image, get_size_of_base64_images
 from ai_ocr.chains import get_structured_data, get_summary_with_gpt, perform_gpt_evaluation_and_enrichment
 from ai_ocr.model import Config
@@ -141,13 +141,9 @@ def run_ocr_and_gpt(file_to_ocr: str, prompt: str, json_schema: str, document: d
     # Get OCR results
     ocr_start_time = datetime.now()
 
-    #check doc intell for api version availability
     ocr_result = None
     try:
-        ocr_result = get_ocr_results(file_to_ocr)
-    except ResourceNotFoundError: 
-        logging.error("Preview version requested is not a valid DocumentAnalysisApiVersion...reverting to using a GA version: '2023-07-31'!")
-        ocr_result = get_ocr_results_ga(file_to_ocr)   
+        ocr_result = get_ocr_results(file_to_ocr)   
     except Exception as e:
         raise e
     #----
@@ -179,7 +175,7 @@ def run_ocr_and_gpt(file_to_ocr: str, prompt: str, json_schema: str, document: d
     
     # Get structured data
     gpt_extraction_start_time = datetime.now()
-    structured = get_structured_data(ocr_result.content, prompt, json_schema, imgs)
+    structured = get_structured_data(ocr_result, prompt, json_schema, imgs)
     gpt_extraction_time = (datetime.now() - gpt_extraction_start_time).total_seconds()
     processing_times['gpt_extraction_time'] = gpt_extraction_time
     
@@ -206,7 +202,7 @@ def run_ocr_and_gpt(file_to_ocr: str, prompt: str, json_schema: str, document: d
         except Exception as e:
             print(f"Error deleting image {img_path}: {e}")
 
-    return ocr_result.content, json.dumps(extracted_data), json.dumps(enriched_data), processing_times
+    return ocr_result, json.dumps(extracted_data), json.dumps(enriched_data), processing_times
 
 
 
