@@ -21,7 +21,7 @@ def connect_to_cosmos():
     try:
         client = CosmosClient(endpoint, key)
     except:
-        CosmosClient(endpoint, DefaultAzureCredential())
+        client = CosmosClient(endpoint, DefaultAzureCredential())
     database = client.get_database_client(database_name)
     docs_container = database.get_container_client(container_name)
     conf_container = database.get_container_client('configuration')
