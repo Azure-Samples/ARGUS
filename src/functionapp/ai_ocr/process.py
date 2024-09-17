@@ -1,6 +1,7 @@
 import glob, logging, json, os, sys
 from datetime import datetime
 import tempfile 
+from azure.identity import DefaultAzureCredential
 from azure.cosmos import CosmosClient, exceptions
 from azure.core.exceptions import ResourceNotFoundError
 from PyPDF2 import PdfReader
@@ -17,7 +18,10 @@ def connect_to_cosmos():
     key = os.environ['COSMOS_DB_KEY']
     database_name = os.environ['COSMOS_DB_DATABASE_NAME']
     container_name = os.environ['COSMOS_DB_CONTAINER_NAME']
-    client = CosmosClient(endpoint, key)
+    try:
+        client = CosmosClient(endpoint, key)
+    except:
+        CosmosClient(endpoint, DefaultAzureCredential())
     database = client.get_database_client(database_name)
     docs_container = database.get_container_client(container_name)
     conf_container = database.get_container_client('configuration')

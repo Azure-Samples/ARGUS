@@ -3,11 +3,14 @@ import base64
 from datetime import datetime
 from azure.storage.blob import BlobServiceClient
 from azure.cosmos import CosmosClient
+from azure.identity import DefaultAzureCredential
 import streamlit as st
 import pandas as pd
 from streamlit_pdf_viewer import pdf_viewer
 import plotly.express as px
 import plotly.graph_objects as go
+
+credential = DefaultAzureCredential()
 
 def format_finished(finished, error):
     return '✅' if finished else '❌' if error else '➖'
@@ -16,7 +19,7 @@ def refresh_data():
     return fetch_data_from_cosmosdb(st.session_state.cosmos_documents_container_name)
 
 def fetch_data_from_cosmosdb(container_name):
-    cosmos_client = CosmosClient(st.session_state.cosmos_url, st.session_state.cosmos_key)
+    cosmos_client = CosmosClient(st.session_state.cosmos_url, credential)
     database = cosmos_client.get_database_client(st.session_state.cosmos_db_name)
     container = database.get_container_client(container_name)
 
@@ -25,7 +28,7 @@ def fetch_data_from_cosmosdb(container_name):
     return pd.json_normalize(items)
 
 def delete_item(dataset_name, file_name, item_id):
-    cosmos_client = CosmosClient(st.session_state.cosmos_url, st.session_state.cosmos_key)
+    cosmos_client = CosmosClient(st.session_state.cosmos_url, credential)
     database = cosmos_client.get_database_client(st.session_state.cosmos_db_name)
     container = database.get_container_client(st.session_state.cosmos_documents_container_name)
     container.delete_item(item=item_id, partition_key={})
@@ -64,14 +67,14 @@ def fetch_blob_from_blob(blob_name):
     return blob_data
 
 def fetch_json_from_cosmosdb(item_id):
-    cosmos_client = CosmosClient(st.session_state.cosmos_url, st.session_state.cosmos_key)
+    cosmos_client = CosmosClient(st.session_state.cosmos_url, credential)
     database = cosmos_client.get_database_client(st.session_state.cosmos_db_name)
     container = database.get_container_client(st.session_state.cosmos_documents_container_name)
     item = container.read_item(item=item_id, partition_key={})
     return item
 
 def save_feedback_to_cosmosdb(item_id, rating, comments):
-    cosmos_client = CosmosClient(st.session_state.cosmos_url, st.session_state.cosmos_key)
+    cosmos_client = CosmosClient(st.session_state.cosmos_url, credential)
     database = cosmos_client.get_database_client(st.session_state.cosmos_db_name)
     container = database.get_container_client(st.session_state.cosmos_documents_container_name)
 
@@ -82,7 +85,7 @@ def save_feedback_to_cosmosdb(item_id, rating, comments):
     container.upsert_item(item)
 
 def get_existing_feedback(item_id):
-    cosmos_client = CosmosClient(st.session_state.cosmos_url, st.session_state.cosmos_key)
+    cosmos_client = CosmosClient(st.session_state.cosmos_url, credential)
     database = cosmos_client.get_database_client(st.session_state.cosmos_db_name)
     container = database.get_container_client(st.session_state.cosmos_documents_container_name)
 

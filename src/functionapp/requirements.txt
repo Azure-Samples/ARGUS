@@ -17,3 +17,4 @@ tiktoken==0.7.0
 python-multipart==0.0.9
 azure-ai-formrecognizer==3.3.3
 pandas==2.2.0
+azure-identity==1.17.1
