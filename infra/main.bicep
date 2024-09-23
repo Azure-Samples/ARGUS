@@ -175,6 +175,18 @@ resource codeContainer 'Microsoft.Storage/storageAccounts/blobServices/container
   }
 }
 
+
+resource logAnalytics 'Microsoft.OperationalInsights/workspaces@2021-06-01' = {  
+  name: 'logAnalyticsWorkspace'  
+  location: location  
+  properties: {  
+    retentionInDays: 30  
+  }  
+  tags: {  
+    solution: 'ARGUS-1.0'  
+  }  
+}  
+
 // Define the Application Insights resource
 resource applicationInsights 'Microsoft.Insights/components@2020-02-02' = {
   name: 'app-insights'
@@ -182,7 +194,7 @@ resource applicationInsights 'Microsoft.Insights/components@2020-02-02' = {
   kind: 'web'
   properties: {
     Application_Type: 'web'
-    Request_Source: 'rest'
+    WorkspaceResourceId: logAnalytics.id
   }
   tags: commonTags
 }
