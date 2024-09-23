@@ -1,7 +1,10 @@
 import os, json
 from azure.storage.blob import BlobServiceClient
 from azure.cosmos import CosmosClient
+from azure.identity import DefaultAzureCredential
 import streamlit as st
+
+credential = DefaultAzureCredential()
 
 
 def upload_files_to_blob(files, dataset_name):
@@ -17,7 +20,7 @@ def upload_files_to_blob(files, dataset_name):
 
 def fetch_configuration():
     # Connect to the Cosmos DB account
-    cosmos_client = CosmosClient(st.session_state.cosmos_url, st.session_state.cosmos_key)
+    cosmos_client = CosmosClient(st.session_state.cosmos_url, credential)
     database = cosmos_client.get_database_client(st.session_state.cosmos_db_name)
     container = database.get_container_client(st.session_state.cosmos_config_container_name)
     
@@ -31,7 +34,7 @@ def fetch_configuration():
 
 def update_configuration(config_data):
     # Connect to the Cosmos DB account
-    cosmos_client = CosmosClient(st.session_state.cosmos_url, st.session_state.cosmos_key)
+    cosmos_client = CosmosClient(st.session_state.cosmos_url, credential)
     database = cosmos_client.get_database_client(st.session_state.cosmos_db_name)
     container = database.get_container_client(st.session_state.cosmos_config_container_name)
 
@@ -101,6 +104,6 @@ def process_files_tab():
                     # Refresh configuration and select the new dataset
                     config_data = fetch_configuration()
                     st.session_state.selected_dataset = new_dataset_name
-                    st.experimental_rerun()
+                    st.rerun()
                 else:
                     st.warning('Please enter a unique dataset name.')

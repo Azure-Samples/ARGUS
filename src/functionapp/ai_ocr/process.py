@@ -6,7 +6,9 @@ import sys
 from typing import Tuple
 from datetime import datetime
 import tempfile 
+from azure.identity import DefaultAzureCredential
 from azure.cosmos import CosmosClient, exceptions
+from azure.core.exceptions import ResourceNotFoundError
 from PyPDF2 import PdfReader
 
 from ai_ocr.azure.doc_intelligence import get_ocr_results
@@ -22,7 +24,10 @@ def connect_to_cosmos():
     key = os.environ['COSMOS_DB_KEY']
     database_name = os.environ['COSMOS_DB_DATABASE_NAME']
     container_name = os.environ['COSMOS_DB_CONTAINER_NAME']
-    client = CosmosClient(endpoint, key)
+    try:
+        client = CosmosClient(endpoint, key)
+    except:
+        client = CosmosClient(endpoint, DefaultAzureCredential())
     database = client.get_database_client(database_name)
     docs_container = database.get_container_client(container_name)
     conf_container = database.get_container_client('configuration')
@@ -145,7 +150,14 @@ async def run_ocr_and_gpt(file_to_ocr: str, prompt: str, json_schema: str, docum
 
     # Get OCR results
     ocr_start_time = datetime.now()
-    ocr_result = get_ocr_results(file_to_ocr)
+
+    ocr_result = None
+    try:
+        ocr_result = get_ocr_results(file_to_ocr)   
+    except Exception as e:
+        raise e
+    #----
+
     ocr_processing_time = (datetime.now() - ocr_start_time).total_seconds()
     processing_times['ocr_processing_time'] = ocr_processing_time
     
@@ -201,7 +213,7 @@ async def run_ocr_and_gpt(file_to_ocr: str, prompt: str, json_schema: str, docum
         except Exception as e:
             print(f"Error deleting image {img_path}: {e}")
 
-    return ocr_result.content, json.dumps(extracted_data), json.dumps(enriched_data), processing_times
+    return ocr_result, json.dumps(extracted_data), json.dumps(enriched_data), processing_times
 
 
 

@@ -11,7 +11,6 @@ Classic OCR (Object Character Recognition) models lack reasoning ability based o
 This solution uses Azure Document Intelligence combined with GPT4-Vision. Each of the tools have their strong points and the hybrid approach is better than any of them alone.
 
 > Notes:
-> - The document-intelligence resource needs to use the markdown preview feature (limited regions: West EU adn East US at the moment). 
 > - The Azure OpenAI model needs to be vision capable i.e. GPT-4T-0125, 0409 or Omni
 
 

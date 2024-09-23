@@ -20,3 +20,5 @@ thefuzz
 seaborn
 semantic-kernel
 jupyter
+azure-ai-formrecognizer
+seaborn

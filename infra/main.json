@@ -4,14 +4,14 @@
   "metadata": {
     "_generator": {
       "name": "bicep",
-      "version": "0.29.45.22436",
-      "templateHash": "13557102053090695454"
+      "version": "0.29.47.4906",
+      "templateHash": "8297822294804326917"
     }
   },
   "parameters": {
     "functionAppDockerImage": {
       "type": "string",
-      "defaultValue": "DOCKER|argus.azurecr.io/argus-backend:v1.3.0"
+      "defaultValue": "DOCKER|argus.azurecr.io/argus-backend:latest"
     },
     "location": {
       "type": "string",
@@ -48,13 +48,6 @@
     "documentIntelligenceName": {
       "type": "string",
       "defaultValue": "[format('di{0}', uniqueString(resourceGroup().id))]"
-    },
-    "documentIntelligenceLocation": {
-      "type": "string",
-      "allowedValues": [
-        "westeurope",
-        "eastus"
-      ]
     },
     "azureOpenaiEndpoint": {
       "type": "securestring"
@@ -263,7 +256,7 @@
       "type": "Microsoft.CognitiveServices/accounts",
       "apiVersion": "2021-04-30",
       "name": "[parameters('documentIntelligenceName')]",
-      "location": "[parameters('documentIntelligenceLocation')]",
+      "location": "[parameters('location')]",
       "sku": {
         "name": "S0"
       },

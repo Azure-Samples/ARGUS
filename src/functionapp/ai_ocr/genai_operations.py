@@ -10,11 +10,11 @@ async def get_structured_data(markdown_content: str, prompt: str, json_schema: s
     Your task is to extract the JSON contents from a document using the provided materials:
     1. Custom instructions for the extraction process
     2. A JSON schema template for structuring the extracted data
-    3. Markdown (from the document)
+    3. html (from the document)
     4. Images (from the document, not always provided or comprehensive)
 
     Instructions:
-    - Use the markdown as the primary source of information, and reference the images for additional context and validation.
+    - Use the html as the primary source of information, and reference the images for additional context and validation.
     - Format the output as a JSON instance that adheres to the provided JSON schema template.
     - If the JSON schema template is empty, create an appropriate structure based on the document content.
     - If there are pictures, charts or graphs describe them in details in seperate fields (unless you have a specific JSON structure you need to follow).

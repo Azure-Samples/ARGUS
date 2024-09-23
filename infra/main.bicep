@@ -35,12 +35,7 @@ param appServicePlanName string = '${functionAppName}-plan'
 // Define the Document Intelligence resource name
 param documentIntelligenceName string = 'di${uniqueString(resourceGroup().id)}'
 
-// Define the location for the Document Intelligence resource
-@allowed([
-  'westeurope'
-  'eastus'
-])
-param documentIntelligenceLocation string
+
 
 // Define the Azure OpenAI parameters
 @secure()
@@ -218,7 +213,7 @@ resource appServicePlan 'Microsoft.Web/serverfarms@2021-03-01' = {
 // Define the Document Intelligence resource
 resource documentIntelligence 'Microsoft.CognitiveServices/accounts@2021-04-30' = {
   name: documentIntelligenceName
-  location: documentIntelligenceLocation
+  location: location
   sku: {
     name: 'S0'
   }
