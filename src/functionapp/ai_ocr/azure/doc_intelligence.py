@@ -5,7 +5,7 @@ import sys
 import html
 
 from azure.ai.documentintelligence import DocumentIntelligenceClient
-from azure.ai.formrecognizer import DocumentAnalysisClient
+from azure.ai.formrecognizer import DocumentAnalysisClient, AnalysisFeature
 from azure.ai.documentintelligence.models import AnalyzeResult
 from azure.core.credentials import AzureKeyCredential
 from azure.ai.formrecognizer import DocumentAnalysisClient
@@ -20,11 +20,12 @@ client = document_analysis_client = DocumentAnalysisClient(endpoint=config["doc_
                                                                headers={"solution":"ARGUS-1.0"})
                                                             #    **kwargs)
 
-# Get OCR and convert it to HTML
+# Get OCR and convert it to HTML, using ocr_high_resolution feature as default
 def get_ocr_results(file_path: str):
     with open(file_path, "rb") as f:
         poller = client.begin_analyze_document("prebuilt-layout",
-                                               document=f)
+                                               document=f,
+                                               features=[AnalysisFeature.OCR_HIGH_RESOLUTION])
     ocr_result = poller.result()
     return ocr_to_html(ocr_result)
 

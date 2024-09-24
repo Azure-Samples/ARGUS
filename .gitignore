@@ -99,6 +99,7 @@ celerybeat-schedule
 .env
 .venv
 .vscode/
+.azure/
 
 env/
 venv/
