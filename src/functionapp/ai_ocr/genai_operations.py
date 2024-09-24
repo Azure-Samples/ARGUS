@@ -1,15 +1,11 @@
-from langchain_core.messages import HumanMessage
-from langchain_core.prompts import ChatPromptTemplate
-from langchain_core.messages import SystemMessage
-from langchain_core.prompts import HumanMessagePromptTemplate
-from langchain_core.output_parsers import JsonOutputParser
+from semantic_kernel.contents import ChatHistory, ChatMessageContent, ImageContent
+from ai_ocr.azure.openai_ops import get_completion_service
 
-from ai_ocr.azure.openai_ops import get_llm
-
-import logging, json
+import logging
+import json
 
 
-def get_structured_data(html_content: str, prompt: str, json_schema: str, images=[]) -> any:
+async def get_structured_data(markdown_content: str, prompt: str, json_schema: str, images=[]) -> any:
     system_message = f"""
     Your task is to extract the JSON contents from a document using the provided materials:
     1. Custom instructions for the extraction process
@@ -35,31 +31,30 @@ def get_structured_data(html_content: str, prompt: str, json_schema: str, images
     ```
     """
 
-    chat_template = ChatPromptTemplate.from_messages(
-        [
-            SystemMessage(content=system_message),
-            HumanMessagePromptTemplate.from_template("Here is the Document content (in html format):\n{html}"),
-        ]
-    )
-
-    messages = chat_template.format_messages(html=html_content)
+    chat_history = ChatHistory(system_message = system_message)
+    chat_history.add_user_message(f"Here is the Document content (in markdown format):\n{markdown_content}")
 
     if images:
-        messages.append(HumanMessage(content="Here are the images from the document:"))
+        chat_history.add_user_message("Here are the images from the document:")
         for img in images:
-            messages.append(HumanMessage(content=[{"type": "image_url", "image_url": {"url": f"data:image/png;base64,{img}"}}]))
+            chat_history.add_message(
+                ChatMessageContent(
+                    role="user",
+                    items=[ImageContent(uri=f"data:image/png;base64,{img}")]
+                )
+            )
 
-    model = get_llm()
-    return model.invoke(messages)
+    service, req_params = get_completion_service()
+    req_params.extension_data["response_format"] = {"type": "json_object"}
+    return await service.get_chat_message_content(
+        chat_history,
+        req_params
+    )
 
 
 
 
-def perform_gpt_evaluation_and_enrichment(images: list, extracted_data: dict, json_schema: str) -> dict:
-    model = get_llm()
-    
-    parser = JsonOutputParser()
-    
+async def perform_gpt_evaluation_and_enrichment(images: list, extracted_data: dict, json_schema: str) -> dict:
     system_message = f"""
     You are an AI assistant tasked with evaluating extracted data from a document.
 
@@ -105,28 +100,32 @@ def perform_gpt_evaluation_and_enrichment(images: list, extracted_data: dict, js
     Here is the JSON schema template that was used for the extraction:
 
     {json_schema}
-    
-    ------
-    
-    {parser.get_format_instructions()}
     """
 
-    chat_template = ChatPromptTemplate.from_messages(
-        [
-            SystemMessage(content=system_message),
-            HumanMessagePromptTemplate.from_template("Here is the extracted data :\n{extracted}"),
-        ]
-    )
-    messages = chat_template.format_messages(extracted=json.dumps(extracted_data, indent=2))
+    chat_history = ChatHistory(system_message = system_message)
+    chat_history.add_user_message(f"Here is the extracted data :\n{json.dumps(extracted_data, indent=2)}")
 
     if images:
-        messages.append(HumanMessage(content="Here are the images from the document:"))
+        chat_history.add_user_message("Here are the images from the document:")
         for img in images:
-            messages.append(HumanMessage(content=[{"type": "image_url", "image_url": {"url": f"data:image/png;base64,{img}"}}]))
+            chat_history.add_message(
+                ChatMessageContent(
+                    role="user",
+                    items=[ImageContent(uri=f"data:image/png;base64,{img}")]
+                )
+            )
 
-    evaluation_result = model.invoke(messages)
+    service, req_params = get_completion_service()
+    # Set the response format to JSON object
+    req_params.extension_data["response_format"] = {"type": "json_object"}
+    evaluation_result = await service.get_chat_message_content(
+        chat_history,
+        req_params
+    )
+
+
     try:
-        return parser.parse(evaluation_result.content)
+        return json.loads(evaluation_result.content)
     except Exception as e:
         logging.error(f"Failed to parse GPT evaluation and enrichment result: {e}")
         return {
@@ -135,44 +134,33 @@ def perform_gpt_evaluation_and_enrichment(images: list, extracted_data: dict, js
         }
 
 
-def get_summary_with_gpt(mkd_output_json: str) -> any:
+async def get_summary_with_gpt(mkd_output_json: str) -> any:
     reasoning_prompt = """
     Use the provided data represented in the schema to produce a summary in natural language. The format should be a few sentences summary of the document.
 
     As an example, for the schema {"properties": {"foo": {"title": "Foo", "description": "a list of strings", "type": "array", "items": {"type": "string"}}}, "required": ["foo"]}
     the object {"foo": ["bar", "baz"]} is a well-formatted instance of the schema. The object {"properties": {"foo": ["bar", "baz"]}} is not well-formatted.
     """
-    
-    chat_template = ChatPromptTemplate.from_messages(
-        [
-            SystemMessage(
-                content=(
-                    reasoning_prompt
-                )
-            ),
-            HumanMessagePromptTemplate.from_template("{text}"),
-        ]
+
+    chat_history = ChatHistory(system_message = reasoning_prompt)
+    chat_history.add_user_message(f"{mkd_output_json}")
+
+    service, req_params = get_completion_service()
+    return await service.get_chat_message_content(
+        chat_history,
+        req_params
     )
-    messages = chat_template.format_messages(text=mkd_output_json)
-
-    model = get_llm()
-    return model.invoke(messages)
+    
 
 
-def classify_doc_with_llm(ocr_input: str, classification_system_prompt) -> any:
+async def classify_doc_with_llm(ocr_input: str, classification_system_prompt) -> any:
     prompt = classification_system_prompt
     
-    chat_template = ChatPromptTemplate.from_messages(
-        [
-            SystemMessage(
-                content=(
-                    prompt
-                )
-            ),
-            HumanMessagePromptTemplate.from_template("{text}"),
-        ]
-    )
-    messages = chat_template.format_messages(text=ocr_input)
+    chat_history = ChatHistory(system_message = prompt)
+    chat_history.add_user_message(f"{ocr_input}")
 
-    model = get_llm()
-    return model.invoke(messages)
+    service, req_params = get_completion_service()
+    return await service.get_chat_message_content(
+        chat_history,
+        req_params
+    )

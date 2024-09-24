@@ -2,7 +2,7 @@ import logging, os, json, traceback, sys
 import azure.functions as func
 from azure.functions.decorators import FunctionApp
 from datetime import datetime
-from concurrent.futures import ThreadPoolExecutor, TimeoutError as FuturesTimeoutError
+import asyncio
 from ai_ocr.process import (
     run_ocr_and_gpt, initialize_document, update_state, connect_to_cosmos, write_blob_to_temp_file, process_gpt_summary, fetch_model_prompt_and_schema
 )
@@ -12,21 +12,19 @@ MAX_TIMEOUT = 15*60  # Set your desired timeout duration here(in seconds)
 app = FunctionApp()
 
 @app.blob_trigger(arg_name="myblob", path="datasets/{name}", connection="AzureWebJobsStorage")
-def main(myblob: func.InputStream):
+async def main(myblob: func.InputStream):
     logging.info(f"Python blob trigger function processed blob \n"
                  f"Name: {myblob.name}\n"
                  f"Blob Size: {myblob.length} bytes")
     try:
         data_container, conf_container = connect_to_cosmos()
-        with ThreadPoolExecutor() as executor:
-            future = executor.submit(process_blob, myblob, data_container)
-            try:
-                future.result(timeout=MAX_TIMEOUT) 
-                logging.info("Item updated in Database.")
-            except FuturesTimeoutError:
-                logging.error("Function ran out of time.")
-                handle_timeout_error(myblob, data_container)
-                sys.exit(1)  # Exit with error
+        try:
+            await asyncio.wait_for(process_blob(myblob, data_container), MAX_TIMEOUT)
+            logging.info("Item updated in Database.")
+        except TimeoutError:
+            logging.error("Function ran out of time.")
+            handle_timeout_error(myblob, data_container)
+            sys.exit(1)  # Exit with error
     except Exception as e:
         logging.error("Error occurred in blob trigger function")
         logging.error(traceback.format_exc())
@@ -51,11 +49,11 @@ def handle_timeout_error(myblob, data_container):
         
 
 # Update the main function to include GPT evaluation
-def process_blob(myblob: func.InputStream, data_container):
+async def process_blob(myblob: func.InputStream, data_container):
     temp_file_path, num_pages, file_size = write_blob_to_temp_file(myblob)
     document = initialize_document_data(myblob, temp_file_path, num_pages, file_size, data_container)
-    ocr_response, gpt_response, evaluation_result, processing_times = run_ocr_and_gpt_processing(temp_file_path, document, data_container)
-    process_gpt_summary(ocr_response, document, data_container)
+    ocr_response, gpt_response, evaluation_result, processing_times = await run_ocr_and_gpt_processing(temp_file_path, document, data_container)
+    await process_gpt_summary(ocr_response, document, data_container)
     update_final_document(document, gpt_response, ocr_response, evaluation_result, processing_times, data_container)
     return document
 
@@ -76,9 +74,9 @@ def initialize_document_data(myblob, temp_file_path, num_pages, file_size, data_
     update_state(document, data_container, 'file_landed', True, (datetime.now() - timer_start).total_seconds())
     return document
 
-def run_ocr_and_gpt_processing(temp_file_path, document, data_container):
+async def run_ocr_and_gpt_processing(temp_file_path, document, data_container):
     try:
-        return run_ocr_and_gpt(temp_file_path, document['model_input']['model_prompt'], 
+        return await run_ocr_and_gpt(temp_file_path, document['model_input']['model_prompt'], 
                                document['model_input']['example_schema'], document, data_container)
     except Exception as e:
         document['errors'].append(f"OCR/GPT processing error: {str(e)}")
