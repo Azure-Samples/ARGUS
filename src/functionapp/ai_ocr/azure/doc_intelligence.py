@@ -7,8 +7,8 @@ import html
 from azure.ai.documentintelligence import DocumentIntelligenceClient
 from azure.ai.formrecognizer import DocumentAnalysisClient, AnalysisFeature
 from azure.ai.documentintelligence.models import AnalyzeResult
-from azure.core.credentials import AzureKeyCredential
 from azure.ai.formrecognizer import DocumentAnalysisClient
+from azure.identity import DefaultAzureCredential
 
 from ai_ocr.azure.config import get_config
 
@@ -16,7 +16,7 @@ config = get_config()
 
 # kwargs = {"api_version": doc_int_api_version}
 client = document_analysis_client = DocumentAnalysisClient(endpoint=config["doc_intelligence_endpoint"],
-                                                               credential=AzureKeyCredential(config["doc_intelligence_key"]),
+                                                               credential=DefaultAzureCredential(),
                                                                headers={"solution":"ARGUS-1.0"})
                                                             #    **kwargs)
 

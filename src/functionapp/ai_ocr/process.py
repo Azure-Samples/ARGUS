@@ -15,13 +15,9 @@ from ai_ocr.azure.images import convert_pdf_into_image
 
 def connect_to_cosmos():
     endpoint = os.environ['COSMOS_DB_ENDPOINT']
-    key = os.environ['COSMOS_DB_KEY']
     database_name = os.environ['COSMOS_DB_DATABASE_NAME']
     container_name = os.environ['COSMOS_DB_CONTAINER_NAME']
-    try:
-        client = CosmosClient(endpoint, key)
-    except:
-        client = CosmosClient(endpoint, DefaultAzureCredential())
+    client = CosmosClient(endpoint, DefaultAzureCredential())
     database = client.get_database_client(database_name)
     docs_container = database.get_container_client(container_name)
     conf_container = database.get_container_client('configuration')

@@ -225,6 +225,7 @@ resource documentIntelligence 'Microsoft.CognitiveServices/accounts@2021-04-30' 
   properties: {
     apiProperties: {}
     customSubDomainName: documentIntelligenceName
+    publicNetworkAccess: 'Enabled'
   }
   tags: commonTags
 }
@@ -247,8 +248,8 @@ resource functionApp 'Microsoft.Web/sites@2021-03-01' = {
       alwaysOn: true
       appSettings: [
         {
-          name: 'AzureWebJobsStorage'
-          value: 'DefaultEndpointsProtocol=https;AccountName=${storageAccount.name};AccountKey=${listKeys(storageAccount.id, storageAccount.apiVersion).keys[0].value};EndpointSuffix=core.windows.net'
+          name: 'AzureWebJobsStorage__accountName'
+          value: storageAccount.name
         }
         {
           name: 'WEBSITE_CONTENTAZUREFILECONNECTIONSTRING'
@@ -283,10 +284,6 @@ resource functionApp 'Microsoft.Web/sites@2021-03-01' = {
           value: cosmosDbAccount.properties.documentEndpoint
         }
         {
-          name: 'COSMOS_DB_KEY'
-          value: cosmosDbAccount.listKeys().primaryMasterKey
-        }
-        {
           name: 'COSMOS_DB_DATABASE_NAME'
           value: cosmosDbDatabaseName
         }
@@ -297,10 +294,6 @@ resource functionApp 'Microsoft.Web/sites@2021-03-01' = {
         {
           name: 'DOCUMENT_INTELLIGENCE_ENDPOINT'
           value: documentIntelligence.properties.endpoint
-        }
-        {
-          name: 'DOCUMENT_INTELLIGENCE_KEY'
-          value: documentIntelligence.listKeys().key1
         }
         {
           name: 'AZURE_OPENAI_ENDPOINT'
@@ -327,6 +320,42 @@ resource functionApp 'Microsoft.Web/sites@2021-03-01' = {
   }
 }
 
+// Role assignments for the Function App's managed identity
+resource functionAppStorageBlobDataContributorRole 'Microsoft.Authorization/roleAssignments@2020-04-01-preview' = {
+  name: guid(functionApp.id, storageAccount.id, 'StorageBlobDataContributor')
+  scope: storageAccount
+  properties: {
+    roleDefinitionId: subscriptionResourceId('Microsoft.Authorization/roleDefinitions', 'ba92f5b4-2d11-453d-a403-e96b0029c9fe') // Storage Blob Data Contributor
+    principalId: functionApp.identity.principalId
+    principalType: 'ServicePrincipal'
+  }
+}
+
+// Cosmos DB role assignment
+resource cosmosDBDataContributorRoleDefinition 'Microsoft.DocumentDB/databaseAccounts/sqlRoleDefinitions@2021-04-15' existing = {
+  parent: cosmosDbAccount
+  name: '00000000-0000-0000-0000-000000000002' // Built-in Data Contributor Role
+}
+
+resource cosmosDBRoleAssignment 'Microsoft.DocumentDB/databaseAccounts/sqlRoleAssignments@2021-04-15' = {
+  parent: cosmosDbAccount
+  name: guid(cosmosDbAccount.id, functionApp.id, cosmosDBDataContributorRoleDefinition.id)
+  properties: {
+    roleDefinitionId: cosmosDBDataContributorRoleDefinition.id
+    principalId: functionApp.identity.principalId
+    scope: cosmosDbAccount.id
+  }
+}
+
+resource functionAppDocumentIntelligenceContributorRole 'Microsoft.Authorization/roleAssignments@2020-04-01-preview' = {
+  name: guid(functionApp.id, documentIntelligence.id, 'CognitiveServicesUser')
+  scope: documentIntelligence
+  properties: {
+    roleDefinitionId: subscriptionResourceId('Microsoft.Authorization/roleDefinitions', 'a97b65f3-24c7-4388-baec-2e87135dc908') // Cognitive Services User
+    principalId: functionApp.identity.principalId
+    principalType: 'ServicePrincipal'
+  }
+}
 
 param roleDefinitionId string = 'ba92f5b4-2d11-453d-a403-e96b0029c9fe' //Default as Storage Blob Data Contributor role
  
