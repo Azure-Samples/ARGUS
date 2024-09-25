@@ -6,6 +6,9 @@ from process_files import process_files_tab
 from explore_data import explore_data_tab
 from instructions import instructions_tab
 
+## IMPORTANT: Instructions on how to run the Streamlit app locally can be found in the README.md file.
+
+
 # Load environment variables
 load_dotenv()
 

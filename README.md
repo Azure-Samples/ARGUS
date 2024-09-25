@@ -84,10 +84,30 @@ To run the Streamlit app `app.py` located in the `frontend` folder, follow these
 
 3. Populate the `.env` file with the necessary environment variables. Open the `.env` file in a text editor and provide the required values for each variable.
 
-4. Run the `frontend_prep.sh` script. You will be prompted to login to the Azure tenant that the deployment is hosted:
-   ```sh
-   ./frontend/frontend_prep.sh
+4. Assign a CosmsosDB Role to your Principal ID:
+
+   First, get the `scope` of your Cosmos DB account:
    ```
+   az cosmosdb show \
+      --resource-group $resourceGroupName \
+      --name $cosmosAccountName \
+      --query id \
+      --output tsv
+   ```
+   Get the `principal ID` of the currently signed-in user:
+   ```
+   az ad signed-in-user show --query id -o tsv
+   ```
+   Then, create a `role assignment`:
+   ```
+   az cosmosdb sql role assignment create \
+      --resource-group $resourceGroupName \
+      --account-name $cosmosAccountName \
+      --role-definition-name "Cosmos DB Built-in Data Contributor" \
+      --principal-id $principalId \
+      --scope $scope
+   ```
+
 
 5. Start the Streamlit app by running the following command in your terminal:
    ```sh
