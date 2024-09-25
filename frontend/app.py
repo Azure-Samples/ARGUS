@@ -20,7 +20,6 @@ def initialize_session_state():
         'blob_conn_str': "BLOB_CONN_STR",
         'container_name': "CONTAINER_NAME",
         'cosmos_url': "COSMOS_URL",
-        'cosmos_key': "COSMOS_KEY",
         'cosmos_db_name': "COSMOS_DB_NAME",
         'cosmos_documents_container_name': "COSMOS_DOCUMENTS_CONTAINER_NAME",
         'cosmos_config_container_name': "COSMOS_CONFIG_CONTAINER_NAME"
