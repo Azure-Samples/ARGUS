@@ -5,7 +5,7 @@
         "type": "blobTrigger",
         "direction": "in",
         "path": "dataset/{name}",
-        "connection": "AzureWebJobsStorage"
+        "connection": "AzureWebJobsStorage__accountName"
       }
     ]
   }

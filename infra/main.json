@@ -4,8 +4,8 @@
   "metadata": {
     "_generator": {
       "name": "bicep",
-      "version": "0.30.3.12046",
-      "templateHash": "11125348922574127635"
+      "version": "0.30.23.60470",
+      "templateHash": "15982252935557144334"
     }
   },
   "parameters": {
@@ -306,10 +306,6 @@
               "value": "[parameters('storageAccountName')]"
             },
             {
-              "name": "WEBSITE_CONTENTAZUREFILECONNECTIONSTRING",
-              "value": "[format('DefaultEndpointsProtocol=https;AccountName={0};AccountKey={1};EndpointSuffix=core.windows.net', parameters('functionAppStorageName'), listKeys(resourceId('Microsoft.Storage/storageAccounts', parameters('functionAppStorageName')), '2022-05-01').keys[0].value)]"
-            },
-            {
               "name": "WEBSITES_ENABLE_APP_SERVICE_STORAGE",
               "value": "false"
             },
@@ -377,7 +373,6 @@
         "[resourceId('Microsoft.Web/serverfarms', parameters('appServicePlanName'))]",
         "[resourceId('Microsoft.DocumentDB/databaseAccounts', parameters('cosmosDbAccountName'))]",
         "[resourceId('Microsoft.CognitiveServices/accounts', parameters('documentIntelligenceName'))]",
-        "[resourceId('Microsoft.Storage/storageAccounts', parameters('functionAppStorageName'))]",
         "[resourceId('Microsoft.Storage/storageAccounts', parameters('storageAccountName'))]"
       ]
     },
@@ -388,6 +383,21 @@
       "name": "[guid(resourceId('Microsoft.Web/sites', parameters('functionAppName')), resourceId('Microsoft.Storage/storageAccounts', parameters('storageAccountName')), 'StorageBlobDataContributor')]",
       "properties": {
         "roleDefinitionId": "[subscriptionResourceId('Microsoft.Authorization/roleDefinitions', 'ba92f5b4-2d11-453d-a403-e96b0029c9fe')]",
+        "principalId": "[reference(resourceId('Microsoft.Web/sites', parameters('functionAppName')), '2021-03-01', 'full').identity.principalId]",
+        "principalType": "ServicePrincipal"
+      },
+      "dependsOn": [
+        "[resourceId('Microsoft.Web/sites', parameters('functionAppName'))]",
+        "[resourceId('Microsoft.Storage/storageAccounts', parameters('storageAccountName'))]"
+      ]
+    },
+    {
+      "type": "Microsoft.Authorization/roleAssignments",
+      "apiVersion": "2020-04-01-preview",
+      "scope": "[format('Microsoft.Storage/storageAccounts/{0}', parameters('storageAccountName'))]",
+      "name": "[guid(resourceId('Microsoft.Web/sites', parameters('functionAppName')), resourceId('Microsoft.Storage/storageAccounts', parameters('storageAccountName')), 'StorageBlobDataOwner')]",
+      "properties": {
+        "roleDefinitionId": "[subscriptionResourceId('Microsoft.Authorization/roleDefinitions', 'b7e6dc6d-f1e8-4753-8033-0f276bb0955b')]",
         "principalId": "[reference(resourceId('Microsoft.Web/sites', parameters('functionAppName')), '2021-03-01', 'full').identity.principalId]",
         "principalType": "ServicePrincipal"
       },
