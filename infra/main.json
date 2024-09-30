@@ -5,7 +5,7 @@
     "_generator": {
       "name": "bicep",
       "version": "0.30.23.60470",
-      "templateHash": "16355738136116530983"
+      "templateHash": "11733530628503771029"
     }
   },
   "parameters": {
@@ -304,6 +304,10 @@
             {
               "name": "AzureWebJobsStorage__accountName",
               "value": "[parameters('storageAccountName')]"
+            },
+            {
+              "name": "AzureWebJobsStorage__blobServiceUri",
+              "value": "[format('https://{0}.blob.core.windows.net', parameters('storageAccountName'))]"
             },
             {
               "name": "WEBSITE_CONTENTAZUREFILECONNECTIONSTRING",

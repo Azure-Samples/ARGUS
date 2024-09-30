@@ -9,7 +9,7 @@ credential = DefaultAzureCredential()
 
 def upload_files_to_blob(files, dataset_name):
     # Connect to the Blob storage account
-    blob_service_client = BlobServiceClient.from_connection_string(st.session_state.blob_conn_str)
+    blob_service_client = BlobServiceClient(account_url=st.session_state.blob_url, credential=credential)
     container_client = blob_service_client.get_container_client(st.session_state.container_name)
 
     # Upload each file to the specified dataset folder in Blob storage
