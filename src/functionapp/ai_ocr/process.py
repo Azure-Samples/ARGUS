@@ -4,7 +4,7 @@ import tempfile
 from azure.identity import DefaultAzureCredential
 from azure.cosmos import CosmosClient, exceptions
 from azure.core.exceptions import ResourceNotFoundError
-from PyPDF2 import PdfReader
+from PyPDF2 import PdfReader, PdfWriter
 from langchain_core.output_parsers.json import parse_json_markdown
 
 from ai_ocr.azure.doc_intelligence import get_ocr_results
@@ -78,6 +78,22 @@ def write_blob_to_temp_file(myblob):
         number_of_pages = None
 
     return temp_file_path, number_of_pages, file_size
+
+def split_pdf_into_subsets(pdf_path, max_pages_per_subset=10):
+    pdf_reader = PdfReader(pdf_path)
+    total_pages = len(pdf_reader.pages)
+    subset_paths = []
+    for start_page in range(0, total_pages, max_pages_per_subset):
+        end_page = min(start_page + max_pages_per_subset, total_pages)
+        pdf_writer = PdfWriter()
+        for page_num in range(start_page, end_page):
+            pdf_writer.add_page(pdf_reader.pages[page_num])
+        subset_path = f"{pdf_path}_subset_{start_page}_{end_page-1}.pdf"
+        with open(subset_path, 'wb') as f:
+            pdf_writer.write(f)
+        subset_paths.append(subset_path)
+    return subset_paths
+
 
 
 def fetch_model_prompt_and_schema(dataset_type):
@@ -207,22 +223,26 @@ def run_ocr_and_gpt(file_to_ocr: str, prompt: str, json_schema: str, document: d
 
 
 
-def process_gpt_summary(ocr_response, document, container):
+def process_gpt_summary(ocr_responses, document, container):
     try:
         classification = 'N/A'
-        try:
-            classification = ocr_response.categorization
-        except AttributeError:
-            logging.warning("Cannot find 'categorization' in output schema! Logging it as N/A...")
-        summary_start_time = datetime.now()
-        gpt_summary = get_summary_with_gpt(ocr_response)
-        summary_processing_time = (datetime.now() - summary_start_time).total_seconds()
-        update_state(document, container, 'gpt_summary_completed', True, summary_processing_time)
+        summaries = []
+        for ocr_response in ocr_responses:
+            try:
+                classification = ocr_response.categorization
+            except AttributeError:
+                logging.warning("Cannot find 'categorization' in output schema! Logging it as N/A...")
+            summary_start_time = datetime.now()
+            gpt_summary = get_summary_with_gpt(ocr_response)
+            summaries.append(gpt_summary.content)
+            summary_processing_time = (datetime.now() - summary_start_time).total_seconds()
+            update_state(document, container, 'gpt_summary_completed', True, summary_processing_time)
         document['extracted_data']['classification'] = classification
-        document['extracted_data']['gpt_summary_output'] = gpt_summary.content
+        document['extracted_data']['gpt_summary_output'] = ' '.join(summaries)
     except Exception as e:
         document['errors'].append(f"NL processing error: {str(e)}")
         update_state(document, container, 'gpt_summary_completed', False)
         sys.exit(1)  # Exit with error
         raise
+
 

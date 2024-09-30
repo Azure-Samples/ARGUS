@@ -33,7 +33,7 @@ def delete_item(dataset_name, file_name, item_id):
     container = database.get_container_client(st.session_state.cosmos_documents_container_name)
     container.delete_item(item=item_id, partition_key={})
 
-    blob_service_client = BlobServiceClient.from_connection_string(st.session_state.blob_conn_str)
+    blob_service_client = BlobServiceClient(account_url=st.session_state.blob_url, credential=credential)
     container_client = blob_service_client.get_container_client(st.session_state.container_name)
 
     blob_client = container_client.get_blob_client(f"{dataset_name}/{file_name}")
@@ -42,7 +42,7 @@ def delete_item(dataset_name, file_name, item_id):
     st.success(f"Deleted {file_name} from {dataset_name} successfully!")
 
 def reprocess_item(dataset_name, file_name):
-    blob_service_client = BlobServiceClient.from_connection_string(st.session_state.blob_conn_str)
+    blob_service_client = BlobServiceClient(account_url=st.session_state.blob_url, credential=credential)
     container_client = blob_service_client.get_container_client(st.session_state.container_name)
 
     source_blob = f"{dataset_name}/{file_name}"
@@ -59,7 +59,7 @@ def reprocess_item(dataset_name, file_name):
         st.error(f"Failed to re-process {file_name}: {e}")
 
 def fetch_blob_from_blob(blob_name):
-    blob_service_client = BlobServiceClient.from_connection_string(st.session_state.blob_conn_str)
+    blob_service_client = BlobServiceClient(account_url=st.session_state.blob_url, credential=credential)
     container_client = blob_service_client.get_container_client(st.session_state.container_name)
     blob_client = container_client.get_blob_client(blob_name)
 

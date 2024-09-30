@@ -1,6 +1,6 @@
 
 #/bin/bash
-docker build -f docker/frontend.Dockerfile -t aga-reg/aga-docextracionai-userapp .
-docker push aga-reg/aga-docextracionai-userapp
-docker build -f docker/backend.Dockerfile -t aga-reg/aga-docextracionai-backend .
-docker push aga-reg/aga-docextracionai-backend
+docker build -f docker/frontend.Dockerfile -t abertaga27/aga-docextracionai-userapp:latest .
+docker push abertaga27/aga-docextracionai-userapp:latest
+docker build -f docker/backend.Dockerfile -t abertaga27/aga-docextracionai-backend:latest .
+docker push abertaga27/aga-docextracionai-backend:latest

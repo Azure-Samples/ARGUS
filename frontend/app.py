@@ -18,6 +18,7 @@ def initialize_session_state():
         'system_prompt': "SYSTEM_PROMPT",
         'schema': "OUTPUT_SCHEMA",
         'blob_conn_str': "BLOB_CONN_STR",
+        'blob_url' : "BLOB_ACCOUNT_URL",
         'container_name': "CONTAINER_NAME",
         'cosmos_url': "COSMOS_URL",
         'cosmos_db_name': "COSMOS_DB_NAME",
