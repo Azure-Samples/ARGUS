@@ -251,6 +251,10 @@ resource functionApp 'Microsoft.Web/sites@2021-03-01' = {
           name: 'AzureWebJobsStorage__accountName'
           value: storageAccount.name   }
         {
+            name: 'WEBSITE_CONTENTAZUREFILECONNECTIONSTRING'
+            value: 'DefaultEndpointsProtocol=https;AccountName=${functionAppStorage.name};AccountKey=${listKeys(functionAppStorage.id, functionAppStorage.apiVersion).keys[0].value};EndpointSuffix=core.windows.net'
+        }
+        {
           name: 'WEBSITES_ENABLE_APP_SERVICE_STORAGE'
           value: 'false'
         }
@@ -331,6 +335,16 @@ resource functionAppStorageBlobDataOwnerRole 'Microsoft.Authorization/roleAssign
   scope: storageAccount
   properties: {
     roleDefinitionId: subscriptionResourceId('Microsoft.Authorization/roleDefinitions', 'b7e6dc6d-f1e8-4753-8033-0f276bb0955b') // Storage Blob Data Owner
+    principalId: functionApp.identity.principalId
+    principalType: 'ServicePrincipal'
+  }
+}
+
+resource functionAppStorageQueueDataContributorRole 'Microsoft.Authorization/roleAssignments@2020-04-01-preview' = {
+  name: guid(functionApp.id, storageAccount.id, 'StorageQueueDataContributor')
+  scope: storageAccount
+  properties: {
+    roleDefinitionId: subscriptionResourceId('Microsoft.Authorization/roleDefinitions', '974c5e8b-45b9-4653-ba55-5f855dd0fb88') // Storage Queue Data Contributor
     principalId: functionApp.identity.principalId
     principalType: 'ServicePrincipal'
   }
