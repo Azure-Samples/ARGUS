@@ -52,6 +52,7 @@ def handle_timeout_error(myblob, data_container):
 
 def process_blob(myblob: func.InputStream, data_container):
     temp_file_path, num_pages, file_size = write_blob_to_temp_file(myblob)
+    print("processing blob")
     document = initialize_document_data(myblob, temp_file_path, num_pages, file_size, data_container)
     if num_pages and num_pages > 10:
         # Split the PDF into subsets
