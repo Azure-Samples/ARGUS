@@ -53,6 +53,7 @@ def handle_timeout_error(myblob, data_container):
 # Update the main function to include GPT evaluation
 def process_blob(myblob: func.InputStream, data_container):
     temp_file_path, num_pages, file_size = write_blob_to_temp_file(myblob)
+    print('Processing file')
     document = initialize_document_data(myblob, temp_file_path, num_pages, file_size, data_container)
     ocr_response, gpt_response, evaluation_result, processing_times = run_ocr_and_gpt_processing(temp_file_path, document, data_container)
     process_gpt_summary(ocr_response, document, data_container)
