@@ -231,7 +231,7 @@ def process_gpt_summary(ocr_responses, document, container):
             try:
                 classification = ocr_response.categorization
             except AttributeError:
-                logging.warning("Cannot find 'categorization' in output schema! Logging it as N/A...")
+                logging.warning("Cannot find the field 'categorization' in output schema! Logging it as N/A...")
             summary_start_time = datetime.now()
             gpt_summary = get_summary_with_gpt(ocr_response)
             summaries.append(gpt_summary.content)

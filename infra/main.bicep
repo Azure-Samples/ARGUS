@@ -380,8 +380,6 @@ param roleDefinitionId string = 'ba92f5b4-2d11-453d-a403-e96b0029c9fe' //Default
  
 var logicAppDefinition = json(loadTextContent('logic_app.json'))
  
-
- 
 resource blobConnection 'Microsoft.Web/connections@2018-07-01-preview' = {
   name: 'azureblob'
   location: location
