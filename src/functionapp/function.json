@@ -1,0 +1,11 @@
+{
+    "bindings": [
+      {
+        "name": "myblob",
+        "type": "blobTrigger",
+        "direction": "in",
+        "path": "dataset/{name}",
+        "connection": "argusStorage_connection"
+      }
+    ]
+  }

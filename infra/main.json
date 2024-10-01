@@ -5,7 +5,7 @@
     "_generator": {
       "name": "bicep",
       "version": "0.30.23.60470",
-      "templateHash": "11733530628503771029"
+      "templateHash": "12779212540838207992"
     }
   },
   "parameters": {
@@ -302,11 +302,11 @@
           "alwaysOn": true,
           "appSettings": [
             {
-              "name": "AzureWebJobsStorage__accountName",
+              "name": "argusStorage_connection__accountName",
               "value": "[parameters('storageAccountName')]"
             },
             {
-              "name": "AzureWebJobsStorage__blobServiceUri",
+              "name": "argusStorage_connection__blobServiceUri",
               "value": "[format('https://{0}.blob.core.windows.net', parameters('storageAccountName'))]"
             },
             {

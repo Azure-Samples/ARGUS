@@ -248,10 +248,10 @@ resource functionApp 'Microsoft.Web/sites@2021-03-01' = {
       alwaysOn: true
       appSettings: [
         {
-          name: 'AzureWebJobsStorage__accountName'
+          name: 'argusStorage_connection__accountName'
           value: storageAccount.name   }
         {
-            name: 'AzureWebJobsStorage__blobServiceUri'
+            name: 'argusStorage_connection__blobServiceUri'
             value: 'https://${storageAccount.name}.blob.core.windows.net'   }  
         {
             name: 'WEBSITE_CONTENTAZUREFILECONNECTIONSTRING'
