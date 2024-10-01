@@ -11,7 +11,7 @@ MAX_TIMEOUT = 15*60  # Set your desired timeout duration here(in seconds)
 
 app = FunctionApp()
 
-@app.blob_trigger(arg_name="myblob", path="datasets/{name}", connection="azureStorage_connection__blobServiceUri")
+@app.blob_trigger(arg_name="myblob", path="datasets/{name}", connection="argusStorage_connection")
 def main(myblob: func.InputStream):
     logging.info(f"Python blob trigger function processed blob \n"
                  f"Name: {myblob.name}\n"
