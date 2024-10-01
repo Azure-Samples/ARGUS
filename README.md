@@ -23,7 +23,7 @@ This solution uses Azure Document Intelligence combined with GPT4-Vision. Each o
 ![architecture](docs/ArchitectureOverview.png)
 
 ## Prerequisites
-### OpenAI Resource
+### Azure OpenAI Resource
 
 Before deploying the solution, you need to create an OpenAI resource and deploy a model that is vision capable.
 
@@ -50,7 +50,6 @@ Click the button to directly deploy to Azure:
    - Install [Azure Developer CLI](https://learn.microsoft.com/en-us/azure/developer/azure-developer-cli/install-azd).
    - Ensure you have access to an Azure subscription.
    - Create an OpenAI resource and deploy a vision-capable model.
-   - Ensure Docker is running
 
 2. **Deployment Steps**:
    - Run the following command to deploy all resources:
@@ -84,30 +83,27 @@ To run the Streamlit app `app.py` located in the `frontend` folder, follow these
 
 3. Populate the `.env` file with the necessary environment variables. Open the `.env` file in a text editor and provide the required values for each variable.
 
-4. Assign a CosmsosDB Role to your Principal ID:
+4. Assign a CosmsosDB and Blob Storage Role to your Principal ID:
 
-   First, get the `scope` of your Cosmos DB account:
-   ```
-   az cosmosdb show \
-      --resource-group $resourceGroupName \
-      --name $cosmosAccountName \
-      --query id \
-      --output tsv
-   ```
    Get the `principal ID` of the currently signed-in user:
    ```
    az ad signed-in-user show --query id -o tsv
    ```
-   Then, create a `role assignment`:
+   Then, create Cosmos and Blob `role assignments`:
    ```
    az cosmosdb sql role assignment create \
-      --resource-group $resourceGroupName \
-      --account-name $cosmosAccountName \
-      --role-definition-name "Cosmos DB Built-in Data Contributor" \
-      --principal-id $principalId \
-      --scope $scope
+      --principal-id "<principal-id>" \
+      --resource-group "<resource-group-name>" \
+      --account-name "<cosmos-account-name>" \
+      --role-definition-name "CosmosBackupOperator" \
+      --scope "/subscriptions/<subscription-id>/resourceGroups/<resource-group-name>/providers/Microsoft.DocumentDB/databaseAccounts/<cosmos-account-name>"
    ```
-
+   ```
+   az role assignment create \
+      --assignee "<principal-id>" \
+      --role "Storage Blob Data Contributor" \
+      --scope "/subscriptions/<subscription-id>/resourceGroups/<resource-group-name>/providers/Microsoft.Storage/storageAccounts/<storage-account-name>/blobServices/default/containers/<container-name>"
+   ```
 
 5. Start the Streamlit app by running the following command in your terminal:
    ```sh
@@ -166,13 +162,6 @@ By providing a prompt and a JSON template, users can control the behavior of the
 
 - JSON Schemas created using [JSON Schema Builder](https://bjdash.github.io/JSON-Schema-Builder/).
 
-
-## TODO
-
-- One-click deployment improvements
-- Introduction of datasets that are specific to one schema and model instructions
-- Additional backend APIs for administration
-- Integrate evaluator for processing
 
 
 ## Team behind ARGUS
