@@ -1,7 +1,7 @@
 # If you get cosmosdb auth error due to local auth disabled and need AAD token to authorize reqeusts:
-resourceGroupName="<your_resource_group_name"
-accountName="<yxour_comsos_resource_name"
-principalId="<your_principal_id>"
+resourceGroupName="rg-aga-argus-102"
+accountName="cbo4y3mnfsglhzw"
+principalId="d02febeb-1135-4c9f-a0b5-2aba4b27793d"
 
 # Retrieve the scope (ensure variables are referenced correctly)
 scope=$(

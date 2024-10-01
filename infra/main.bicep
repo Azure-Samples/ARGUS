@@ -248,11 +248,8 @@ resource functionApp 'Microsoft.Web/sites@2021-03-01' = {
       alwaysOn: true
       appSettings: [
         {
-          name: 'argusStorage_connection__accountName'
-          value: storageAccount.name   }
-        {
-            name: 'argusStorage_connection__blobServiceUri'
-            value: 'https://${storageAccount.name}.blob.core.windows.net'   }  
+            name: 'AzureWebJobsStorage__accountName'
+            value: storageAccount.name  }  
         {
             name: 'WEBSITE_CONTENTAZUREFILECONNECTIONSTRING'
             value: 'DefaultEndpointsProtocol=https;AccountName=${functionAppStorage.name};AccountKey=${listKeys(functionAppStorage.id, functionAppStorage.apiVersion).keys[0].value};EndpointSuffix=core.windows.net'
