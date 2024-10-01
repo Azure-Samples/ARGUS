@@ -49,6 +49,7 @@ def get_structured_data(html_content: str, prompt: str, json_schema: str, images
         for img in images:
             messages.append(HumanMessage(content=[{"type": "image_url", "image_url": {"url": f"data:image/png;base64,{img}"}}]))
 
+    #todo manage token count
     model = get_llm()
     return model.invoke(messages)
 

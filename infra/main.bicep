@@ -248,8 +248,20 @@ resource functionApp 'Microsoft.Web/sites@2021-03-01' = {
       alwaysOn: true
       appSettings: [
         {
-          name: 'AzureWebJobsStorage__accountName'
-          value: storageAccount.name   }
+          name: 'AzureWebJobsStorage__credential'
+          value: 'managedidentity'  }  
+        {
+            name: 'AzureWebJobsStorage__serviceUri'
+            value: 'https://${storageAccount.name}.blob.core.windows.net'  }  
+        {
+            name: 'AzureWebJobsStorage__blobServiceUri'
+            value: 'https://${storageAccount.name}.blob.core.windows.net'  }
+        {
+          name: 'AzureWebJobsStorage__queueServiceUri'
+          value: 'https://${storageAccount.name}.queue.core.windows.net'  }
+        {
+            name: 'AzureWebJobsStorage__tableServiceUri'
+            value: 'https://${storageAccount.name}.table.core.windows.net'  }              
         {
             name: 'WEBSITE_CONTENTAZUREFILECONNECTIONSTRING'
             value: 'DefaultEndpointsProtocol=https;AccountName=${functionAppStorage.name};AccountKey=${listKeys(functionAppStorage.id, functionAppStorage.apiVersion).keys[0].value};EndpointSuffix=core.windows.net'
@@ -379,8 +391,6 @@ resource functionAppDocumentIntelligenceContributorRole 'Microsoft.Authorization
 param roleDefinitionId string = 'ba92f5b4-2d11-453d-a403-e96b0029c9fe' //Default as Storage Blob Data Contributor role
  
 var logicAppDefinition = json(loadTextContent('logic_app.json'))
- 
-
  
 resource blobConnection 'Microsoft.Web/connections@2018-07-01-preview' = {
   name: 'azureblob'
