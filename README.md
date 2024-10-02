@@ -95,7 +95,7 @@ To run the Streamlit app `app.py` located in the `frontend` folder, follow these
       --principal-id "<principal-id>" \
       --resource-group "<resource-group-name>" \
       --account-name "<cosmos-account-name>" \
-      --role-definition-name "CosmosBackupOperator" \
+      --role-definition-name "Cosmos DB Built-in Data Contributor" \
       --scope "/subscriptions/<subscription-id>/resourceGroups/<resource-group-name>/providers/Microsoft.DocumentDB/databaseAccounts/<cosmos-account-name>"
    ```
    ```
