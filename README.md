@@ -102,7 +102,7 @@ To run the Streamlit app `app.py` located in the `frontend` folder, follow these
    az role assignment create \
       --assignee "<principal-id>" \
       --role "Storage Blob Data Contributor" \
-      --scope "/subscriptions/<subscription-id>/resourceGroups/<resource-group-name>/providers/Microsoft.Storage/storageAccounts/<storage-account-name>/blobServices/default/containers/<container-name>"
+      --scope "/subscriptions/<subscription-id>/resourceGroups/<resource-group-name>/providers/Microsoft.Storage/storageAccounts/<storage-account-name>"
    ```
 
 5. Start the Streamlit app by running the following command in your terminal:
