@@ -249,30 +249,27 @@ resource functionApp 'Microsoft.Web/sites@2021-03-01' = {
       appSettings: [
         {
           name: 'AzureWebJobsStorage__credential'
-          value: 'managedidentity'  }  
+          value: 'managedidentity'  
+        }  
         {
-            name: 'AzureWebJobsStorage__serviceUri'
-            value: 'https://${storageAccount.name}.blob.core.windows.net'  }  
+          name: 'AzureWebJobsStorage__serviceUri'
+          value: 'https://${storageAccount.name}.blob.core.windows.net'  
+        }  
         {
-            name: 'AzureWebJobsStorage__blobServiceUri'
-            value: 'https://${storageAccount.name}.blob.core.windows.net'  }
+          name: 'AzureWebJobsStorage__blobServiceUri'
+          value: 'https://${storageAccount.name}.blob.core.windows.net'  
+        }
         {
           name: 'AzureWebJobsStorage__queueServiceUri'
-          value: 'https://${storageAccount.name}.queue.core.windows.net'  }
-        {
-            name: 'AzureWebJobsStorage__tableServiceUri'
-            value: 'https://${storageAccount.name}.table.core.windows.net'  }              
-        {
-            name: 'WEBSITE_CONTENTAZUREFILECONNECTIONSTRING'
-            value: 'DefaultEndpointsProtocol=https;AccountName=${functionAppStorage.name};AccountKey=${listKeys(functionAppStorage.id, functionAppStorage.apiVersion).keys[0].value};EndpointSuffix=core.windows.net'
+          value: 'https://${storageAccount.name}.queue.core.windows.net'  
         }
+        {
+          name: 'AzureWebJobsStorage__tableServiceUri'
+          value: 'https://${storageAccount.name}.table.core.windows.net'  
+        }              
         {
           name: 'WEBSITES_ENABLE_APP_SERVICE_STORAGE'
           value: 'false'
-        }
-        {
-          name: 'WEBSITE_CONTENTSHARE'
-          value: 'functionapp-content'
         }
         {
           name: 'FUNCTIONS_EXTENSION_VERSION'
