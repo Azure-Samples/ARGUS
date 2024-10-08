@@ -231,9 +231,14 @@ def explore_data_tab():
 
                     with json_col:
                         if json_data:
-                            try:
-                                st.json(json_data['extracted_data']['gpt_extraction_output_with_evaluation'])
-                            except:
+                            show_evaluated = st.checkbox("Show output with evaluation", value=False)
+                            if show_evaluated:
+                                try:
+                                    st.json(json_data['extracted_data']['gpt_extraction_output_with_evaluation'])
+                                except KeyError:
+                                    st.warning("Evaluated JSON not available. Showing original JSON instead.")
+                                    st.json(json_data['extracted_data']['gpt_extraction_output'])
+                            else:
                                 st.json(json_data['extracted_data']['gpt_extraction_output'])
 
                 elif len(selected_rows) > 1:

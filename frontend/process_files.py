@@ -74,7 +74,7 @@ def process_files_tab():
     with col2:
         # Allow the user to upload files to the selected dataset in Blob storage
         uploaded_files = st.file_uploader("Choose files to attach to the request", 
-                          type=['pdf', 'jpeg', 'jpg', 'png', 'bmp', 'tiff', 'heif', 'docx', 'xlsx', 'pptx', 'html'], 
+                          type=['pdf', 'jpeg', 'jpg', 'png', 'bmp', 'tiff', 'heif', 'html'], 
                           accept_multiple_files=True)
 
         if st.button('Submit'):
