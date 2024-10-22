@@ -1,4 +1,9 @@
 import glob, logging, json, os, sys
+import fitz  # PyMuPDF
+from PIL import Image
+from pathlib import Path
+import io, uuid, shutil, tempfile
+
 from datetime import datetime
 import tempfile 
 from azure.identity import DefaultAzureCredential
@@ -151,6 +156,49 @@ def fetch_model_prompt_and_schema(dataset_type):
     example_schema = config_item[dataset_type]['example_schema']
     return model_prompt, example_schema
 
+def create_temp_dir():
+    """Create a temporary directory with a random UUID name under /tmp/"""
+    random_id = str(uuid.uuid4())
+    temp_dir = os.path.join(tempfile.gettempdir(), random_id)
+    os.makedirs(temp_dir, exist_ok=True)
+    return temp_dir
+
+def convert_pdf_into_image(pdf_path):
+    # Create a temporary directory with random UUID
+    temp_dir = create_temp_dir()
+    output_paths = []
+    
+    try:
+        # Open the PDF file
+        pdf_document = fitz.open(pdf_path)
+        
+        # Iterate through all the pages
+        for page_num in range(len(pdf_document)):
+            page = pdf_document.load_page(page_num)
+            
+            # Convert the page to an image  
+            pix = page.get_pixmap()  
+
+            # Convert the pixmap to bytes  
+            image_bytes = pix.tobytes("png")  
+            
+            # Convert the image to a PIL Image object
+            image = Image.open(io.BytesIO(image_bytes))
+            
+            # Define the output path using the temp directory
+            output_path = os.path.join(temp_dir, f"page_{page_num + 1}.png")
+            output_paths.append(output_path)
+
+            # Save the image as a PNG file
+            image.save(output_path, "PNG")
+            print(f"Saved image: {output_path}")
+            
+        return temp_dir
+    except Exception as e:
+        # Clean up the temporary directory if an error occurs
+        shutil.rmtree(temp_dir, ignore_errors=True)
+        raise e
+
 def run_ocr_and_gpt(file_to_ocr: str, prompt: str, json_schema: str, document: dict, container: any, config: Config = Config()) -> (any, dict, dict):
     processing_times = {}
 
@@ -162,7 +210,6 @@ def run_ocr_and_gpt(file_to_ocr: str, prompt: str, json_schema: str, document: d
         ocr_result = get_ocr_results(file_to_ocr)   
     except Exception as e:
         raise e
-    #----
 
     ocr_processing_time = (datetime.now() - ocr_start_time).total_seconds()
     processing_times['ocr_processing_time'] = ocr_processing_time
@@ -170,57 +217,53 @@ def run_ocr_and_gpt(file_to_ocr: str, prompt: str, json_schema: str, document: d
     # Update state after OCR processing
     update_state(document, container, 'ocr_completed', True, ocr_processing_time)
     
-    # Ensure the /tmp/ directory exists
-    imgs_path = "/tmp/"
-    os.makedirs(imgs_path, exist_ok=True)
-    
-    # Extract images from the PDF
-    convert_pdf_into_image(file_to_ocr)
-    
-    # Determine the path for the temporary images
-    imgs = glob.glob(f"{imgs_path}/page*.png")
-    
-    # Limit images by config
-    imgs = imgs[:config.max_images]
-    imgs = [load_image(img) for img in imgs]
-    
-    # Check and reduce images total size if over 20MB
-    max_size = config.gpt_vision_limit_mb * 1024 * 1024  # 20MB
-    while get_size_of_base64_images(imgs) > max_size:
-        imgs.pop()
-    
-    # Get structured data
-    gpt_extraction_start_time = datetime.now()
-    structured = get_structured_data(ocr_result, prompt, json_schema, imgs)
-    gpt_extraction_time = (datetime.now() - gpt_extraction_start_time).total_seconds()
-    processing_times['gpt_extraction_time'] = gpt_extraction_time
-    
-    # Update state after GPT extraction
-    update_state(document, container, 'gpt_extraction_completed', True, gpt_extraction_time)
-    
-    # Parse structured data
-    extracted_data = parse_json_markdown(structured.content)
+    try:
+        # Extract images from the PDF and get the temporary directory path
+        temp_dir = convert_pdf_into_image(file_to_ocr)
+        
+        # Get list of generated images
+        imgs = glob.glob(os.path.join(temp_dir, "page*.png"))
+        
+        # Limit images by config
+        imgs = imgs[:config.max_images]
+        imgs = [load_image(img) for img in imgs]
+        
+        # Check and reduce images total size if over 20MB
+        max_size = config.gpt_vision_limit_mb * 1024 * 1024  # 20MB
+        while get_size_of_base64_images(imgs) > max_size:
+            imgs.pop()
+        
+        # Get structured data
+        gpt_extraction_start_time = datetime.now()
+        structured = get_structured_data(ocr_result, prompt, json_schema, imgs)
+        gpt_extraction_time = (datetime.now() - gpt_extraction_start_time).total_seconds()
+        processing_times['gpt_extraction_time'] = gpt_extraction_time
+        
+        # Update state after GPT extraction
+        update_state(document, container, 'gpt_extraction_completed', True, gpt_extraction_time)
+        
+        # Parse structured data
+        extracted_data = parse_json_markdown(structured.content)
 
-    # Perform GPT evaluation and enrichment
-    evaluation_start_time = datetime.now()
-    enriched_data = perform_gpt_evaluation_and_enrichment(imgs, extracted_data, json_schema)
-    evaluation_time = (datetime.now() - evaluation_start_time).total_seconds()
-    processing_times['gpt_evaluation_time'] = evaluation_time
+        # Perform GPT evaluation and enrichment
+        evaluation_start_time = datetime.now()
+        enriched_data = perform_gpt_evaluation_and_enrichment(imgs, extracted_data, json_schema)
+        evaluation_time = (datetime.now() - evaluation_start_time).total_seconds()
+        processing_times['gpt_evaluation_time'] = evaluation_time
 
-    # Update state after GPT evaluation
-    update_state(document, container, 'gpt_evaluation_completed', True, evaluation_time)
+        # Update state after GPT evaluation
+        update_state(document, container, 'gpt_evaluation_completed', True, evaluation_time)
 
-    # Delete all generated images created after processing
-    for img_path in glob.glob(f"{imgs_path}/page*.png"):
-        try:
-            os.remove(img_path)
-            print(f"Deleted image: {img_path}")
-        except Exception as e:
-            print(f"Error deleting image {img_path}: {e}")
-
-    return ocr_result, json.dumps(extracted_data), json.dumps(enriched_data), processing_times
-
-
+        return ocr_result, json.dumps(extracted_data), json.dumps(enriched_data), processing_times
+    
+    finally:
+        # Clean up: remove the temporary directory and all its contents
+        if 'temp_dir' in locals():
+            try:
+                shutil.rmtree(temp_dir, ignore_errors=True)
+                print(f"Cleaned up temporary directory: {temp_dir}")
+            except Exception as e:
+                print(f"Error cleaning up temporary directory {temp_dir}: {e}")
 
 
 def process_gpt_summary(ocr_responses, document, container):
