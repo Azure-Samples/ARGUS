@@ -5,7 +5,7 @@
     "_generator": {
       "name": "bicep",
       "version": "0.30.23.60470",
-      "templateHash": "10849069776055351399"
+      "templateHash": "1333018375616863546"
     }
   },
   "parameters": {
@@ -322,16 +322,8 @@
               "value": "[format('https://{0}.table.core.windows.net', parameters('storageAccountName'))]"
             },
             {
-              "name": "WEBSITE_CONTENTAZUREFILECONNECTIONSTRING",
-              "value": "[format('DefaultEndpointsProtocol=https;AccountName={0};AccountKey={1};EndpointSuffix=core.windows.net', parameters('functionAppStorageName'), listKeys(resourceId('Microsoft.Storage/storageAccounts', parameters('functionAppStorageName')), '2022-05-01').keys[0].value)]"
-            },
-            {
               "name": "WEBSITES_ENABLE_APP_SERVICE_STORAGE",
               "value": "false"
-            },
-            {
-              "name": "WEBSITE_CONTENTSHARE",
-              "value": "functionapp-content"
             },
             {
               "name": "FUNCTIONS_EXTENSION_VERSION",
@@ -393,7 +385,6 @@
         "[resourceId('Microsoft.Web/serverfarms', parameters('appServicePlanName'))]",
         "[resourceId('Microsoft.DocumentDB/databaseAccounts', parameters('cosmosDbAccountName'))]",
         "[resourceId('Microsoft.CognitiveServices/accounts', parameters('documentIntelligenceName'))]",
-        "[resourceId('Microsoft.Storage/storageAccounts', parameters('functionAppStorageName'))]",
         "[resourceId('Microsoft.Storage/storageAccounts', parameters('storageAccountName'))]"
       ]
     },
