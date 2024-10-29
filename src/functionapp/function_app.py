@@ -7,7 +7,7 @@ from ai_ocr.process import (
     run_ocr_and_gpt, initialize_document, update_state, connect_to_cosmos, write_blob_to_temp_file, process_gpt_summary, fetch_model_prompt_and_schema, split_pdf_into_subsets
 )
 
-MAX_TIMEOUT = 15*60  # Set your desired timeout duration here(in seconds)
+MAX_TIMEOUT = 45*60  # Set your desired timeout duration here(in seconds)
 
 app = FunctionApp()
 
