@@ -453,6 +453,7 @@ resource userStorageAccountRoleAssignment 'Microsoft.Authorization/roleAssignmen
   }
 }
 
+// TODO: could we remove some of those outputs?
 output resourceGroup string = resourceGroup().name
 output functionAppEndpoint string = functionApp.properties.defaultHostName
 output functionAppName string = functionApp.name
@@ -460,8 +461,6 @@ output storageAccountName string = storageAccount.name
 output containerName string = blobContainer.name
 output storageAccountKey string = listKeys(storageAccount.id, storageAccount.apiVersion).keys[0].value
 
-// TODO: remove secrets from output values
-output BLOB_CONN_STR string = 'DefaultEndpointsProtocol=https;AccountName=${storageAccount.name};AccountKey=${storageAccount.listKeys().keys[0].value};EndpointSuffix=${environment().suffixes.storage}'
 output BLOB_ACCOUNT_URL string = storageAccount.properties.primaryEndpoints.blob
 output CONTAINER_NAME string = blobContainer.name
 output COSMOS_URL string = cosmosDbAccount.properties.documentEndpoint
