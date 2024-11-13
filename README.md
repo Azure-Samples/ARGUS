@@ -16,8 +16,8 @@ This solution uses Azure Document Intelligence combined with GPT4-Vision. Each o
 
 ## Solution Overview
 
-- **Frontend**: A Streamlit Python web-app for user interaction. UNDER CONSTRUCTION
 - **Backend**: An Azure Function for core logic, Cosmos DB for auditing, logging, and storing output schemas, Azure Document Intelligence, GPT-4 Vision and a Logic App for integrating with Outlook Inbox.
+- **Frontend**: A Streamlit Python web-app for user interaction (**not deployed automatically**).
 - **Demo**: Sample documents, system prompts, and output schemas.
 
 ![architecture](docs/ArchitectureOverview.png)
@@ -36,14 +36,6 @@ Before deploying the solution, you need to create an OpenAI resource and deploy 
 
 ## Deployment
 
-### One-Click Deployment
-
-Click the button to directly deploy to Azure: 
-
-[![Deploy to Azure](https://aka.ms/deploytoazurebutton)](https://portal.azure.com/#create/Microsoft.Template/uri/https%3A%2F%2Fraw.githubusercontent.com%2FAzure-Samples%2FARGUS%2Fmain%2Finfra%2Fmain.json)
-
-`Deploy to Azure` offers a one click deployment without cloning the code. Alternatively, follow the instructions below.
-
 ### Deployment with `azd up`
 
 1. **Prerequisites**:
@@ -52,7 +44,11 @@ Click the button to directly deploy to Azure:
    - Create an OpenAI resource and deploy a vision-capable model.
 
 2. **Deployment Steps**:
-   - Run the following command to deploy all resources:
+   - Run the following commands to login (if needed):
+     ```sh
+     az login
+     ```
+   - Run the following commands to deploy all resources:
      ```sh
      azd up
      ```
@@ -65,7 +61,9 @@ Click the button to directly deploy to Azure:
      az deployment group create --resource-group <your-resource-group> --template-file main.bicep
      ```
 
-> Note: After deployment wait for about 10 minutes for the docker images to be pulled. You can check the progress in your Functionapp > Deployment Center > Logs.
+> **NOTE:** After deployment wait for about 10 minutes for the docker images to be pulled. You can check the progress in your `Azure Portal` > `Resource Group` > `FunctionApp` > `Deployment Center` > `Logs`.
+
+> **KNOWN ISSUE:** Occasionally, the FunctionApp encounters a runtime issue, preventing the solution from processing files. To resolve this, restart the FunctionApp by follow these steps: `Azure Portal` > `Resource Group` > `FunctionApp` > `Monitoring` > `Health Check` > `Instances` > `Click Restart`.
 
 ## Running the Streamlit Frontend (recommended)
 
@@ -82,6 +80,8 @@ To run the Streamlit app `app.py` located in the `frontend` folder, follow these
    ```
 
 3. Populate the `.env` file with the necessary environment variables. Open the `.env` file in a text editor and provide the required values for each variable.
+   > **NOTE:** Your storage account name should be the one starting with `sa-`.
+
 
 4. Assign a CosmsosDB and Blob Storage Role to your Principal ID:
 
@@ -104,6 +104,7 @@ To run the Streamlit app `app.py` located in the `frontend` folder, follow these
       --role "Storage Blob Data Contributor" \
       --scope "/subscriptions/<subscription-id>/resourceGroups/<resource-group-name>/providers/Microsoft.Storage/storageAccounts/<storage-account-name>"
    ```
+      > **NOTE:** Your storage account name should be the one starting with `sa-`.
 
 5. Start the Streamlit app by running the following command in your terminal:
    ```sh
@@ -117,7 +118,7 @@ You can connect a Outlook inbox to send incoming attachments directly to the blo
 
 ## How to Use
 
-### Upload and Process Documents
+### Upload and Process Documents (without using the Frontend)
 
 1. **Upload PDF Files**:
    - Navigate to the `sa-uniqueID` storage account and the `datasets` container

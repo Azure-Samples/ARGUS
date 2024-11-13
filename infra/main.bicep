@@ -19,9 +19,6 @@ param cosmosDbContainerName string = 'documents'
 // Define the function app name
 param functionAppName string = 'fa${uniqueString(resourceGroup().id)}'
 
-// Define the storage account for function app
-param functionAppStorageName string = 'fs${uniqueString(resourceGroup().id)}'
-
 param appServicePlanName string = '${functionAppName}-plan'
 
 // Define the Document Intelligence resource name
@@ -146,34 +143,8 @@ resource cosmosDbContainerConf 'Microsoft.DocumentDB/databaseAccounts/sqlDatabas
   tags: commonTags
 }
 
-// Define the storage account for function app
-resource functionAppStorage 'Microsoft.Storage/storageAccounts@2022-05-01' = {
-  name: functionAppStorageName
-  location: location
-  sku: {
-    name: 'Standard_LRS'
-  }
-  kind: 'StorageV2'
-  properties: {
-    accessTier: 'Hot'
-  }
-  tags: commonTags
-}
 
-// Define the blob service for function app storage
-resource functionAppBlobService 'Microsoft.Storage/storageAccounts/blobServices@2022-05-01' = {
-  parent: functionAppStorage
-  name: 'default'
-}
 
-// Define the storage container for function app code
-resource codeContainer 'Microsoft.Storage/storageAccounts/blobServices/containers@2022-05-01' = {
-  parent: functionAppBlobService
-  name: 'app-artifacts'
-  properties: {
-    publicAccess: 'None'
-  }
-}
 
 
 resource logAnalytics 'Microsoft.OperationalInsights/workspaces@2021-06-01' = {  
