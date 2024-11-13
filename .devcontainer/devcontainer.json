@@ -34,6 +34,6 @@
     },
     // Add your own post creation commands here
     // Add the Python packages that you use to requirements.txt
-    "postCreateCommand": "sudo apt update"
+    "postCreateCommand": "sudo apt update && pip install --upgrade pip && pip install -r frontend/requirements.txt"
   }
   
