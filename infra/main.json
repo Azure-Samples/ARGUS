@@ -61,6 +61,13 @@
     "roleDefinitionId": {
       "type": "string",
       "defaultValue": "ba92f5b4-2d11-453d-a403-e96b0029c9fe"
+    },
+    "azurePrincipalId": {
+      "type": "string",
+      "metadata": {
+        "description": "The principal ID of the user who will use those resources (usually yourself)"
+      },
+      "defaultValue": "[authorization().principalId]"
     }
   },
   "variables": {
