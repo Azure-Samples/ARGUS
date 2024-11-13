@@ -58,7 +58,8 @@ Before deploying the solution, you need to create an OpenAI resource and deploy 
 1. **Bicep Template Deployment**:
    - Use the provided `main.bicep` file to deploy resources manually:
      ```sh
-     az deployment group create --resource-group <your-resource-group> --template-file main.bicep
+     az deployment group create --resource-group rg-argus-004 --template-file infra/main.bicep  \
+         --parameters azurePrincipalId=$(az ad signed-in-user show --query id -o tsv)
      ```
 ---
 > **NOTE:** After deployment wait for about 10 minutes for the docker images to be pulled. You can check the progress in your `Azure Portal` > `Resource Group` > `FunctionApp` > `Deployment Center` > `Logs`.
@@ -74,39 +75,17 @@ To run the Streamlit app `app.py` located in the `frontend` folder, follow these
    pip install -r frontend/requirements.txt
    ```
 
-2. Rename the `.env.temp` file to `.env`:
+2. Execute the following command:
+    ```sh
+   azd env get-values > frontend/.env
+    ```
+   Alternatively, **if you did not use AZD to provision the resources**: Rename the `.env.temp` file to `.env`:
    ```sh
    mv frontend/.env.temp frontend/.env
    ```
+   then populate the `.env` file with the necessary environment variables. Open the `.env` file in a text editor and provide the required values for each variable.
 
-3. Populate the `.env` file with the necessary environment variables. Open the `.env` file in a text editor and provide the required values for each variable.
-   > **NOTE:** Your storage account name should be the one starting with `sa-`.
-
-
-4. Assign a CosmsosDB and Blob Storage Role to your Principal ID:
-
-   Get the `principal ID` of the currently signed-in user:
-   ```
-   az ad signed-in-user show --query id -o tsv
-   ```
-   Then, create Cosmos and Blob `role assignments`:
-   ```
-   az cosmosdb sql role assignment create \
-      --principal-id "<principal-id>" \
-      --resource-group "<resource-group-name>" \
-      --account-name "<cosmos-account-name>" \
-      --role-definition-name "Cosmos DB Built-in Data Contributor" \
-      --scope "/subscriptions/<subscription-id>/resourceGroups/<resource-group-name>/providers/Microsoft.DocumentDB/databaseAccounts/<cosmos-account-name>"
-   ```
-   ```
-   az role assignment create \
-      --assignee "<principal-id>" \
-      --role "Storage Blob Data Contributor" \
-      --scope "/subscriptions/<subscription-id>/resourceGroups/<resource-group-name>/providers/Microsoft.Storage/storageAccounts/<storage-account-name>"
-   ```
-      > **NOTE:** Your storage account name should be the one starting with `sa-`.
-
-5. Start the Streamlit app by running the following command in your terminal:
+3. Start the Streamlit app by running the following command in your terminal:
    ```sh
    streamlit run frontend/app.py
    ```

@@ -6,6 +6,11 @@
 
 # Name of the application.
 name: azure-function-app
-
-
-
+hooks:
+  postprovision:
+    posix:
+      shell: sh
+      run: pip install -r frontend/requirements.txt
+    windows:
+      shell: pwsh
+      run: pip install -r frontend/requirements.txt
