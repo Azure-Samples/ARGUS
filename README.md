@@ -60,11 +60,11 @@ Before deploying the solution, you need to create an OpenAI resource and deploy 
      ```sh
      az deployment group create --resource-group <your-resource-group> --template-file main.bicep
      ```
-
+---
 > **NOTE:** After deployment wait for about 10 minutes for the docker images to be pulled. You can check the progress in your `Azure Portal` > `Resource Group` > `FunctionApp` > `Deployment Center` > `Logs`.
-
+---
 > **KNOWN ISSUE:** Occasionally, the FunctionApp encounters a runtime issue, preventing the solution from processing files. To resolve this, restart the FunctionApp by follow these steps: `Azure Portal` > `Resource Group` > `FunctionApp` > `Monitoring` > `Health Check` > `Instances` > `Click Restart`.
-
+---
 ## Running the Streamlit Frontend (recommended)
 
 To run the Streamlit app `app.py` located in the `frontend` folder, follow these steps:
