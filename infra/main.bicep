@@ -24,7 +24,8 @@ param appServicePlanName string = '${functionAppName}-plan'
 // Define the Document Intelligence resource name
 param documentIntelligenceName string = 'di${uniqueString(resourceGroup().id)}'
 
-
+@description('Principal ID of the running user for role assignments')
+param azurePrincipalId string
 
 // Define the Azure OpenAI parameters
 @secure()
@@ -35,7 +36,6 @@ param azureOpenaiModelDeploymentName string
 
 param timestamp string = utcNow('yyyy-MM-ddTHH:mm:ssZ')
 var sanitizedTimestamp = replace(replace(timestamp, '-', ''), ':', '')  
-var roleAssignmentName = guid('ra-uniqueString-${resourceGroup().id}-${roleDefinitionId}-${sanitizedTimestamp}')  
 
 // Define common tags  
 var commonTags = {  
@@ -434,9 +434,37 @@ resource logicapp 'Microsoft.Logic/workflows@2019-05-01' = {
 //   }
 // }
 
+resource userCosmosDBRoleAssignment 'Microsoft.DocumentDB/databaseAccounts/sqlRoleAssignments@2021-04-15' = {
+  name: guid(cosmosDbAccount.id, cosmosDbDatabase.id, cosmosDbContainer.id, azurePrincipalId)
+  parent: cosmosDbAccount
+  properties: {
+    principalId: azurePrincipalId
+    roleDefinitionId: cosmosDBDataContributorRoleDefinition.id
+    scope: cosmosDbAccount.id
+  }
+}
+
+resource userStorageAccountRoleAssignment 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
+  name: guid(storageAccount.id, azurePrincipalId, 'StorageBlobDataContributor')
+  scope: storageAccount
+  properties: {
+    principalId: azurePrincipalId
+    roleDefinitionId: subscriptionResourceId('Microsoft.Authorization/roleDefinitions', roleDefinitionId)
+  }
+}
+
 output resourceGroup string = resourceGroup().name
 output functionAppEndpoint string = functionApp.properties.defaultHostName
 output functionAppName string = functionApp.name
 output storageAccountName string = storageAccount.name
 output containerName string = blobContainer.name
 output storageAccountKey string = listKeys(storageAccount.id, storageAccount.apiVersion).keys[0].value
+
+// TODO: remove secrets from output values
+output BLOB_CONN_STR string = 'DefaultEndpointsProtocol=https;AccountName=${storageAccount.name};AccountKey=${storageAccount.listKeys().keys[0].value};EndpointSuffix=${environment().suffixes.storage}'
+output BLOB_ACCOUNT_URL string = storageAccount.properties.primaryEndpoints.blob
+output CONTAINER_NAME string = blobContainer.name
+output COSMOS_URL string = cosmosDbAccount.properties.documentEndpoint
+output COSMOS_DB_NAME string = cosmosDbDatabase.name
+output COSMOS_DOCUMENTS_CONTAINER_NAME string = cosmosDbContainer.name
+output COSMOS_CONFIG_CONTAINER_NAME string = cosmosDbContainerConf.name

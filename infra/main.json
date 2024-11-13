@@ -521,6 +521,14 @@
     "storageAccountKey": {
       "type": "string",
       "value": "[listKeys(resourceId('Microsoft.Storage/storageAccounts', parameters('storageAccountName')), '2022-05-01').keys[0].value]"
+    },
+    "COSMOS_DB_ACCOUNT_NAME": {
+      "type": "string",
+      "value": "[parameters('cosmosDbAccountName')]"
+    },
+    "COSMOS_DB_CONNECTION_STRING": {
+      "type": "string",
+      "value": "[reference(resourceId('Microsoft.DocumentDB/databaseAccounts', parameters('cosmosDbAccountName')), '2021-04-15').documentEndpoint]"
     }
   }
 }
