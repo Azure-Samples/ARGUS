@@ -4,8 +4,8 @@
   "metadata": {
     "_generator": {
       "name": "bicep",
-      "version": "0.30.23.60470",
-      "templateHash": "1333018375616863546"
+      "version": "0.31.34.60546",
+      "templateHash": "14311124565505857214"
     }
   },
   "parameters": {
@@ -36,10 +36,6 @@
     "functionAppName": {
       "type": "string",
       "defaultValue": "[format('fa{0}', uniqueString(resourceGroup().id))]"
-    },
-    "functionAppStorageName": {
-      "type": "string",
-      "defaultValue": "[format('fs{0}', uniqueString(resourceGroup().id))]"
     },
     "appServicePlanName": {
       "type": "string",
@@ -190,39 +186,6 @@
       "tags": "[variables('commonTags')]",
       "dependsOn": [
         "[resourceId('Microsoft.DocumentDB/databaseAccounts/sqlDatabases', parameters('cosmosDbAccountName'), parameters('cosmosDbDatabaseName'))]"
-      ]
-    },
-    {
-      "type": "Microsoft.Storage/storageAccounts",
-      "apiVersion": "2022-05-01",
-      "name": "[parameters('functionAppStorageName')]",
-      "location": "[parameters('location')]",
-      "sku": {
-        "name": "Standard_LRS"
-      },
-      "kind": "StorageV2",
-      "properties": {
-        "accessTier": "Hot"
-      },
-      "tags": "[variables('commonTags')]"
-    },
-    {
-      "type": "Microsoft.Storage/storageAccounts/blobServices",
-      "apiVersion": "2022-05-01",
-      "name": "[format('{0}/{1}', parameters('functionAppStorageName'), 'default')]",
-      "dependsOn": [
-        "[resourceId('Microsoft.Storage/storageAccounts', parameters('functionAppStorageName'))]"
-      ]
-    },
-    {
-      "type": "Microsoft.Storage/storageAccounts/blobServices/containers",
-      "apiVersion": "2022-05-01",
-      "name": "[format('{0}/{1}/{2}', parameters('functionAppStorageName'), 'default', 'app-artifacts')]",
-      "properties": {
-        "publicAccess": "None"
-      },
-      "dependsOn": [
-        "[resourceId('Microsoft.Storage/storageAccounts/blobServices', parameters('functionAppStorageName'), 'default')]"
       ]
     },
     {
