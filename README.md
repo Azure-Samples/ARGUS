@@ -55,17 +55,17 @@ This solution uses Azure Document Intelligence combined with GPT4-Vision. Each o
 To run the Streamlit app `app.py` located in the `frontend` folder, follow these steps:
 * Set up a virtual environment (Preferred)
 ```bash
-python -m venv workshop
+python -m venv argus
 ```
 Once you’ve created a virtual environment, you may activate it.
 
 On Windows, run:
 ```bash
-workshop\Scripts\activate
+argus\Scripts\activate
 ```
 On Unix or MacOS, run:
 ```bash
-source workshop/bin/activate
+source argus/bin/activate
 ```
 To deactivate :
 ```bash
