@@ -21,17 +21,15 @@ param functionAppName string = 'fa${uniqueString(resourceGroup().id)}'
 
 param appServicePlanName string = '${functionAppName}-plan'
 
+// Define the name of the Azure OpenAI resource name 
+param azureOpenaiResourceName string = 'arg-aoai' 
+
+// Define the name of the Azure OpenAI model name  
+param azureOpenaiDeploymentName string = 'gpt-4o' 
+
 // Define the Document Intelligence resource name
 param documentIntelligenceName string = 'di${uniqueString(resourceGroup().id)}'
 
-
-
-// Define the Azure OpenAI parameters
-@secure()
-param azureOpenaiEndpoint string
-@secure()
-param azureOpenaiKey string
-param azureOpenaiModelDeploymentName string
 
 param timestamp string = utcNow('yyyy-MM-ddTHH:mm:ssZ')
 var sanitizedTimestamp = replace(replace(timestamp, '-', ''), ':', '')  
@@ -185,6 +183,42 @@ resource appServicePlan 'Microsoft.Web/serverfarms@2021-03-01' = {
   tags: commonTags
 }
 
+//Define the OpenAI resource
+resource openai 'Microsoft.CognitiveServices/accounts@2023-05-01' = {
+  name: azureOpenaiResourceName
+  location: location
+ 
+  sku: {
+    name: 'S0'
+  }
+  kind: 'OpenAI'
+  properties: {
+   
+  }
+
+}
+// Define the OpenAI deployment
+resource openaideployment 'Microsoft.CognitiveServices/accounts/deployments@2023-05-01' = {
+  name: azureOpenaiDeploymentName
+  sku: {
+    name: 'GlobalStandard'
+    capacity: 30
+  }
+  parent: openai
+  properties: {
+    model: {
+      name: 'gpt-4o'
+      format: 'OpenAI'
+      version: '2024-05-13'
+      
+    }
+    raiPolicyName: 'Microsoft.Default'
+    versionUpgradeOption: 'OnceCurrentVersionExpired'
+ 
+  }
+}
+
+
 // Define the Document Intelligence resource
 resource documentIntelligence 'Microsoft.CognitiveServices/accounts@2021-04-30' = {
   name: documentIntelligenceName
@@ -276,15 +310,15 @@ resource functionApp 'Microsoft.Web/sites@2021-03-01' = {
         }
         {
           name: 'AZURE_OPENAI_ENDPOINT'
-          value: azureOpenaiEndpoint
+          value: '${openai.properties.endpoint}openai/deployments/gpt-4o/chat/completions?api-version=2024-02-15-preview' 
         }
         {
           name: 'AZURE_OPENAI_KEY'
-          value: azureOpenaiKey
+          value: listKeys(openai.id, '2024-10-01').key1
         }
         {
           name: 'AZURE_OPENAI_MODEL_DEPLOYMENT_NAME'
-          value: azureOpenaiModelDeploymentName
+          value: openaideployment.name 
         }
         {
           name: 'FUNCTIONS_WORKER_PROCESS_COUNT'

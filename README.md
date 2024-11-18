@@ -10,9 +10,6 @@ Classic OCR (Object Character Recognition) models lack reasoning ability based o
 
 This solution uses Azure Document Intelligence combined with GPT4-Vision. Each of the tools have their strong points and the hybrid approach is better than any of them alone.
 
-> Notes:
-> - The Azure OpenAI model needs to be vision capable i.e. GPT-4T-0125, 0409 or Omni
-
 
 ## Solution Overview
 
@@ -22,17 +19,6 @@ This solution uses Azure Document Intelligence combined with GPT4-Vision. Each o
 
 ![architecture](docs/ArchitectureOverview.png)
 
-## Prerequisites
-### Azure OpenAI Resource
-
-Before deploying the solution, you need to create an OpenAI resource and deploy a model that is vision capable.
-
-1. **Create an OpenAI Resource**:
-   - Follow the instructions [here](https://learn.microsoft.com/en-us/azure/cognitive-services/openai/how-to/create-resource) to create an OpenAI resource in Azure.
-
-2. **Deploy a Vision-Capable Model**:
-   - Ensure the deployed model supports vision, such as GPT-4T-0125, GPT-4T-0409 or GPT-4-Omni.
-
 
 ## Deployment
 
@@ -41,7 +27,6 @@ Before deploying the solution, you need to create an OpenAI resource and deploy 
 1. **Prerequisites**:
    - Install [Azure Developer CLI](https://learn.microsoft.com/en-us/azure/developer/azure-developer-cli/install-azd).
    - Ensure you have access to an Azure subscription.
-   - Create an OpenAI resource and deploy a vision-capable model.
 
 2. **Deployment Steps**:
    - Run the following commands to login (if needed):
@@ -68,7 +53,25 @@ Before deploying the solution, you need to create an OpenAI resource and deploy 
 ## Running the Streamlit Frontend (recommended)
 
 To run the Streamlit app `app.py` located in the `frontend` folder, follow these steps:
+* Set up a virtual environment (Preferred)
+```bash
+python -m venv argus
+```
+Once you’ve created a virtual environment, you may activate it.
 
+On Windows, run:
+```bash
+argus\Scripts\activate
+```
+On Unix or MacOS, run:
+```bash
+source argus/bin/activate
+```
+To deactivate :
+```bash
+deactivate
+```
+> More information about virtual environments can be found [here](https://docs.python.org/3/tutorial/venv.html)
 1. Install the required dependencies by running the following command in your terminal:
    ```sh
    pip install -r frontend/requirements.txt
