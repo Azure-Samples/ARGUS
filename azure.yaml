@@ -1,16 +1,29 @@
 # yaml-language-server: $schema=https://raw.githubusercontent.com/Azure/azure-dev/main/schemas/v1.0/azure.yaml.json
 
-# This is an example starter azure.yaml file containing several example services in comments below.
-# Make changes as needed to describe your application setup.
-# To learn more about the azure.yaml file, visit https://learn.microsoft.com/en-us/azure/developer/azure-developer-cli/azd-schema
-
-# Name of the application.
 name: azure-function-app
 hooks:
   postprovision:
     posix:
       shell: sh
-      run: pip install -r frontend/requirements.txt
+      run: |
+        echo "\nAfter setup, you can start the Streamlit app by:"
+        echo "1. Activate the virtual environment: source .venv/bin/activate"
+        echo "2. Run: streamlit run frontend/app.py"
+        echo "\nStarting setup now..."
+        python3 -m venv .venv
+        source .venv/bin/activate
+        pip install -r frontend/requirements.txt
+        azd env get-values > frontend/.env
+        streamlit run frontend/app.py
     windows:
       shell: pwsh
-      run: pip install -r frontend/requirements.txt
+      run: |
+        Write-Host "`nAfter setup, you can start the Streamlit app by:"
+        Write-Host "1. Activate the virtual environment: .\.venv\Scripts\Activate.ps1"
+        Write-Host "2. Run: streamlit run frontend/app.py"
+        Write-Host "`nStarting setup now..."
+        python -m venv .venv
+        .\.venv\Scripts\Activate.ps1
+        pip install -r frontend/requirements.txt
+        azd env get-values > frontend/.env
+        streamlit run frontend/app.py

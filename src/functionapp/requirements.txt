@@ -1,5 +1,5 @@
 azure-functions==1.20.0
-openai==1.35.5
+openai==1.52.2
 python-dotenv==1.0.1
 pillow==10.3.0
 requests_html==0.10.0
