@@ -100,7 +100,6 @@ def split_pdf_into_subsets(pdf_path, max_pages_per_subset=10):
     return subset_paths
 
 
-
 def fetch_model_prompt_and_schema(dataset_type):
     docs_container, conf_container = connect_to_cosmos()
 
@@ -199,123 +198,95 @@ def convert_pdf_into_image(pdf_path):
         shutil.rmtree(temp_dir, ignore_errors=True)
         raise e
 
-def run_ocr_and_gpt(file_to_ocr: str, prompt: str, json_schema: str, document: dict, container: any, config: Config = Config()) -> (any, dict, dict):
-    processing_times = {}
-
-    # Get OCR results
+def run_ocr_processing(file_to_ocr: str, document: dict, container: any) -> (str, float):
+    """
+    Run OCR processing on the input file.
+    Returns OCR result and processing time.
+    """
     ocr_start_time = datetime.now()
-
-    ocr_result = None
     try:
         ocr_result = get_ocr_results(file_to_ocr)
-        # Update document with OCR results
         document['extracted_data']['ocr_output'] = ocr_result
         ocr_processing_time = (datetime.now() - ocr_start_time).total_seconds()
-        processing_times['ocr_processing_time'] = ocr_processing_time
         update_state(document, container, 'ocr_completed', True, ocr_processing_time)
+        return ocr_result, ocr_processing_time
     except Exception as e:
         document['errors'].append(f"OCR processing error: {str(e)}")
         update_state(document, container, 'ocr_completed', False)
         raise e
 
+def run_gpt_extraction(ocr_result: str, prompt: str, json_schema: str, imgs: list, 
+                      document: dict, container: any) -> (dict, float):
+    """
+    Run GPT extraction on OCR results.
+    Returns extracted data and processing time.
+    """
+    gpt_extraction_start_time = datetime.now()
     try:
-        # Extract images from the PDF and get the temporary directory path
-        temp_dir = convert_pdf_into_image(file_to_ocr)
-        
-        # Get list of generated images
-        imgs = glob.glob(os.path.join(temp_dir, "page*.png"))
-        
-        # Limit images by config
-        imgs = imgs[:config.max_images]
-        imgs = [load_image(img) for img in imgs]
-        
-        # Check and reduce images total size if over configured limit
-        max_size = config.gpt_vision_limit_mb * 1024 * 1024
-        while get_size_of_base64_images(imgs) > max_size:
-            imgs.pop()
-        
-        # Get structured data
-        gpt_extraction_start_time = datetime.now()
         structured = get_structured_data(ocr_result, prompt, json_schema, imgs)
         extracted_data = parse_json_markdown(structured.content)
-        
-        # Update document with extraction results
         document['extracted_data']['gpt_extraction_output'] = extracted_data
         gpt_extraction_time = (datetime.now() - gpt_extraction_start_time).total_seconds()
-        processing_times['gpt_extraction_time'] = gpt_extraction_time
         update_state(document, container, 'gpt_extraction_completed', True, gpt_extraction_time)
+        return extracted_data, gpt_extraction_time
+    except Exception as e:
+        document['errors'].append(f"GPT extraction error: {str(e)}")
+        update_state(document, container, 'gpt_extraction_completed', False)
+        raise e
 
-        # Perform GPT evaluation and enrichment
-        evaluation_start_time = datetime.now()
+def run_gpt_evaluation(imgs: list, extracted_data: dict, json_schema: str, 
+                      document: dict, container: any) -> (dict, float):
+    """
+    Run GPT evaluation and enrichment on extracted data.
+    Returns enriched data and processing time.
+    """
+    evaluation_start_time = datetime.now()
+    try:
         enriched_data = perform_gpt_evaluation_and_enrichment(imgs, extracted_data, json_schema)
-        
-        # Update document with enriched data
         document['extracted_data']['gpt_extraction_output_with_evaluation'] = enriched_data
         evaluation_time = (datetime.now() - evaluation_start_time).total_seconds()
-        processing_times['gpt_evaluation_time'] = evaluation_time
         update_state(document, container, 'gpt_evaluation_completed', True, evaluation_time)
-
-        # Process GPT summary
-        try:
-            classification = 'N/A'
-            summaries = []
-            try:
-                classification = ocr_result.categorization
-            except AttributeError:
-                logging.warning("Cannot find the field 'categorization' in output schema! Logging it as N/A...")
-            
-            summary_start_time = datetime.now()
-            gpt_summary = get_summary_with_gpt(ocr_result)
-            summaries.append(gpt_summary.content)
-            
-            # Update document with summary
-            document['extracted_data']['classification'] = classification
-            document['extracted_data']['gpt_summary_output'] = ' '.join(summaries)
-            summary_processing_time = (datetime.now() - summary_start_time).total_seconds()
-            update_state(document, container, 'gpt_summary_completed', True, summary_processing_time)
-            processing_times['gpt_summary_time'] = summary_processing_time
-
-        except Exception as e:
-            document['errors'].append(f"Summary processing error: {str(e)}")
-            update_state(document, container, 'gpt_summary_completed', False)
-            raise e
-
-        # Mark processing as completed
-        document['state']['processing_completed'] = True
-        container.upsert_item(document)
-        
-        return ocr_result, json.dumps(extracted_data), json.dumps(enriched_data), processing_times
-    
+        return enriched_data, evaluation_time
     except Exception as e:
-        document['errors'].append(f"Processing error: {str(e)}")
-        document['state']['processing_completed'] = False
-        container.upsert_item(document)
+        document['errors'].append(f"GPT evaluation error: {str(e)}")
+        update_state(document, container, 'gpt_evaluation_completed', False)
         raise e
-    
-    finally:
-        # Clean up: remove the temporary directory and all its contents
-        if 'temp_dir' in locals():
-            try:
-                shutil.rmtree(temp_dir, ignore_errors=True)
-                print(f"Cleaned up temporary directory: {temp_dir}")
-            except Exception as e:
-                print(f"Error cleaning up temporary directory {temp_dir}: {e}")
 
-
-def process_gpt_summary(ocr_responses, document, container):
+def run_gpt_summary(ocr_result: str, document: dict, container: any) -> float:
+    """
+    Run GPT summary on OCR results.
+    Returns processing time.
+    """
+    summary_start_time = datetime.now()
     try:
-        summaries = []
-        for ocr_response in ocr_responses:
-            summary_start_time = datetime.now()
-            gpt_summary = get_summary_with_gpt(ocr_response)
-            summaries.append(gpt_summary.content)
-            summary_processing_time = (datetime.now() - summary_start_time).total_seconds()
-            update_state(document, container, 'gpt_summary_completed', True, summary_processing_time)
-        document['extracted_data']['gpt_summary_output'] = ' '.join(summaries)
+        classification = getattr(ocr_result, 'categorization', 'N/A')
+        gpt_summary = get_summary_with_gpt(ocr_result)
+        
+        document['extracted_data']['classification'] = classification
+        document['extracted_data']['gpt_summary_output'] = gpt_summary.content
+        summary_processing_time = (datetime.now() - summary_start_time).total_seconds()
+        update_state(document, container, 'gpt_summary_completed', True, summary_processing_time)
+        return summary_processing_time
     except Exception as e:
-        document['errors'].append(f"NL processing error: {str(e)}")
+        document['errors'].append(f"Summary processing error: {str(e)}")
         update_state(document, container, 'gpt_summary_completed', False)
-        sys.exit(1)  # Exit with error
-        raise
+        raise e
+
+def prepare_images(file_to_ocr: str, config: Config = Config()) -> (str, list):
+    """
+    Prepare images from PDF file for processing.
+    Returns temporary directory path and processed images.
+    """
+    temp_dir = convert_pdf_into_image(file_to_ocr)
+    imgs = glob.glob(os.path.join(temp_dir, "page*.png"))[:config.max_images]
+    imgs = [load_image(img) for img in imgs]
+    
+    # Limit images size
+    max_size = config.gpt_vision_limit_mb * 1024 * 1024
+    while get_size_of_base64_images(imgs) > max_size:
+        imgs.pop()
+        
+    return temp_dir, imgs
+
 
 

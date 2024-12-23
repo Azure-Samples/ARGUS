@@ -1,4 +1,4 @@
-import sys
+import sys, json
 import base64
 from datetime import datetime
 from azure.storage.blob import BlobServiceClient
@@ -228,18 +228,97 @@ def explore_data_tab():
                                 st.markdown(download_link, unsafe_allow_html=True)
                             else:
                                 st.warning(f'Unsupported file type: {file_extension}')
-
+                    
                     with json_col:
                         if json_data:
-                            show_evaluated = st.checkbox("Show output with evaluation", value=False)
-                            if show_evaluated:
+                            tabs = st.tabs(["GPT Extraction", "OCR Extraction", "GPT Evaluation", "GPT Summary", "Processing Details"])
+                            
+                            # OCR Extraction Tab
+                            with tabs[1]:
                                 try:
-                                    st.json(json_data['extracted_data']['gpt_extraction_output_with_evaluation'])
+                                    ocr_data = json_data['extracted_data']['ocr_output']
+                                    # Download button for OCR data
+                                    st.download_button(
+                                        label="Download OCR Data",
+                                        data=ocr_data,
+                                        file_name="ocr_extraction.txt",
+                                        mime="text/plain"
+                                    )
+                                    st.text(ocr_data)
                                 except KeyError:
-                                    st.warning("Evaluated JSON not available. Showing original JSON instead.")
-                                    st.json(json_data['extracted_data']['gpt_extraction_output'])
-                            else:
-                                st.json(json_data['extracted_data']['gpt_extraction_output'])
+                                    st.warning("OCR extraction data not available")
+                            
+                            # GPT Extraction Tab
+                            with tabs[0]:
+                                try:
+                                    gpt_extraction = json_data['extracted_data']['gpt_extraction_output']
+                                    # Download button for GPT extraction
+                                    st.download_button(
+                                        label="Download GPT Extraction",
+                                        data=json.dumps(gpt_extraction, indent=2),
+                                        file_name="gpt_extraction.json",
+                                        mime="application/json"
+                                    )
+                                    st.json(gpt_extraction)
+                                except KeyError:
+                                    st.warning("GPT extraction data not available")
+                            
+                            # GPT Evaluation Tab
+                            with tabs[2]:
+                                try:
+                                    evaluation_data = json_data['extracted_data']['gpt_extraction_output_with_evaluation']
+                                    # Download button for evaluation data
+                                    st.download_button(
+                                        label="Download Evaluation Data",
+                                        data=json.dumps(evaluation_data, indent=2),
+                                        file_name="gpt_evaluation.json",
+                                        mime="application/json"
+                                    )
+                                    st.json(evaluation_data)
+                                except KeyError:
+                                    st.warning("GPT evaluation data not available")
+                            
+                            # Summary Tab
+                            with tabs[3]:
+                                try:
+                                    summary_data = json_data['extracted_data']['gpt_summary_output']
+                                    # Download button for summary
+                                    st.download_button(
+                                        label="Download Summary",
+                                        data=summary_data,
+                                        file_name="gpt_summary.md",
+                                        mime="text/markdown"
+                                    )
+                                    st.markdown(summary_data)
+                                except KeyError:
+                                    st.warning("Summary data not available")
+                            with tabs[4]:
+                                        try:
+                                            # Create a more readable format for the details
+                                            details_data = [
+                                                ["File ID", json_data['id']],
+                                                ["Blob Name", json_data['properties']['blob_name']],
+                                                ["Blob Size", f"{json_data['properties']['blob_size']} bytes"],
+                                                ["Number of Pages", json_data['properties']['num_pages']],
+                                                ["Total Processing Time", f"{json_data['properties']['total_time_seconds']:.2f} seconds"],
+                                                ["Request Timestamp", json_data['properties']['request_timestamp']],
+                                                ["File Landing Time", f"{json_data['state']['file_landed_time_seconds']:.2f} seconds"],
+                                                ["OCR Processing Time", f"{json_data['state']['ocr_completed_time_seconds']:.2f} seconds"],
+                                                ["GPT Extraction Time", f"{json_data['state']['gpt_extraction_completed_time_seconds']:.2f} seconds"],
+                                                ["GPT Evaluation Time", f"{json_data['state']['gpt_evaluation_completed_time_seconds']:.2f} seconds"],
+                                                ["GPT Summary Time", f"{json_data['state']['gpt_summary_completed_time_seconds']:.2f} seconds"],
+                                                ["Model Deployment", json_data['model_input']['model_deployment']],
+                                                ["Model Prompt", json_data['model_input']['model_prompt']]
+                                            ]
+                                            
+                                            # Convert to DataFrame for better display
+                                            df = pd.DataFrame(details_data, columns=['Metric', 'Value'])
+                                            
+                                            # Display table
+                                            st.table(df)
+                                            
+                                        except KeyError as e:
+                                            st.warning(f"Some details are not available: {str(e)}")
 
                 elif len(selected_rows) > 1:
                     st.warning('Please select exactly one item to show extraction.')
