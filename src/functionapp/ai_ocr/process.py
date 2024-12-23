@@ -207,16 +207,17 @@ def run_ocr_and_gpt(file_to_ocr: str, prompt: str, json_schema: str, document: d
 
     ocr_result = None
     try:
-        ocr_result = get_ocr_results(file_to_ocr)   
+        ocr_result = get_ocr_results(file_to_ocr)
+        # Update document with OCR results
+        document['extracted_data']['ocr_output'] = ocr_result
+        ocr_processing_time = (datetime.now() - ocr_start_time).total_seconds()
+        processing_times['ocr_processing_time'] = ocr_processing_time
+        update_state(document, container, 'ocr_completed', True, ocr_processing_time)
     except Exception as e:
+        document['errors'].append(f"OCR processing error: {str(e)}")
+        update_state(document, container, 'ocr_completed', False)
         raise e
 
-    ocr_processing_time = (datetime.now() - ocr_start_time).total_seconds()
-    processing_times['ocr_processing_time'] = ocr_processing_time
-    
-    # Update state after OCR processing
-    update_state(document, container, 'ocr_completed', True, ocr_processing_time)
-    
     try:
         # Extract images from the PDF and get the temporary directory path
         temp_dir = convert_pdf_into_image(file_to_ocr)
@@ -228,33 +229,68 @@ def run_ocr_and_gpt(file_to_ocr: str, prompt: str, json_schema: str, document: d
         imgs = imgs[:config.max_images]
         imgs = [load_image(img) for img in imgs]
         
-        # Check and reduce images total size if over 20MB
-        max_size = config.gpt_vision_limit_mb * 1024 * 1024  # 20MB
+        # Check and reduce images total size if over configured limit
+        max_size = config.gpt_vision_limit_mb * 1024 * 1024
         while get_size_of_base64_images(imgs) > max_size:
             imgs.pop()
         
         # Get structured data
         gpt_extraction_start_time = datetime.now()
         structured = get_structured_data(ocr_result, prompt, json_schema, imgs)
+        extracted_data = parse_json_markdown(structured.content)
+        
+        # Update document with extraction results
+        document['extracted_data']['gpt_extraction_output'] = extracted_data
         gpt_extraction_time = (datetime.now() - gpt_extraction_start_time).total_seconds()
         processing_times['gpt_extraction_time'] = gpt_extraction_time
-        
-        # Update state after GPT extraction
         update_state(document, container, 'gpt_extraction_completed', True, gpt_extraction_time)
-        
-        # Parse structured data
-        extracted_data = parse_json_markdown(structured.content)
 
         # Perform GPT evaluation and enrichment
         evaluation_start_time = datetime.now()
         enriched_data = perform_gpt_evaluation_and_enrichment(imgs, extracted_data, json_schema)
+        
+        # Update document with enriched data
+        document['extracted_data']['gpt_extraction_output_with_evaluation'] = enriched_data
         evaluation_time = (datetime.now() - evaluation_start_time).total_seconds()
         processing_times['gpt_evaluation_time'] = evaluation_time
-
-        # Update state after GPT evaluation
         update_state(document, container, 'gpt_evaluation_completed', True, evaluation_time)
 
+        # Process GPT summary
+        try:
+            classification = 'N/A'
+            summaries = []
+            try:
+                classification = ocr_result.categorization
+            except AttributeError:
+                logging.warning("Cannot find the field 'categorization' in output schema! Logging it as N/A...")
+            
+            summary_start_time = datetime.now()
+            gpt_summary = get_summary_with_gpt(ocr_result)
+            summaries.append(gpt_summary.content)
+            
+            # Update document with summary
+            document['extracted_data']['classification'] = classification
+            document['extracted_data']['gpt_summary_output'] = ' '.join(summaries)
+            summary_processing_time = (datetime.now() - summary_start_time).total_seconds()
+            update_state(document, container, 'gpt_summary_completed', True, summary_processing_time)
+            processing_times['gpt_summary_time'] = summary_processing_time
+
+        except Exception as e:
+            document['errors'].append(f"Summary processing error: {str(e)}")
+            update_state(document, container, 'gpt_summary_completed', False)
+            raise e
+
+        # Mark processing as completed
+        document['state']['processing_completed'] = True
+        container.upsert_item(document)
+        
         return ocr_result, json.dumps(extracted_data), json.dumps(enriched_data), processing_times
+    
+    except Exception as e:
+        document['errors'].append(f"Processing error: {str(e)}")
+        document['state']['processing_completed'] = False
+        container.upsert_item(document)
+        raise e
     
     finally:
         # Clean up: remove the temporary directory and all its contents
@@ -268,19 +304,13 @@ def run_ocr_and_gpt(file_to_ocr: str, prompt: str, json_schema: str, document: d
 
 def process_gpt_summary(ocr_responses, document, container):
     try:
-        classification = 'N/A'
         summaries = []
         for ocr_response in ocr_responses:
-            try:
-                classification = ocr_response.categorization
-            except AttributeError:
-                logging.warning("Cannot find the field 'categorization' in output schema! Logging it as N/A...")
             summary_start_time = datetime.now()
             gpt_summary = get_summary_with_gpt(ocr_response)
             summaries.append(gpt_summary.content)
             summary_processing_time = (datetime.now() - summary_start_time).total_seconds()
             update_state(document, container, 'gpt_summary_completed', True, summary_processing_time)
-        document['extracted_data']['classification'] = classification
         document['extracted_data']['gpt_summary_output'] = ' '.join(summaries)
     except Exception as e:
         document['errors'].append(f"NL processing error: {str(e)}")

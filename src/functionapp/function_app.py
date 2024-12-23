@@ -16,6 +16,7 @@ def main(myblob: func.InputStream):
     logging.info(f"Python blob trigger function processed blob \n"
                  f"Name: {myblob.name}\n"
                  f"Blob Size: {myblob.length} bytes")
+
     try:
         data_container, conf_container = connect_to_cosmos()
         with ThreadPoolExecutor() as executor:
@@ -31,6 +32,8 @@ def main(myblob: func.InputStream):
         logging.error("Error occurred in blob trigger function")
         logging.error(traceback.format_exc())
         sys.exit(1)  # Exit with error
+    print("Function completed successfully.")
+    return
 
 def handle_timeout_error(myblob, data_container):
     document_id = myblob.name.replace('/', '__')
@@ -79,7 +82,9 @@ def process_blob(myblob: func.InputStream, data_container):
         gpt_response = combined_gpt_response
         evaluation_result = combined_evaluation_result
     else:
+        
         ocr_response, gpt_response, evaluation_result, processing_times = run_ocr_and_gpt_processing(temp_file_path, document, data_container)
+        ocr_response = [ocr_response]
     process_gpt_summary(ocr_response, document, data_container)
     update_final_document(document, gpt_response, ocr_response, evaluation_result, processing_times, data_container)
     return document
@@ -140,7 +145,7 @@ def update_final_document(document, gpt_response, ocr_response, evaluation_resul
     document['extracted_data'].update({
         "gpt_extraction_output_with_evaluation": merged_evaluation_result,
         "gpt_extraction_output": merged_gpt_response,
-        "ocr_output": ocr_response
+        "ocr_output": '\n'.join(ocr_response)
     })
     document['state']['processing_completed'] = True
     update_state(document, data_container, 'processing_completed', True)
