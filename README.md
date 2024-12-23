@@ -52,15 +52,8 @@ Before deploying the solution, you need to create an OpenAI resource and deploy 
      ```sh
      azd up
      ```
+After deployment the frontend will load automatically on your browser.
 
-### Alternative: Manual Deployment
-
-1. **Bicep Template Deployment**:
-   - Use the provided `main.bicep` file to deploy resources manually:
-     ```sh
-     az deployment group create --resource-group rg-argus-004 --template-file infra/main.bicep  \
-         --parameters azurePrincipalId=$(az ad signed-in-user show --query id -o tsv)
-     ```
 ---
 > **NOTE:** After deployment wait for about 10 minutes for the docker images to be pulled. You can check the progress in your `Azure Portal` > `Resource Group` > `FunctionApp` > `Deployment Center` > `Logs`.
 ---
