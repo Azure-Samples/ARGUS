@@ -1,16 +1,22 @@
-from langchain_core.messages import HumanMessage
-from langchain_core.prompts import ChatPromptTemplate
-from langchain_core.messages import SystemMessage
-from langchain_core.prompts import HumanMessagePromptTemplate
-from langchain_core.output_parsers import JsonOutputParser
+from openai import AzureOpenAI
+import logging
+import json
+from typing import List, Any, Dict, Optional
+from ai_ocr.azure.config import get_config
 
-from ai_ocr.azure.openai_ops import get_llm
+def get_client():
+    config = get_config()
+    return AzureOpenAI(
+        api_key=config["openai_api_key"],
+        api_version=config["openai_api_version"],
+        azure_endpoint=config["openai_api_endpoint"]
+    )
 
-import logging, json
-
-
-def get_structured_data(markdown_content: str, prompt: str, json_schema: str, images=[]) -> any:
-    system_message = f"""
+def get_structured_data(markdown_content: str, prompt: str, json_schema: str, images: List[str] = []) -> Any:
+    client = get_client()
+    config = get_config()
+    
+    system_content = f"""
     Your task is to extract the JSON contents from a document using the provided materials:
     1. Custom instructions for the extraction process
     2. A JSON schema template for structuring the extracted data
@@ -35,33 +41,37 @@ def get_structured_data(markdown_content: str, prompt: str, json_schema: str, im
     ```
     """
 
-    chat_template = ChatPromptTemplate.from_messages(
-        [
-            SystemMessage(content=system_message),
-            HumanMessagePromptTemplate.from_template("Here is the Document content (in markdown format):\n{markdown}"),
-        ]
-    )
-
-    messages = chat_template.format_messages(markdown=markdown_content)
+    messages = [
+        {"role": "user", "content": system_content},
+        {"role": "user", "content": f"Here is the Document content (in markdown format):\n{markdown_content}"}
+    ]
 
     if images:
-        messages.append(HumanMessage(content="Here are the images from the document:"))
+        messages.append({"role": "user", "content": "Here are the images from the document:"})
         for img in images:
-            messages.append(HumanMessage(content=[{"type": "image_url", "image_url": {"url": f"data:image/png;base64,{img}"}}]))
+            messages.append({
+                "role": "user",
+                "content": [
+                    {
+                        "type": "image_url",
+                        "image_url": {"url": f"data:image/png;base64,{img}"}
+                    }
+                ]
+            })
 
-    #todo manage token count
-    model = get_llm()
-    return model.invoke(messages)
-
-
-
-
-def perform_gpt_evaluation_and_enrichment(images: list, extracted_data: dict, json_schema: str) -> dict:
-    model = get_llm()
+    response = client.chat.completions.create(
+        model=config["openai_model_deployment"],
+        messages=messages,
+        seed=0
+    )
     
-    parser = JsonOutputParser()
+    return response.choices[0].message
+
+def perform_gpt_evaluation_and_enrichment(images: List[str], extracted_data: Dict, json_schema: str) -> Dict:
+    client = get_client()
+    config = get_config()
     
-    system_message = f"""
+    system_content = f"""
     You are an AI assistant tasked with evaluating extracted data from a document.
 
     Your tasks are:
@@ -74,7 +84,8 @@ def perform_gpt_evaluation_and_enrichment(images: list, extracted_data: dict, js
     7. Determine how many fields are present in the input providedcompared to the ones you see in the images.
     Output it with 4 fields: "numberOfFieldsSeenInImages", "numberofFieldsInSchema" also provide a "percentagePresenceAccuracy" which is the ratio between the total fields in the schema and the ones detected in the images, the last field "overallFieldAccuracy" is the sum of the accuracy you gave for each field in percentage.
     8. NEVER be 100% sure of the accuracy of the data, there is always room for improvement. NEVER give 1.
-    
+    9. Return only the pure JSON, do not include comments or markdown formatting such as ```json or ```.
+
     For each individual field in the extracted data:
     1. Meticulously verify its accuracy against the document images.
     2. Assign a confidence score between 0 and 1, using the following guidelines:
@@ -97,37 +108,36 @@ def perform_gpt_evaluation_and_enrichment(images: list, extracted_data: dict, js
         }},
         ...
     }}
-            
-    ..and take your time to complete the tasks.
-    
 
-    IMPORTANT: Return only the JSON instance filled with data from the document and the evaluation, without any additional comments. Don't include  ```json and ```.
-    
     Here is the JSON schema template that was used for the extraction:
-
     {json_schema}
-    
-    ------
-    
-    {parser.get_format_instructions()}
     """
 
-    chat_template = ChatPromptTemplate.from_messages(
-        [
-            SystemMessage(content=system_message),
-            HumanMessagePromptTemplate.from_template("Here is the extracted data :\n{extracted}"),
-        ]
-    )
-    messages = chat_template.format_messages(extracted=json.dumps(extracted_data, indent=2))
+    messages = [
+        {"role": "user", "content": system_content},
+        {"role": "user", "content": f"Here is the extracted data:\n{json.dumps(extracted_data, indent=2)}"}
+    ]
 
     if images:
-        messages.append(HumanMessage(content="Here are the images from the document:"))
+        messages.append({"role": "user", "content": "Here are the images from the document:"})
         for img in images:
-            messages.append(HumanMessage(content=[{"type": "image_url", "image_url": {"url": f"data:image/png;base64,{img}"}}]))
+            messages.append({
+                "role": "user",
+                "content": [
+                    {
+                        "type": "image_url",
+                        "image_url": {"url": f"data:image/png;base64,{img}"}
+                    }
+                ]
+            })
 
-    evaluation_result = model.invoke(messages)
     try:
-        return parser.parse(evaluation_result.content)
+        response = client.chat.completions.create(
+            model=config["openai_model_deployment"],
+            messages=messages,
+            seed=0
+        )
+        return json.loads(response.choices[0].message.content)
     except Exception as e:
         logging.error(f"Failed to parse GPT evaluation and enrichment result: {e}")
         return {
@@ -135,45 +145,23 @@ def perform_gpt_evaluation_and_enrichment(images: list, extracted_data: dict, js
             "original_data": extracted_data
         }
 
-
-def get_summary_with_gpt(mkd_output_json: str) -> any:
+def get_summary_with_gpt(mkd_output_json) -> Any:
+    client = get_client()
+    config = get_config()
+    
     reasoning_prompt = """
-    Use the provided data represented in the schema to produce a summary in natural language. The format should be a few sentences summary of the document.
-
-    As an example, for the schema {"properties": {"foo": {"title": "Foo", "description": "a list of strings", "type": "array", "items": {"type": "string"}}}, "required": ["foo"]}
-    the object {"foo": ["bar", "baz"]} is a well-formatted instance of the schema. The object {"properties": {"foo": ["bar", "baz"]}} is not well-formatted.
+    Use the provided data represented in the schema to produce a summary in natural language. 
+    The format should be a few sentences summary of the document.
     """
-    
-    chat_template = ChatPromptTemplate.from_messages(
-        [
-            SystemMessage(
-                content=(
-                    reasoning_prompt
-                )
-            ),
-            HumanMessagePromptTemplate.from_template("{text}"),
-        ]
+    messages = [
+        {"role": "user", "content": reasoning_prompt},
+        {"role": "user", "content": json.dumps(mkd_output_json)}
+    ]
+
+    response = client.chat.completions.create(
+        model=config["openai_model_deployment"],
+        messages=messages,
+        seed=0
     )
-    messages = chat_template.format_messages(text=mkd_output_json)
 
-    model = get_llm()
-    return model.invoke(messages)
-
-
-def classify_doc_with_llm(ocr_input: str, classification_system_prompt) -> any:
-    prompt = classification_system_prompt
-    
-    chat_template = ChatPromptTemplate.from_messages(
-        [
-            SystemMessage(
-                content=(
-                    prompt
-                )
-            ),
-            HumanMessagePromptTemplate.from_template("{text}"),
-        ]
-    )
-    messages = chat_template.format_messages(text=ocr_input)
-
-    model = get_llm()
-    return model.invoke(messages)
+    return response.choices[0].message

@@ -267,6 +267,7 @@ def explore_data_tab():
                             with tabs[2]:
                                 try:
                                     evaluation_data = json_data['extracted_data']['gpt_extraction_output_with_evaluation']
+                                    st.info("Evaluation works best with a Reasoning Model such as OpenAI O1.") 
                                     # Download button for evaluation data
                                     st.download_button(
                                         label="Download Evaluation Data",
@@ -383,4 +384,4 @@ def explore_data_tab():
                         st.error(f"Error in creating the histogram: {e}")
 
     else:
-        st.error('Failed to fetch data or no data found. If you submitted files for processing, please wait a few seconds and refresh the page.')
+        st.error('Failed to fetch data or no data found. If you submitted files for processing, please wait a few minutes and refresh the page. If problem remains, check your azure functionapp for errors and restart it.')
