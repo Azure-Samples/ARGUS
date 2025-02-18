@@ -14,14 +14,9 @@ document_intelligence_client = DocumentIntelligenceClient(endpoint=config["doc_i
 
 def get_ocr_results(file_path: str):
     with open(file_path, "rb") as f:
-        try:
-            poller = document_intelligence_client.begin_analyze_document("prebuilt-layout", 
-                                                                        body=f, 
-                                                                        features=[DocumentAnalysisFeature.OCR_HIGH_RESOLUTION])
-        except Exception as e:
-            # If ocr high resolution is not supported (i.e. for DOCX, PPTX files run OCR without it)
-            poller = document_intelligence_client.begin_analyze_document("prebuilt-layout", 
+        poller = document_intelligence_client.begin_analyze_document("prebuilt-layout", 
                                                                         body=f)
+
     ocr_result = poller.result().content
     return ocr_result
 
