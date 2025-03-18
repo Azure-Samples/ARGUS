@@ -1,0 +1,56 @@
+on:
+  workflow_dispatch:
+  # Uncomment the below line to run the workflow on commit
+  # push:
+  #   # Run when commits are pushed to mainline branch
+  #   # Set this to the mainline branch you are using
+  #   branches:
+  #     - main
+
+  # Set this permission if you are using a Federated Credential.
+permissions:
+  id-token: write
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    # azd build-in variables.
+    # This variables are always set by `azd pipeline config`
+    # You can set them as global env (apply to all steps) or you can add them to individual steps' environment
+    env:
+      AZURE_CLIENT_ID: ${{ vars.AZURE_CLIENT_ID }}
+      AZURE_TENANT_ID: ${{ vars.AZURE_TENANT_ID }}
+      AZURE_SUBSCRIPTION_ID: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+      AZURE_ENV_NAME: ${{ vars.AZURE_ENV_NAME }}
+      AZURE_LOCATION: ${{ vars.AZURE_LOCATION }}
+      ## Define the additional variables or secrets that are required globally (provision and deploy)
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      # using the install-azd action
+      - name: Install azd
+        uses: Azure/setup-azd@v2.1.0
+
+      # azd set up Federated Credential by default. You can remove this step if you are using Client Credentials
+      - name: Log in with Azure (Federated Credentials)
+        if: ${{ env.AZURE_CLIENT_ID != '' }}
+        run: |
+          azd auth login `
+            --client-id "$Env:AZURE_CLIENT_ID" `
+            --federated-credential-provider "github" `
+            --tenant-id "$Env:AZURE_TENANT_ID"
+        shell: pwsh
+
+      - name: Provision Infrastructure
+        run: azd provision --no-prompt
+        env:
+          # uncomment this if you are using infrastructure parameters
+          AZD_INITIAL_ENVIRONMENT_CONFIG: ${{ secrets.AZD_INITIAL_ENVIRONMENT_CONFIG }}
+          ## Define the additional variables or secrets that are required only for provision
+
+      - name: Deploy Application
+        run: azd deploy --no-prompt
+        # env:
+        ## Define the additional variables or secrets that are required only for deploy
