@@ -44,8 +44,9 @@ jobs:
         shell: pwsh
 
       - name: Provision Infrastructure
-        run: azd provision --no-prompt
+        run: azd provision --no-prompt --resource-group $env:AZD_RESOURCE_GROUP 
         env:
+          AZD_RESOURCE_GROUP: ${{ vars.AZURE_RESOURCE_GROUP }}
           # uncomment this if you are using infrastructure parameters
           AZD_INITIAL_ENVIRONMENT_CONFIG: ${{ secrets.AZD_INITIAL_ENVIRONMENT_CONFIG }}
           ## Define the additional variables or secrets that are required only for provision
