@@ -1,0 +1,8 @@
+mcp
+azure-storage-blob
+azure-identity
+python-dotenv
+chainlit
+openai
+aiohttp
+fastmcp
