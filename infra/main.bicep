@@ -2,7 +2,7 @@
 param functionAppDockerImage string = 'DOCKER|argus.azurecr.io/argus-backend:latest'
 
 // Define the resource group location
-param location string = resourceGroup().location
+param location string
 
 // Define the storage account name
 param storageAccountName string = 'sa${uniqueString(resourceGroup().id)}'

@@ -4,8 +4,8 @@
   "metadata": {
     "_generator": {
       "name": "bicep",
-      "version": "0.31.34.60546",
-      "templateHash": "14311124565505857214"
+      "version": "0.34.44.8038",
+      "templateHash": "6013110541524566177"
     }
   },
   "parameters": {
@@ -14,8 +14,7 @@
       "defaultValue": "DOCKER|argus.azurecr.io/argus-backend:latest"
     },
     "location": {
-      "type": "string",
-      "defaultValue": "[resourceGroup().location]"
+      "type": "string"
     },
     "storageAccountName": {
       "type": "string",
@@ -45,6 +44,12 @@
       "type": "string",
       "defaultValue": "[format('di{0}', uniqueString(resourceGroup().id))]"
     },
+    "azurePrincipalId": {
+      "type": "string",
+      "metadata": {
+        "description": "Principal ID of the running user for role assignments"
+      }
+    },
     "azureOpenaiEndpoint": {
       "type": "securestring"
     },
@@ -61,18 +66,11 @@
     "roleDefinitionId": {
       "type": "string",
       "defaultValue": "ba92f5b4-2d11-453d-a403-e96b0029c9fe"
-    },
-    "azurePrincipalId": {
-      "type": "string",
-      "metadata": {
-        "description": "The principal ID of the user who will use those resources (usually yourself). You can use the Azure CLI to get this value: az ad signed-in-user show --query id -o tsv"
-      }
     }
   },
   "variables": {
     "$fxv#0": "{\n    \"definition\": {\n      \"$schema\": \"https://schema.management.azure.com/providers/Microsoft.Logic/schemas/2016-06-01/workflowdefinition.json#\",\n      \"contentVersion\": \"1.0.0.0\",\n      \"triggers\": {},\n      \"actions\": {\n        \"If_email_has_attachments_and_key_subject_phrase\": {\n          \"type\": \"If\",\n          \"expression\": {\n            \"and\": [\n              {\n                \"equals\": [\n                  \"@triggerBody()?['hasAttachments']\",\n                  true\n                ]\n              }\n            ]\n          },\n          \"actions\": {\n            \"For_each\": {\n              \"type\": \"Foreach\",\n              \"foreach\": \"@triggerBody()?['attachments']\",\n              \"actions\": {\n                \"Create_blob_(V2)_1\": {\n                  \"type\": \"ApiConnection\",\n                  \"inputs\": {\n                    \"host\": {\n                      \"connection\": {\n                        \"name\": \"@parameters('$connections')['azureblob']['connectionId']\"\n                      }\n                    },\n                    \"method\": \"post\",\n                    \"body\": \"@base64ToBinary(item()?['contentBytes'])\",\n                    \"headers\": {\n                      \"ReadFileMetadataFromServer\": true\n                    },\n                    \"path\": \"/v2/datasets/@{encodeURIComponent(encodeURIComponent(parameters('storageAccount')))}/files\",\n                    \"queries\": {\n                      \"folderPath\": \"datasets/default-dataset\",\n                      \"name\": \"@item()?['name']\",\n                      \"queryParametersSingleEncoded\": true\n                    }\n                  },\n                  \"runtimeConfiguration\": {\n                    \"contentTransfer\": {\n                      \"transferMode\": \"Chunked\"\n                    }\n                  }\n                }\n              }\n            }\n          },\n          \"else\": {\n            \"actions\": {}\n          },\n          \"runAfter\": {}\n        }\n      },\n      \"outputs\": {},\n      \"parameters\": {\n        \"storageAccount\": {\n          \"defaultValue\": \"\",\n          \"type\": \"String\"\n        },\n        \"$connections\": {\n          \"type\": \"Object\",\n          \"defaultValue\": {}\n        }\n      }\n    }\n  }",
     "sanitizedTimestamp": "[replace(replace(parameters('timestamp'), '-', ''), ':', '')]",
-    "roleAssignmentName": "[guid(format('ra-uniqueString-{0}-{1}-{2}', resourceGroup().id, parameters('roleDefinitionId'), variables('sanitizedTimestamp')))]",
     "commonTags": {
       "solution": "ARGUS-1.0"
     },
@@ -505,28 +503,28 @@
     {
       "type": "Microsoft.DocumentDB/databaseAccounts/sqlRoleAssignments",
       "apiVersion": "2021-04-15",
-      "name": "[format('{0}/{1}', parameters('cosmosDbAccountName'), guid(parameters('azurePrincipalId'), resourceId('Microsoft.DocumentDB/databaseAccounts', parameters('cosmosDbAccountName')), resourceId('Microsoft.Web/sites', parameters('functionAppName')), resourceId('Microsoft.DocumentDB/databaseAccounts/sqlRoleDefinitions', parameters('cosmosDbAccountName'), '00000000-0000-0000-0000-000000000002')))]",
+      "name": "[format('{0}/{1}', parameters('cosmosDbAccountName'), guid(resourceId('Microsoft.DocumentDB/databaseAccounts', parameters('cosmosDbAccountName')), resourceId('Microsoft.DocumentDB/databaseAccounts/sqlDatabases', parameters('cosmosDbAccountName'), parameters('cosmosDbDatabaseName')), resourceId('Microsoft.DocumentDB/databaseAccounts/sqlDatabases/containers', parameters('cosmosDbAccountName'), parameters('cosmosDbDatabaseName'), parameters('cosmosDbContainerName')), parameters('azurePrincipalId')))]",
       "properties": {
-        "roleDefinitionId": "[resourceId('Microsoft.DocumentDB/databaseAccounts/sqlRoleDefinitions', parameters('cosmosDbAccountName'), '00000000-0000-0000-0000-000000000002')]",
         "principalId": "[parameters('azurePrincipalId')]",
+        "roleDefinitionId": "[resourceId('Microsoft.DocumentDB/databaseAccounts/sqlRoleDefinitions', parameters('cosmosDbAccountName'), '00000000-0000-0000-0000-000000000002')]",
         "scope": "[resourceId('Microsoft.DocumentDB/databaseAccounts', parameters('cosmosDbAccountName'))]"
       },
       "dependsOn": [
         "[resourceId('Microsoft.DocumentDB/databaseAccounts', parameters('cosmosDbAccountName'))]",
-        "[resourceId('Microsoft.Web/sites', parameters('functionAppName'))]"
+        "[resourceId('Microsoft.DocumentDB/databaseAccounts/sqlDatabases/containers', parameters('cosmosDbAccountName'), parameters('cosmosDbDatabaseName'), parameters('cosmosDbContainerName'))]",
+        "[resourceId('Microsoft.DocumentDB/databaseAccounts/sqlDatabases', parameters('cosmosDbAccountName'), parameters('cosmosDbDatabaseName'))]"
       ]
     },
     {
       "type": "Microsoft.Authorization/roleAssignments",
-      "apiVersion": "2020-04-01-preview",
+      "apiVersion": "2022-04-01",
       "scope": "[format('Microsoft.Storage/storageAccounts/{0}', parameters('storageAccountName'))]",
-      "name": "[guid(resourceId('Microsoft.Web/sites', parameters('functionAppName')), resourceId('Microsoft.Storage/storageAccounts', parameters('storageAccountName')), parameters('azurePrincipalId'), 'StorageBlobDataContributor')]",
+      "name": "[guid(resourceId('Microsoft.Storage/storageAccounts', parameters('storageAccountName')), parameters('azurePrincipalId'), 'StorageBlobDataContributor')]",
       "properties": {
-        "roleDefinitionId": "[subscriptionResourceId('Microsoft.Authorization/roleDefinitions', 'ba92f5b4-2d11-453d-a403-e96b0029c9fe')]",
-        "principalId": "[parameters('azurePrincipalId')]"
+        "principalId": "[parameters('azurePrincipalId')]",
+        "roleDefinitionId": "[subscriptionResourceId('Microsoft.Authorization/roleDefinitions', parameters('roleDefinitionId'))]"
       },
       "dependsOn": [
-        "[resourceId('Microsoft.Web/sites', parameters('functionAppName'))]",
         "[resourceId('Microsoft.Storage/storageAccounts', parameters('storageAccountName'))]"
       ]
     }
@@ -556,13 +554,29 @@
       "type": "string",
       "value": "[listKeys(resourceId('Microsoft.Storage/storageAccounts', parameters('storageAccountName')), '2022-05-01').keys[0].value]"
     },
-    "COSMOS_DB_ACCOUNT_NAME": {
+    "BLOB_ACCOUNT_URL": {
       "type": "string",
-      "value": "[parameters('cosmosDbAccountName')]"
+      "value": "[reference(resourceId('Microsoft.Storage/storageAccounts', parameters('storageAccountName')), '2022-05-01').primaryEndpoints.blob]"
     },
-    "COSMOS_DB_CONNECTION_STRING": {
+    "CONTAINER_NAME": {
+      "type": "string",
+      "value": "datasets"
+    },
+    "COSMOS_URL": {
       "type": "string",
       "value": "[reference(resourceId('Microsoft.DocumentDB/databaseAccounts', parameters('cosmosDbAccountName')), '2021-04-15').documentEndpoint]"
+    },
+    "COSMOS_DB_NAME": {
+      "type": "string",
+      "value": "[parameters('cosmosDbDatabaseName')]"
+    },
+    "COSMOS_DOCUMENTS_CONTAINER_NAME": {
+      "type": "string",
+      "value": "[parameters('cosmosDbContainerName')]"
+    },
+    "COSMOS_CONFIG_CONTAINER_NAME": {
+      "type": "string",
+      "value": "configuration"
     }
   }
 }
