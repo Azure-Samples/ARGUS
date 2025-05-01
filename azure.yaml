@@ -13,7 +13,7 @@ hooks:
         echo "6. Start Streamlit: streamlit run frontend/app.py\n"
 
         python3 -m venv .venv
-        source .venv/bin/activate
+        . .venv/bin/activate
         pip install -r frontend/requirements.txt
         azd env get-values > frontend/.env
         streamlit run frontend/app.py
