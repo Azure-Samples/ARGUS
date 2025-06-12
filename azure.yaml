@@ -1,4 +1,12 @@
 name: azure-function-app
+services:
+  backend:
+    project: ./src/functionapp
+    language: python
+    host: function
+    docker:
+      context: ./src/functionapp
+      dockerfile: ./Dockerfile
 hooks:
   postprovision:
     posix:

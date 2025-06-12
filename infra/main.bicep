@@ -1,11 +1,11 @@
-// Change to your docker image if you edit the functionapp code
-param functionAppDockerImage string = 'DOCKER|argus.azurecr.io/argus-backend:latest'
-
 // Define the resource group location
 param location string
 
 // Define the storage account name
 param storageAccountName string = 'sa${uniqueString(resourceGroup().id)}'
+
+// Define the container registry name
+param containerRegistryName string = 'acr${uniqueString(resourceGroup().id)}'
 
 // Define the Cosmos DB account name
 param cosmosDbAccountName string = 'cb${uniqueString(resourceGroup().id)}'
@@ -34,12 +34,22 @@ param azureOpenaiEndpoint string
 param azureOpenaiKey string
 param azureOpenaiModelDeploymentName string
 
-param timestamp string = utcNow('yyyy-MM-ddTHH:mm:ssZ')
-var sanitizedTimestamp = replace(replace(timestamp, '-', ''), ':', '')  
-
 // Define common tags  
 var commonTags = {  
   solution: 'ARGUS-1.0'    
+}
+
+// Define the Azure Container Registry
+resource containerRegistry 'Microsoft.ContainerRegistry/registries@2023-07-01' = {
+  name: containerRegistryName
+  location: location
+  sku: {
+    name: 'Basic'
+  }
+  properties: {
+    adminUserEnabled: true
+  }
+  tags: commonTags
 }
 
 // Define the storage account
@@ -215,29 +225,28 @@ resource functionApp 'Microsoft.Web/sites@2021-03-01' = {
     httpsOnly: true
     siteConfig: {
       pythonVersion: '3.11'
-      linuxFxVersion: functionAppDockerImage
+      linuxFxVersion: 'DOCKER|${containerRegistry.properties.loginServer}/argus-backend:latest'
       alwaysOn: true
       appSettings: [
-        {
-          name: 'AzureWebJobsStorage__credential'
-          value: 'managedidentity'  
-        }  
+        {          name: 'AzureWebJobsStorage__credential'
+          value: 'managedidentity'
+        }
         {
           name: 'AzureWebJobsStorage__serviceUri'
-          value: 'https://${storageAccount.name}.blob.core.windows.net'  
-        }  
+          value: 'https://${storageAccount.name}.blob.${environment().suffixes.storage}'
+        }
         {
           name: 'AzureWebJobsStorage__blobServiceUri'
-          value: 'https://${storageAccount.name}.blob.core.windows.net'  
+          value: 'https://${storageAccount.name}.blob.${environment().suffixes.storage}'
         }
         {
           name: 'AzureWebJobsStorage__queueServiceUri'
-          value: 'https://${storageAccount.name}.queue.core.windows.net'  
+          value: 'https://${storageAccount.name}.queue.${environment().suffixes.storage}'
         }
         {
           name: 'AzureWebJobsStorage__tableServiceUri'
-          value: 'https://${storageAccount.name}.table.core.windows.net'  
-        }              
+          value: 'https://${storageAccount.name}.table.${environment().suffixes.storage}'
+        }
         {
           name: 'WEBSITES_ENABLE_APP_SERVICE_STORAGE'
           value: 'false'
@@ -246,8 +255,7 @@ resource functionApp 'Microsoft.Web/sites@2021-03-01' = {
           name: 'FUNCTIONS_EXTENSION_VERSION'
           value: '~4'
         }
-        {
-          name: 'APPINSIGHTS_INSTRUMENTATIONKEY'
+        {          name: 'APPINSIGHTS_INSTRUMENTATIONKEY'
           value: applicationInsights.properties.InstrumentationKey
         }
         {
@@ -256,7 +264,15 @@ resource functionApp 'Microsoft.Web/sites@2021-03-01' = {
         }
         {
           name: 'DOCKER_REGISTRY_SERVER_URL'
-          value: 'https://index.docker.io'
+          value: 'https://${containerRegistry.properties.loginServer}'
+        }
+        {
+          name: 'DOCKER_REGISTRY_SERVER_USERNAME'
+          value: containerRegistry.name
+        }
+        {
+          name: 'DOCKER_REGISTRY_SERVER_PASSWORD'
+          value: containerRegistry.listCredentials().passwords[0].value
         }
         {
           name: 'COSMOS_DB_ENDPOINT'
@@ -366,6 +382,16 @@ resource functionAppDocumentIntelligenceContributorRole 'Microsoft.Authorization
   }
 }
 
+resource functionAppAcrPullRole 'Microsoft.Authorization/roleAssignments@2020-04-01-preview' = {
+  name: guid(functionApp.id, containerRegistry.id, 'AcrPull')
+  scope: containerRegistry
+  properties: {
+    roleDefinitionId: subscriptionResourceId('Microsoft.Authorization/roleDefinitions', '7f951dda-4ed3-4680-a7ca-43fe172d538d') // AcrPull
+    principalId: functionApp.identity.principalId
+    principalType: 'ServicePrincipal'
+  }
+}
+
 param roleDefinitionId string = 'ba92f5b4-2d11-453d-a403-e96b0029c9fe' //Default as Storage Blob Data Contributor role
  
 var logicAppDefinition = json(loadTextContent('logic_app.json'))
@@ -397,8 +423,7 @@ resource logicapp 'Microsoft.Logic/workflows@2019-05-01' = {
   ]
   identity: {
     type: 'SystemAssigned'
-  }
-  properties: {
+  }  properties: {
     state: 'Enabled'
     definition: logicAppDefinition.definition
     parameters: {
@@ -415,10 +440,9 @@ resource logicapp 'Microsoft.Logic/workflows@2019-05-01' = {
                 id: '/subscriptions/${subscription().subscriptionId}/providers/Microsoft.Web/locations/${location}/managedApis/azureblob'
             }
         }
-    }
-    'storageAccount': {
+      }
+    storageAccount: {
       value: storageAccountName
-    }
     }
   }
   tags: commonTags
@@ -459,7 +483,6 @@ output functionAppEndpoint string = functionApp.properties.defaultHostName
 output functionAppName string = functionApp.name
 output storageAccountName string = storageAccount.name
 output containerName string = blobContainer.name
-output storageAccountKey string = listKeys(storageAccount.id, storageAccount.apiVersion).keys[0].value
 
 output BLOB_ACCOUNT_URL string = storageAccount.properties.primaryEndpoints.blob
 output CONTAINER_NAME string = blobContainer.name
@@ -467,3 +490,5 @@ output COSMOS_URL string = cosmosDbAccount.properties.documentEndpoint
 output COSMOS_DB_NAME string = cosmosDbDatabase.name
 output COSMOS_DOCUMENTS_CONTAINER_NAME string = cosmosDbContainer.name
 output COSMOS_CONFIG_CONTAINER_NAME string = cosmosDbContainerConf.name
+output CONTAINER_REGISTRY_LOGIN_SERVER string = containerRegistry.properties.loginServer
+output CONTAINER_REGISTRY_NAME string = containerRegistry.name
