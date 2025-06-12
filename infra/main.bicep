@@ -423,7 +423,8 @@ resource logicapp 'Microsoft.Logic/workflows@2019-05-01' = {
   ]
   identity: {
     type: 'SystemAssigned'
-  }  properties: {
+  }
+  properties: {
     state: 'Enabled'
     definition: logicAppDefinition.definition
     parameters: {
@@ -437,12 +438,12 @@ resource logicapp 'Microsoft.Logic/workflows@2019-05-01' = {
                         type: 'ManagedServiceIdentity'
                     }
                 }
-                id: '/subscriptions/${subscription().subscriptionId}/providers/Microsoft.Web/locations/${location}/managedApis/azureblob'
-            }
+                id: '/subscriptions/${subscription().subscriptionId}/providers/Microsoft.Web/locations/${location}/managedApis/azureblob'            }
         }
       }
-    storageAccount: {
-      value: storageAccountName
+      storageAccount: {
+        value: storageAccountName
+      }
     }
   }
   tags: commonTags
