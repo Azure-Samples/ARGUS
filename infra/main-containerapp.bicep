@@ -33,13 +33,9 @@ param azureOpenaiModelDeploymentName string
 var commonTags = {
   solution: 'ARGUS-1.0'
   environment: environmentName
+  'azd-service-name': containerAppName
   'azd-env-name': environmentName
 }
-
-// Service-specific tags for the main service resource
-var serviceResourceTags = union(commonTags, {
-  'azd-service-name': 'backend'
-})
 
 // Container Registry
 resource containerRegistry 'Microsoft.ContainerRegistry/registries@2023-07-01' = {
@@ -334,7 +330,7 @@ resource containerApp 'Microsoft.App/containerApps@2024-03-01' = {
       }
     }
   }
-  tags: serviceResourceTags
+  tags: commonTags
 }
 
 // Role assignments for User Managed Identity - ACR Pull
@@ -348,35 +344,24 @@ resource acrPullRoleAssignment 'Microsoft.Authorization/roleAssignments@2020-04-
   }
 }
 
-// Role assignments for User Managed Identity - Storage Blob Data Contributor
+// Role assignments for Container App System Identity - Storage Blob Data Contributor
 resource containerAppStorageBlobDataContributorRole 'Microsoft.Authorization/roleAssignments@2020-04-01-preview' = {
-  name: guid(userManagedIdentity.id, storageAccount.id, 'StorageBlobDataContributor')
+  name: guid(containerApp.id, storageAccount.id, 'StorageBlobDataContributor')
   scope: storageAccount
   properties: {
     roleDefinitionId: subscriptionResourceId('Microsoft.Authorization/roleDefinitions', 'ba92f5b4-2d11-453d-a403-e96b0029c9fe') // Storage Blob Data Contributor
-    principalId: userManagedIdentity.properties.principalId
+    principalId: containerApp.identity.principalId
     principalType: 'ServicePrincipal'
   }
 }
 
-// Role assignments for User Managed Identity - Storage Blob Data Owner
+// Role assignments for Container App System Identity - Storage Blob Data Owner
 resource containerAppStorageBlobDataOwnerRole 'Microsoft.Authorization/roleAssignments@2020-04-01-preview' = {
-  name: guid(userManagedIdentity.id, storageAccount.id, 'StorageBlobDataOwner')
+  name: guid(containerApp.id, storageAccount.id, 'StorageBlobDataOwner')
   scope: storageAccount
   properties: {
     roleDefinitionId: subscriptionResourceId('Microsoft.Authorization/roleDefinitions', 'b7e6dc6d-f1e8-4753-8033-0f276bb0955b') // Storage Blob Data Owner
-    principalId: userManagedIdentity.properties.principalId
-    principalType: 'ServicePrincipal'
-  }
-}
-
-// Role assignments for User Managed Identity - Storage Account Contributor  
-resource containerAppStorageAccountContributorRole 'Microsoft.Authorization/roleAssignments@2020-04-01-preview' = {
-  name: guid(userManagedIdentity.id, storageAccount.id, 'StorageAccountContributor')
-  scope: storageAccount
-  properties: {
-    roleDefinitionId: subscriptionResourceId('Microsoft.Authorization/roleDefinitions', '17d1049b-9a84-46fb-8f53-869881c3d3ab') // Storage Account Contributor
-    principalId: userManagedIdentity.properties.principalId
+    principalId: containerApp.identity.principalId
     principalType: 'ServicePrincipal'
   }
 }
@@ -389,21 +374,21 @@ resource cosmosDBDataContributorRoleDefinition 'Microsoft.DocumentDB/databaseAcc
 
 resource cosmosDBRoleAssignment 'Microsoft.DocumentDB/databaseAccounts/sqlRoleAssignments@2021-04-15' = {
   parent: cosmosDbAccount
-  name: guid(cosmosDbAccount.id, userManagedIdentity.id, cosmosDBDataContributorRoleDefinition.id)
+  name: guid(cosmosDbAccount.id, containerApp.id, cosmosDBDataContributorRoleDefinition.id)
   properties: {
     roleDefinitionId: cosmosDBDataContributorRoleDefinition.id
-    principalId: userManagedIdentity.properties.principalId
+    principalId: containerApp.identity.principalId
     scope: cosmosDbAccount.id
   }
 }
 
-// Document Intelligence role assignment for Container App User Managed Identity
+// Document Intelligence role assignment for Container App System Identity
 resource containerAppDocumentIntelligenceContributorRole 'Microsoft.Authorization/roleAssignments@2020-04-01-preview' = {
-  name: guid(userManagedIdentity.id, documentIntelligence.id, 'CognitiveServicesUser')
+  name: guid(containerApp.id, documentIntelligence.id, 'CognitiveServicesUser')
   scope: documentIntelligence
   properties: {
     roleDefinitionId: subscriptionResourceId('Microsoft.Authorization/roleDefinitions', 'a97b65f3-24c7-4388-baec-2e87135dc908') // Cognitive Services User
-    principalId: userManagedIdentity.properties.principalId
+    principalId: containerApp.identity.principalId
     principalType: 'ServicePrincipal'
   }
 }
@@ -440,9 +425,6 @@ resource eventGridSystemTopic 'Microsoft.EventGrid/systemTopics@2022-06-15' = {
 }
 
 // Event Grid Subscription for blob created events
-// Note: This is commented out initially to avoid webhook validation issues
-// Uncomment after the container app is deployed and the webhook endpoint is available
-/*
 resource blobCreatedEventSubscription 'Microsoft.EventGrid/systemTopics/eventSubscriptions@2022-06-15' = {
   parent: eventGridSystemTopic
   name: 'blob-created-subscription'
@@ -469,7 +451,6 @@ resource blobCreatedEventSubscription 'Microsoft.EventGrid/systemTopics/eventSub
     }
   }
 }
-*/
 
 // Outputs
 output resourceGroupName string = resourceGroup().name
@@ -478,13 +459,11 @@ output containerAppName string = containerApp.name
 output containerAppFqdn string = containerApp.properties.configuration.ingress.fqdn
 output containerRegistryName string = containerRegistry.name
 output containerRegistryLoginServer string = containerRegistry.properties.loginServer
-output AZURE_CONTAINER_REGISTRY_ENDPOINT string = containerRegistry.properties.loginServer
+output AZURE_CONTAINER_REGISTRY_ENDPOINT string = 'https://${containerRegistry.properties.loginServer}'
 output storageAccountName string = storageAccount.name
 output containerName string = blobContainer.name
 output userManagedIdentityClientId string = userManagedIdentity.properties.clientId
 output userManagedIdentityPrincipalId string = userManagedIdentity.properties.principalId
-
-// Required outputs for AZD
 
 // Environment variables for the application
 output BLOB_ACCOUNT_URL string = storageAccount.properties.primaryEndpoints.blob

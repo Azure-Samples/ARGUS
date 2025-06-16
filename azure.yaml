@@ -1,44 +1,11 @@
-name: azure-function-app
-hooks:
-  postprovision:
-    posix:
-      shell: sh
-      run: |
-        echo "\n Infrastructure deployment has completed successfully. If you face any issues, follow these manual steps:"
-        echo "1. Install Python3 if not installed: Visit python.org/downloads"
-        echo "2. Create virtual environment: python3 -m venv .venv"
-        echo "3. Activate virtual environment: source .venv/bin/activate"
-        echo "4. Install requirements: pip install -r frontend/requirements.txt"
-        echo "5. Get Azure environment values: azd env get-values > frontend/.env"
-        echo "6. Start Streamlit: streamlit run frontend/app.py\n"
-
-        python3 -m venv .venv
-        source .venv/bin/activate
-        pip install -r frontend/requirements.txt
-        azd env get-values > frontend/.env
-        streamlit run frontend/app.py
-
-        echo "\nAfter setup, start the app with:"
-        echo "1. source .venv/bin/activate"
-        echo "2. streamlit run frontend/app.py"
-
-    windows:
-      shell: pwsh
-      run: |
-        Write-Host "`nInfrastructure deployment has completed successfully. If you face any issues, follow these manual steps:"
-        Write-Host "1. Install Python if not installed: Visit python.org/downloads"
-        Write-Host "2. Create virtual environment: python -m venv .venv"
-        Write-Host "3. Activate virtual environment: .\.venv\Scripts\Activate.ps1"
-        Write-Host "4. Install requirements: pip install -r frontend/requirements.txt"
-        Write-Host "5. Get Azure environment values: azd env get-values > frontend/.env"
-        Write-Host "6. Start Streamlit: streamlit run frontend/app.py`n"
-
-        python3 -m venv .venv
-        .\.venv\Scripts\Activate.ps1
-        pip install -r frontend/requirements.txt
-        azd env get-values > frontend/.env
-        streamlit run frontend/app.py
-
-        Write-Host "`nAfter setup, start the app with:"
-        Write-Host "1. .\.venv\Scripts\Activate.ps1"
-        Write-Host "2. streamlit run frontend/app.py"
+name: argus
+metadata:
+  template: containerapp-python@latest
+infra:
+  provider: bicep
+  path: infra
+services:
+  backend:
+    project: src/containerapp
+    language: python
+    host: containerapp
