@@ -2,25 +2,56 @@ import os, json
 import streamlit as st
 from backend_client import backend_client
 
+try:
+    from azure.storage.blob import BlobServiceClient
+    from azure.identity import DefaultAzureCredential
+    AZURE_SDK_AVAILABLE = True
+except ImportError:
+    AZURE_SDK_AVAILABLE = False
+
 
 def upload_files_to_backend(files, dataset_name):
-    """Upload files to the backend API instead of directly to blob storage"""
+    """Upload files directly to blob storage - blob trigger will handle processing"""
+    if not AZURE_SDK_AVAILABLE:
+        st.error("Azure SDK not available. Please install azure-storage-blob and azure-identity.")
+        return 0
+    
+    # Get storage account details from environment
+    blob_account_url = os.getenv('BLOB_ACCOUNT_URL')
+    container_name = os.getenv('CONTAINER_NAME', 'datasets')
+    
+    if not blob_account_url:
+        st.error("Storage account configuration not found. Please check environment variables.")
+        return 0
+    
     success_count = 0
-    for file in files:
-        try:
-            # Read the file content
-            file_content = file.read()
-            
-            # Upload via backend API
-            result = backend_client.upload_file(file_content, file.name, dataset_name)
-            
-            if result.get('status') == 'success':
-                st.success(f"File {file.name} uploaded successfully to {dataset_name} folder!")
+    
+    try:
+        # Initialize blob service client with managed identity
+        credential = DefaultAzureCredential()
+        blob_service_client = BlobServiceClient(account_url=blob_account_url, credential=credential)
+        
+        for file in files:
+            try:
+                # Reset file pointer to beginning
+                file.seek(0)
+                file_content = file.read()
+                
+                # Upload to blob storage in the dataset subdirectory
+                blob_name = f"{dataset_name}/{file.name}"
+                blob_client = blob_service_client.get_blob_client(container=container_name, blob=blob_name)
+                
+                # Upload the file
+                blob_client.upload_blob(file_content, overwrite=True)
+                
+                st.success(f"File {file.name} uploaded successfully to {dataset_name} folder! Processing will begin automatically.")
                 success_count += 1
-            else:
-                st.error(f"Failed to upload {file.name}: {result.get('message', 'Unknown error')}")
-        except Exception as e:
-            st.error(f"Error uploading {file.name}: {e}")
+                
+            except Exception as e:
+                st.error(f"Error uploading {file.name}: {str(e)}")
+                
+    except Exception as e:
+        st.error(f"Error connecting to storage account: {str(e)}")
             
     return success_count
 

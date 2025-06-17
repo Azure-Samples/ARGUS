@@ -573,6 +573,198 @@ resource blobCreatedEventSubscription 'Microsoft.EventGrid/systemTopics/eventSub
 }
 */
 
+// Logic App for blob-triggered file processing
+resource logicApp 'Microsoft.Logic/workflows@2019-05-01' = {
+  name: 'logic-argus-${resourceToken}'
+  location: location
+  identity: {
+    type: 'SystemAssigned'
+  }
+  properties: {
+    state: 'Enabled'
+    definition: {
+      '$schema': 'https://schema.management.azure.com/providers/Microsoft.Logic/schemas/2016-06-01/workflowdefinition.json#'
+      contentVersion: '1.0.0.0'
+      parameters: {
+        backendUrl: {
+          type: 'string'
+          defaultValue: 'https://${containerApp.properties.configuration.ingress.fqdn}'
+        }
+      }
+      triggers: {
+        When_a_blob_is_created: {
+          type: 'Request'
+          kind: 'Http'
+          inputs: {
+            schema: {
+              type: 'array'
+              items: {
+                type: 'object'
+                properties: {
+                  topic: {
+                    type: 'string'
+                  }
+                  subject: {
+                    type: 'string'
+                  }
+                  eventType: {
+                    type: 'string'
+                  }
+                  eventTime: {
+                    type: 'string'
+                  }
+                  id: {
+                    type: 'string'
+                  }
+                  data: {
+                    type: 'object'
+                    properties: {
+                      api: {
+                        type: 'string'
+                      }
+                      requestId: {
+                        type: 'string'
+                      }
+                      eTag: {
+                        type: 'string'
+                      }
+                      contentType: {
+                        type: 'string'
+                      }
+                      contentLength: {
+                        type: 'integer'
+                      }
+                      blobType: {
+                        type: 'string'
+                      }
+                      url: {
+                        type: 'string'
+                      }
+                      sequencer: {
+                        type: 'string'
+                      }
+                      storageDiagnostics: {
+                        type: 'object'
+                      }
+                    }
+                  }
+                  dataVersion: {
+                    type: 'string'
+                  }
+                  metadataVersion: {
+                    type: 'string'
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+      actions: {
+        Check_If_File_In_Datasets_Subdirectory: {
+          type: 'If'
+          expression: {
+            and: [
+              {
+                contains: [
+                  '@triggerBody()[0]?[\'subject\']'
+                  '/blobServices/default/containers/datasets/blobs/'
+                ]
+              }
+              {
+                greater: [
+                  '@length(split(replace(triggerBody()[0]?[\'subject\'], \'/blobServices/default/containers/datasets/blobs/\', \'\'), \'/\'))'
+                  1
+                ]
+              }
+            ]
+          }
+          actions: {
+            HTTP_Call_Backend: {
+              type: 'Http'
+              inputs: {
+                method: 'POST'
+                uri: '@concat(parameters(\'backendUrl\'), \'/api/process-file\')'
+                headers: {
+                  'Content-Type': 'application/json'
+                }
+                body: {
+                  filename: '@last(split(replace(triggerBody()[0]?[\'subject\'], \'/blobServices/default/containers/datasets/blobs/\', \'\'), \'/\'))'
+                  dataset: '@first(split(replace(triggerBody()[0]?[\'subject\'], \'/blobServices/default/containers/datasets/blobs/\', \'\'), \'/\'))'
+                  blob_path: '@concat(\'/datasets/\', replace(triggerBody()[0]?[\'subject\'], \'/blobServices/default/containers/datasets/blobs/\', \'\'))'
+                  trigger_source: 'blob_upload'
+                }
+              }
+            }
+          }
+          else: {
+            actions: {}
+          }
+          runAfter: {}
+        }
+      }
+      outputs: {}
+    }
+  }
+  tags: commonTags
+}
+
+// Event Grid Subscription to trigger Logic App on blob events
+resource logicAppEventSubscription 'Microsoft.EventGrid/systemTopics/eventSubscriptions@2022-06-15' = {
+  parent: eventGridSystemTopic
+  name: 'logic-app-blob-subscription'
+  properties: {
+    destination: {
+      endpointType: 'WebHook'
+      properties: {
+        endpointUrl: '${listCallbackUrl(resourceId('Microsoft.Logic/workflows/triggers', logicApp.name, 'When_a_blob_is_created'), '2019-05-01').value}'
+        maxEventsPerBatch: 1
+        preferredBatchSizeInKilobytes: 64
+      }
+    }
+    filter: {
+      includedEventTypes: [
+        'Microsoft.Storage.BlobCreated'
+      ]
+      subjectBeginsWith: '/blobServices/default/containers/datasets/'
+      enableAdvancedFilteringOnArrays: false
+    }
+    eventDeliverySchema: 'EventGridSchema'
+    retryPolicy: {
+      maxDeliveryAttempts: 3
+      eventTimeToLiveInMinutes: 1440
+    }
+  }
+}
+
+// Storage Connection for Logic App
+resource blobStorageConnection 'Microsoft.Web/connections@2016-06-01' = {
+  name: 'azureblob-connection-${resourceToken}'
+  location: location
+  properties: {
+    api: {
+      id: '/subscriptions/${subscription().subscriptionId}/providers/Microsoft.Web/locations/${location}/managedApis/azureblob'
+    }
+    displayName: 'Azure Blob Storage Connection'
+    parameterValues: {
+      accountName: storageAccount.name
+      accessKey: storageAccount.listKeys().keys[0].value
+    }
+  }
+  tags: commonTags
+}
+
+// Role assignment for Logic App to access storage
+resource logicAppStorageRoleAssignment 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
+  name: guid(logicApp.id, storageAccount.id, 'StorageBlobDataReader')
+  scope: storageAccount
+  properties: {
+    roleDefinitionId: subscriptionResourceId('Microsoft.Authorization/roleDefinitions', '2a2b9908-6ea1-4ae2-8e65-a410df84e7d1') // Storage Blob Data Reader
+    principalId: logicApp.identity.principalId
+    principalType: 'ServicePrincipal'
+  }
+}
+
 // Outputs
 output resourceGroupName string = resourceGroup().name
 output RESOURCE_GROUP_ID string = resourceGroup().id
@@ -597,6 +789,9 @@ output COSMOS_CONFIG_CONTAINER_NAME string = cosmosDbContainerConf.name
 output DOCUMENT_INTELLIGENCE_ENDPOINT string = documentIntelligence.properties.endpoint
 output AZURE_OPENAI_MODEL_DEPLOYMENT_NAME string = azureOpenaiModelDeploymentName
 output APPLICATIONINSIGHTS_CONNECTION_STRING string = applicationInsights.properties.ConnectionString
+
+// Logic App outputs
+output logicAppName string = logicApp.name
 
 // Frontend outputs
 output frontendContainerAppName string = frontendContainerApp.name

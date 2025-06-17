@@ -1,0 +1,9 @@
+This is a test document for the ARGUS asynchronous processing system.
+
+The system should automatically detect when this file is uploaded to blob storage and trigger the Logic App, which will then call the backend API to process the file.
+
+Test data:
+- Company: Test Company Inc.
+- Document Type: Test Document
+- Date: 2024-01-24
+- Amount: $1,234.56

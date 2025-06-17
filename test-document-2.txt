@@ -1,0 +1,10 @@
+This is the second test document for the ARGUS asynchronous processing system.
+
+The Logic App workflow has been fixed to properly handle the blob trigger response structure.
+
+Test data:
+- Company: ACME Corporation
+- Document Type: Invoice
+- Date: 2024-01-24
+- Amount: $5,678.90
+- Invoice Number: INV-2024-001

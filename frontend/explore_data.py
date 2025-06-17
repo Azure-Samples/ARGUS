@@ -439,6 +439,10 @@ def explore_data_tab():
 
             with sub_col[0]:
                 if st.button('Refresh Table', key='refresh_table'):
+                    # Clear all cached data before rerunning
+                    get_documents_cached.clear()
+                    fetch_json_from_cosmosdb_cached.clear()
+                    fetch_blob_from_blob_cached.clear()
                     st.rerun()
 
             with sub_col[1]:
