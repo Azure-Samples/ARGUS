@@ -1,4 +1,4 @@
-import sys, json
+import sys, json, os
 import base64
 from datetime import datetime
 try:
@@ -19,26 +19,74 @@ from backend_client import backend_client
 if AZURE_SDK_AVAILABLE:
     try:
         credential = DefaultAzureCredential()
-    except:
+        
+        # Initialize Cosmos client for direct document access
+        cosmos_url = os.getenv('COSMOS_URL')
+        cosmos_db_name = os.getenv('COSMOS_DB_NAME')
+        cosmos_documents_container = os.getenv('COSMOS_DOCUMENTS_CONTAINER_NAME')
+        
+        if cosmos_url and cosmos_db_name and cosmos_documents_container:
+            cosmos_client = CosmosClient(cosmos_url, credential=credential)
+            cosmos_database = cosmos_client.get_database_client(cosmos_db_name)
+            cosmos_container = cosmos_database.get_container_client(cosmos_documents_container)
+            COSMOS_AVAILABLE = True
+        else:
+            cosmos_client = None
+            cosmos_container = None
+            COSMOS_AVAILABLE = False
+    except Exception as e:
         credential = None
+        cosmos_client = None
+        cosmos_container = None
+        COSMOS_AVAILABLE = False
+        st.error(f"Failed to initialize Azure services: {e}")
 else:
     credential = None
+    cosmos_client = None
+    cosmos_container = None
+    COSMOS_AVAILABLE = False
 
 
 def format_finished(finished, error):
     return '✅' if finished else '❌' if error else '➖'
 
-@st.cache_data(ttl=60)  # Cache data for 60 seconds
-def get_documents_cached():
-    """Cached version of document fetching"""
+def get_documents_from_cosmos():
+    """Fetch documents directly from Cosmos DB"""
+    if not COSMOS_AVAILABLE:
+        st.error("Cosmos DB not available. Check environment configuration.")
+        return []
+    
     try:
+        # Query all documents from Cosmos DB
+        query = "SELECT * FROM c ORDER BY c._ts DESC"
+        items = list(cosmos_container.query_items(
+            query=query,
+            enable_cross_partition_query=True
+        ))
+        return items
+    except Exception as e:
+        st.error(f"Error fetching documents from Cosmos DB: {e}")
+        return []
+
+@st.cache_data(ttl=15)  # Cache data for 15 seconds for faster UI updates
+def get_documents_cached():
+    """Cached version of document fetching - prioritizes Cosmos DB direct access"""
+    try:
+        if COSMOS_AVAILABLE:
+            # Use direct Cosmos DB access - faster and independent of backend load
+            documents = get_documents_from_cosmos()
+            if documents:  # Only use Cosmos if we get data
+                return pd.json_normalize(documents)
+        
+        # Fallback to backend API only if Cosmos not available or returns no data
         documents = backend_client.get_documents()
+            
         if documents:
             return pd.json_normalize(documents)
         else:
             return pd.DataFrame()
     except Exception as e:
-        st.error(f"Error fetching data from backend: {e}")
+        st.error(f"Error fetching data: {e}")
         return pd.DataFrame()
 
 @st.cache_data(ttl=300)  # Cache blob data for 5 minutes
@@ -46,9 +94,9 @@ def fetch_blob_cached(blob_name):
     """Cached version of blob fetching"""
     return fetch_blob_from_blob(blob_name)
 
-@st.cache_data(ttl=300)  # Cache document details for 5 minutes  
+@st.cache_data(ttl=60)  # Cache document details for 1 minute  
 def fetch_document_details_cached(item_id):
-    """Cached version of document details fetching"""
+    """Cached version of document details fetching - prioritizes direct Cosmos DB"""
     return fetch_json_from_cosmosdb(item_id)
 
 def refresh_data():
@@ -220,23 +268,16 @@ def fetch_json_from_cosmosdb_cached(item_id):
     return fetch_json_from_cosmosdb(item_id)
 
 def fetch_json_from_cosmosdb(item_id):
-    """Fetch document details from CosmosDB directly or via backend"""
-    if (AZURE_SDK_AVAILABLE and credential and 
-        hasattr(st.session_state, 'cosmos_documents_container_name') and
-        hasattr(st.session_state, 'cosmos_url') and
-        hasattr(st.session_state, 'cosmos_db_name')):
-        
+    """Fetch document details from CosmosDB directly - bypasses backend when available"""
+    if COSMOS_AVAILABLE:
         try:
-            # Direct CosmosDB access
-            cosmos_client = CosmosClient(st.session_state.cosmos_url, credential)
-            database = cosmos_client.get_database_client(st.session_state.cosmos_db_name)
-            container = database.get_container_client(st.session_state.cosmos_documents_container_name)
-            item = container.read_item(item=item_id, partition_key={})
+            # Direct CosmosDB access using the initialized client - independent of backend load
+            item = cosmos_container.read_item(item=item_id, partition_key=item_id)
             return item
         except Exception as e:
-            st.error(f"Direct CosmosDB access failed: {e}")
+            st.warning(f"Direct CosmosDB access failed, trying backend fallback: {e}")
     
-    # Fallback to backend API
+    # Fallback to backend API only if Cosmos not available
     try:
         response = backend_client.get_document_details(item_id)
         if response:
