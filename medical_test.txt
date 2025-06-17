@@ -1,5 +1,0 @@
-This is a test file for the medical dataset.
-It contains sample medical information for testing the ARGUS system.
-Patient: John Doe
-Date of birth: 1985-03-15
-Diagnosis: Test condition for verification purposes.

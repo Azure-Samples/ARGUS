@@ -1,3 +1,0 @@
-This is a test document for testing the dataset functionality.
-It contains some sample text to be processed by the ARGUS system.
-The document should be uploaded to a specific dataset and maintain that dataset information throughout the processing pipeline.
