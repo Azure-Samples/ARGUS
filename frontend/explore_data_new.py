@@ -5,23 +5,15 @@ import streamlit as st
 import pandas as pd
 import plotly.express as px
 import plotly.graph_objects as go
-from backend_client import backend_client
 
 
 def format_finished(finished, error):
     return '✅' if finished else '❌' if error else '➖'
 
 def refresh_data():
-    """Refresh data from the backend"""
-    try:
-        documents = backend_client.get_documents()
-        if documents:
-            return pd.json_normalize(documents)
-        else:
-            return pd.DataFrame()
-    except Exception as e:
-        st.error(f"Error fetching data from backend: {e}")
-        return pd.DataFrame()
+    """Data refresh not available in current configuration"""
+    st.error("Data refresh is currently unavailable.")
+    return pd.DataFrame()
 
 def explore_data_tab():
     st.header("Explore Processed Data")
@@ -176,4 +168,4 @@ def explore_data_tab():
         
     except Exception as e:
         st.error(f"Error in explore data tab: {e}")
-        st.info("Please check if the backend is running and accessible.")
+        st.info("Please check system configuration and database connectivity.")

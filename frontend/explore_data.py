@@ -1,5 +1,6 @@
 import sys, json, os
 import base64
+import time
 from datetime import datetime
 try:
     from azure.storage.blob import BlobServiceClient
@@ -13,9 +14,9 @@ import streamlit as st
 import pandas as pd
 import plotly.express as px
 import plotly.graph_objects as go
-from backend_client import backend_client
 
 # Try to initialize Azure credential if SDK is available
+COSMOS_INIT_ERROR = None
 if AZURE_SDK_AVAILABLE:
     try:
         credential = DefaultAzureCredential()
@@ -39,21 +40,44 @@ if AZURE_SDK_AVAILABLE:
         cosmos_client = None
         cosmos_container = None
         COSMOS_AVAILABLE = False
-        st.error(f"Failed to initialize Azure services: {e}")
+        COSMOS_INIT_ERROR = str(e)
 else:
     credential = None
     cosmos_client = None
     cosmos_container = None
     COSMOS_AVAILABLE = False
+    COSMOS_INIT_ERROR = "Azure SDK not available"
 
 
 def format_finished(finished, error):
     return '✅' if finished else '❌' if error else '➖'
 
+def parse_timestamp(timestamp_value):
+    """Parse timestamp safely handling different data types"""
+    if timestamp_value is None:
+        return datetime.now()
+    
+    # If it's already a datetime object, return it
+    if isinstance(timestamp_value, datetime):
+        return timestamp_value
+    
+    # If it's a string, try to parse it
+    if isinstance(timestamp_value, str):
+        try:
+            return datetime.fromisoformat(timestamp_value.replace('Z', '+00:00'))
+        except ValueError:
+            try:
+                # Try alternative parsing for different formats
+                return datetime.strptime(timestamp_value, '%Y-%m-%dT%H:%M:%S.%f')
+            except ValueError:
+                return datetime.now()
+    
+    # For any other type (int, float, etc.), return current time
+    return datetime.now()
+
 def get_documents_from_cosmos():
     """Fetch documents directly from Cosmos DB"""
     if not COSMOS_AVAILABLE:
-        st.error("Cosmos DB not available. Check environment configuration.")
         return []
     
     try:
@@ -70,23 +94,18 @@ def get_documents_from_cosmos():
 
 @st.cache_data(ttl=15)  # Cache data for 15 seconds for faster UI updates
 def get_documents_cached():
-    """Cached version of document fetching - prioritizes Cosmos DB direct access"""
+    """Get documents directly from Cosmos DB"""
     try:
         if COSMOS_AVAILABLE:
-            # Use direct Cosmos DB access - faster and independent of backend load
+            # Use direct Cosmos DB access
             documents = get_documents_from_cosmos()
-            if documents:  # Only use Cosmos if we get data
+            if documents:
                 return pd.json_normalize(documents)
         
-        # Fallback to backend API only if Cosmos not available or returns no data
-        documents = backend_client.get_documents()
-            
-        if documents:
-            return pd.json_normalize(documents)
-        else:
-            return pd.DataFrame()
+        # If Cosmos not available, return empty dataframe
+        return pd.DataFrame()
     except Exception as e:
-        st.error(f"Error fetching data: {e}")
+        st.error(f"Error fetching data from Cosmos DB: {e}")
         return pd.DataFrame()
 
 @st.cache_data(ttl=300)  # Cache blob data for 5 minutes
@@ -100,25 +119,18 @@ def fetch_document_details_cached(item_id):
     return fetch_json_from_cosmosdb(item_id)
 
 def refresh_data():
-    """Refresh data from the backend, with fallback to direct Azure access if configured"""
+    """Refresh data directly from Cosmos DB"""
     try:
         # Use cached version for better performance
         df = get_documents_cached()
         if not df.empty:
             return df
         else:
-            st.info("📄 No documents found in backend")
+            st.info("📄 No documents found in Cosmos DB")
             return pd.DataFrame()
     except Exception as e:
-        st.error(f"Error fetching data from backend: {e}")
-        
-        # Only try fallback if we're not in local development mode
-        backend_url = getattr(backend_client, 'backend_url', '')
-        if 'localhost' in backend_url or '127.0.0.1' in backend_url:
-            st.info("🔧 Local development mode detected - skipping Azure fallback")
-            return pd.DataFrame()
-        
-        # Fallback to direct CosmosDB access if session state is configured
+        st.error(f"Error fetching data from Cosmos DB: {e}")
+        return pd.DataFrame()
         if (AZURE_SDK_AVAILABLE and credential and 
             hasattr(st.session_state, 'cosmos_documents_container_name') and
             hasattr(st.session_state, 'cosmos_url') and
@@ -146,86 +158,141 @@ def fetch_data_from_cosmosdb(container_name):
     items = list(container.query_items(query, enable_cross_partition_query=True))
     return pd.json_normalize(items)
 
-def delete_item(dataset_name, file_name, item_id):
-    """Delete item using direct Azure access if available, otherwise use backend"""
-    if (AZURE_SDK_AVAILABLE and credential and 
-        hasattr(st.session_state, 'cosmos_documents_container_name') and
-        hasattr(st.session_state, 'cosmos_url') and
-        hasattr(st.session_state, 'cosmos_db_name') and
-        hasattr(st.session_state, 'blob_url') and
-        hasattr(st.session_state, 'container_name')):
-        
-        try:
-            # Direct Azure access
-            cosmos_client = CosmosClient(st.session_state.cosmos_url, credential)
-            database = cosmos_client.get_database_client(st.session_state.cosmos_db_name)
-            container = database.get_container_client(st.session_state.cosmos_documents_container_name)
-            container.delete_item(item=item_id, partition_key={})
-
-            blob_service_client = BlobServiceClient(account_url=st.session_state.blob_url, credential=credential)
-            container_client = blob_service_client.get_container_client(st.session_state.container_name)
-
-            blob_client = container_client.get_blob_client(f"{dataset_name}/{file_name}")
-            blob_client.delete_blob()
-
-            st.success(f"Deleted {file_name} from {dataset_name} successfully!")
-            return True
-        except Exception as e:
-            st.error(f"Direct Azure delete failed: {e}")
+def delete_item(dataset_name, file_name, item_id=None):
+    """Delete item from both Cosmos DB and Blob Storage
     
-    # Fallback to backend API
-    try:
-        response = backend_client.delete_document(item_id)
-        if response and hasattr(response, 'status_code') and response.status_code == 200:
-            st.success(f"Deleted {file_name} from {dataset_name} successfully!")
-            return True
-        else:
-            st.error(f"Backend delete failed: {response.status_code if response else 'No response'}")
-            return False
-    except Exception as e:
-        st.error(f"Backend delete error: {e}")
+    Args:
+        dataset_name: Name of the dataset
+        file_name: Name of the file
+        item_id: Legacy parameter (not used, kept for compatibility)
+    """
+    if not COSMOS_AVAILABLE:
+        st.error("❌ Cosmos DB not available. Cannot delete document.")
         return False
+        
+    if not AZURE_SDK_AVAILABLE:
+        st.error("❌ Azure SDK not available. Cannot delete blob.")
+        return False
+        
+    success_cosmos = False
+    success_blob = False
+    
+    # Step 1: Delete from Cosmos DB first
+    try:
+        # Construct the correct Cosmos DB document ID: dataset_name__filename
+        cosmos_doc_id = f"{dataset_name}__{file_name}"
+        # Use empty dict as partition key (container is configured this way)
+        cosmos_container.delete_item(item=cosmos_doc_id, partition_key={})
+        success_cosmos = True
+        st.success(f"✅ Deleted document {file_name} from Cosmos DB")
+        
+    except Exception as e:
+        st.error(f"❌ Error deleting document from Cosmos DB: {e}")
+        return False
+    
+    # Step 2: Delete from Blob Storage
+    try:
+        blob_url = st.session_state.get('blob_url') or os.getenv('BLOB_ACCOUNT_URL')
+        container_name = st.session_state.get('container_name') or os.getenv('CONTAINER_NAME', 'datasets')
+        
+        if not blob_url:
+            st.warning("⚠️ Blob storage URL not configured. Document deleted from Cosmos DB only.")
+            return success_cosmos
+        
+        # Initialize blob service client with managed identity
+        blob_service_client = BlobServiceClient(account_url=blob_url, credential=credential)
+        
+        # Construct blob path: {dataset_name}/{file_name}
+        blob_name = f"{dataset_name}/{file_name}"
+        blob_client = blob_service_client.get_blob_client(container=container_name, blob=blob_name)
+        
+        # Check if blob exists before attempting to delete
+        if blob_client.exists():
+            blob_client.delete_blob()
+            success_blob = True
+            st.success(f"✅ Deleted file {file_name} from Blob Storage")
+        else:
+            st.warning(f"⚠️ File {file_name} not found in Blob Storage")
+            success_blob = True  # Consider missing file as success
+        
+    except Exception as e:
+        st.error(f"❌ Error deleting file from Blob Storage: {e}")
+        st.warning("⚠️ Document was deleted from Cosmos DB but file may still exist in Blob Storage")
+        return success_cosmos
+    
+    if success_cosmos and success_blob:
+        st.success(f"🎉 Successfully deleted {file_name} from {dataset_name}")
+        return True
+    else:
+        return success_cosmos  # Return true if at least Cosmos DB deletion succeeded
 
 def reprocess_item(dataset_name, file_name, item_id=None):
-    """Reprocess item using direct Azure access if available, otherwise use backend"""
-    if (AZURE_SDK_AVAILABLE and credential and 
-        hasattr(st.session_state, 'blob_url') and
-        hasattr(st.session_state, 'container_name')):
+    """Reprocess item by copying the blob to trigger the processing pipeline"""
+    if not AZURE_SDK_AVAILABLE:
+        st.error("❌ Azure SDK not available. Cannot reprocess file.")
+        return False
         
-        try:
-            # Direct Azure access
-            blob_service_client = BlobServiceClient(account_url=st.session_state.blob_url, credential=credential)
-            container_client = blob_service_client.get_container_client(st.session_state.container_name)
-
-            source_blob = f"{dataset_name}/{file_name}"
-            temp_blob = f"{dataset_name}/{file_name}"
-
-            blob_client = container_client.get_blob_client(source_blob)
-            temp_blob_client = container_client.get_blob_client(temp_blob)
-
-            temp_blob_client.start_copy_from_url(blob_client.url)
-
-            st.success(f"Re-processing triggered for {file_name} in {dataset_name} dataset.")
-            return True
-        except Exception as e:
-            st.error(f"Direct Azure reprocess failed: {e}")
-    
-    # Fallback to backend API
-    if item_id:
-        try:
-            response = backend_client.reprocess_document(item_id)
-            if response and hasattr(response, 'status_code') and response.status_code == 200:
-                st.success(f"Re-processing triggered for {file_name} in {dataset_name} dataset.")
-                return True
-            else:
-                st.error(f"Backend reprocess failed: {response.status_code if response else 'No response'}")
-                return False
-        except Exception as e:
-            st.error(f"Backend reprocess error: {e}")
+    try:
+        blob_url = st.session_state.get('blob_url') or os.getenv('BLOB_ACCOUNT_URL')
+        container_name = st.session_state.get('container_name') or os.getenv('CONTAINER_NAME', 'datasets')
+        
+        if not blob_url:
+            st.error("❌ Blob storage URL not configured. Cannot reprocess file.")
             return False
-    
-    st.error("Could not reprocess - no direct Azure access or item ID available")
-    return False
+        
+        # Initialize blob service client with managed identity
+        blob_service_client = BlobServiceClient(account_url=blob_url, credential=credential)
+        
+        # Construct blob path: {dataset_name}/{file_name}
+        blob_name = f"{dataset_name}/{file_name}"
+        source_blob_client = blob_service_client.get_blob_client(container=container_name, blob=blob_name)
+        
+        # Check if source blob exists
+        if not source_blob_client.exists():
+            st.error(f"❌ File {file_name} not found in Blob Storage. Cannot reprocess.")
+            return False
+        
+        # Download the blob content
+        blob_data = source_blob_client.download_blob().readall()
+        
+        # Get blob properties to preserve metadata
+        blob_properties = source_blob_client.get_blob_properties()
+        
+        # Create a temporary copy by uploading the same content
+        # This will trigger the blob processing pipeline
+        temp_blob_name = f"{dataset_name}/.reprocess_{file_name}_{int(time.time())}"
+        temp_blob_client = blob_service_client.get_blob_client(container=container_name, blob=temp_blob_name)
+        
+        # Upload temporary file
+        temp_blob_client.upload_blob(blob_data, overwrite=True)
+        
+        # Add a small delay to ensure the temporary file is fully written
+        time.sleep(0.5)
+        
+        # Copy it back to original location (overwrites and triggers processing)
+        # Adding a timestamp to last_modified metadata to ensure change detection
+        metadata = blob_properties.metadata.copy() if blob_properties.metadata else {}
+        metadata['reprocessed_at'] = str(int(time.time()))
+        
+        source_blob_client.upload_blob(
+            blob_data, 
+            overwrite=True,
+            metadata=metadata
+        )
+        
+        # Clean up temporary file
+        try:
+            temp_blob_client.delete_blob()
+        except:
+            pass  # Ignore cleanup errors
+        
+        st.success(f"🔄 Successfully triggered reprocessing for {file_name}")
+        st.info("⏳ Processing will begin automatically. Refresh the page in a few moments to see updated results.")
+        return True
+        
+    except Exception as e:
+        st.error(f"❌ Error reprocessing file: {e}")
+        return False
 
 @st.cache_data(ttl=300)  # Cache blob data for 5 minutes
 def fetch_blob_from_blob_cached(blob_name):
@@ -234,6 +301,10 @@ def fetch_blob_from_blob_cached(blob_name):
 
 def fetch_blob_from_blob(blob_name):
     """Fetch blob data using direct Azure access if available"""
+    # Ensure blob_name is a string to avoid TypeError
+    if not isinstance(blob_name, str):
+        blob_name = str(blob_name) if blob_name is not None else ''
+    
     if (AZURE_SDK_AVAILABLE and credential and 
         hasattr(st.session_state, 'blob_url')):
         
@@ -268,25 +339,28 @@ def fetch_json_from_cosmosdb_cached(item_id):
     return fetch_json_from_cosmosdb(item_id)
 
 def fetch_json_from_cosmosdb(item_id):
-    """Fetch document details from CosmosDB directly - bypasses backend when available"""
-    if COSMOS_AVAILABLE:
-        try:
-            # Direct CosmosDB access using the initialized client - independent of backend load
-            item = cosmos_container.read_item(item=item_id, partition_key=item_id)
-            return item
-        except Exception as e:
-            st.warning(f"Direct CosmosDB access failed, trying backend fallback: {e}")
-    
-    # Fallback to backend API only if Cosmos not available
+    """Fetch document details from CosmosDB directly"""
+    if not COSMOS_AVAILABLE:
+        st.error("❌ Cosmos DB not available. Cannot fetch document details.")
+        return None
+        
     try:
-        response = backend_client.get_document_details(item_id)
-        if response:
-            return response
+        # Direct CosmosDB access using the initialized client
+        query = f"SELECT * FROM c WHERE c.id = '{item_id}'"
+        
+        items = list(cosmos_container.query_items(
+            query=query,
+            enable_cross_partition_query=True
+        ))
+        
+        if items:
+            return items[0]  # Return the first (and should be only) item
         else:
-            st.error("Failed to fetch document details from backend API")
+            st.warning(f"❌ Document {item_id} not found in Cosmos DB")
             return None
+                
     except Exception as e:
-        st.error(f"Backend API error: {e}")
+        st.error(f"❌ Error fetching document from Cosmos DB: {e}")
         return None
 
 def save_feedback_to_cosmosdb(item_id, rating, comments):
@@ -349,11 +423,15 @@ def explore_data_tab():
     # Process documents into display format
     extracted_data = []
     for item in df.to_dict(orient='records'):
-        # Handle different data formats - backend API vs direct CosmosDB
+        # Handle different data formats - direct CosmosDB access
         if 'properties.blob_name' in item:
             # Direct CosmosDB format
             blob_name = item.get('properties.blob_name', '')
             errors = item.get('errors', '')
+            
+            # Ensure blob_name is a string to avoid TypeError
+            if not isinstance(blob_name, str):
+                blob_name = str(blob_name) if blob_name is not None else ''
             
             # Extract dataset and filename
             if '/' in blob_name and len(blob_name.split('/')) >= 2:
@@ -373,7 +451,7 @@ def explore_data_tab():
                 'GPT Evaluation': format_finished(item.get('state.gpt_evaluation_completed', False), errors),
                 'GPT Summary': format_finished(item.get('state.gpt_summary_completed', False), errors),
                 'Finished': format_finished(item.get('state.processing_completed', False), errors),
-                'Request Timestamp': datetime.fromisoformat(item.get('properties.request_timestamp', datetime.now().isoformat())),
+                'Request Timestamp': parse_timestamp(item.get('properties.request_timestamp', datetime.now().isoformat())),
                 'Errors': errors,
                 'Total Time': item.get('properties.total_time_seconds', 0),
                 'Pages': item.get('properties.num_pages', 0),
@@ -381,7 +459,7 @@ def explore_data_tab():
                 'id': item['id'],
             }
         else:
-            # Backend API format
+            # CosmosDB direct format
             # Use the dataset field directly from the API response if available
             dataset = item.get('dataset') or 'unknown'
             file_name = item.get('file_name') or 'unknown'
@@ -402,6 +480,10 @@ def explore_data_tab():
             # Fallback: parse from blob_name or id if dataset field is not available
             if dataset == 'unknown':
                 blob_name = item.get('blob_name', '') or item.get('properties', {}).get('blob_name', '') or item.get('id', '')
+                
+                # Ensure blob_name is a string to avoid TypeError
+                if not isinstance(blob_name, str):
+                    blob_name = str(blob_name) if blob_name is not None else ''
                 
                 # Parse dataset and filename from blob_name or id
                 if '/' in blob_name:
@@ -430,7 +512,7 @@ def explore_data_tab():
                 'GPT Evaluation': format_finished(item.get('state.gpt_evaluation_completed', False), errors),
                 'GPT Summary': format_finished(item.get('state.gpt_summary_completed', False), errors),
                 'Finished': format_finished(item.get('state.processing_completed', False), errors),
-                'Request Timestamp': datetime.fromisoformat(item.get('created_at', datetime.now().isoformat())),
+                'Request Timestamp': parse_timestamp(item.get('created_at', datetime.now().isoformat())),
                 'Errors': errors,
                 'Total Time': item.get('total_time', 0),
                 'Pages': item.get('pages', 0),
@@ -490,12 +572,19 @@ def explore_data_tab():
                 if st.button('Delete Selected', key='delete_selected'):
                     for _, row in selected_rows.iterrows():
                         delete_item(row['Dataset'], row['File Name'], row['id'])
+                    # Clear cache and refresh to reflect deletions
+                    get_documents_cached.clear()
+                    fetch_json_from_cosmosdb_cached.clear()
                     st.rerun()
 
             with sub_col[2]:
                 if st.button('Re-process Selected', key='reprocess_selected'):
                     for _, row in selected_rows.iterrows():
                         reprocess_item(row['Dataset'], row['File Name'], row['id'])
+                    # Clear cache and refresh to show updated status
+                    get_documents_cached.clear()
+                    fetch_json_from_cosmosdb_cached.clear()
+                    st.rerun()
 
             # Document details for single selection
             if len(selected_rows) == 1:
@@ -546,6 +635,10 @@ def explore_data_tab():
                         if file_extension == 'pdf':
                             # Robust PDF display with reliable fallback
                             file_size_mb = len(blob_data) / (1024 * 1024)
+                            
+                            # Ensure blob_name is a string to avoid TypeError
+                            if not isinstance(blob_name, str):
+                                blob_name = str(blob_name) if blob_name is not None else ''
                             filename = blob_name.split("/")[-1]
                             
                             try:
@@ -602,6 +695,9 @@ def explore_data_tab():
                             
                         elif file_extension in ['docx', 'xlsx', 'pptx', 'html']:
                             # Download link for other Office formats
+                            # Ensure blob_name is a string to avoid TypeError
+                            if not isinstance(blob_name, str):
+                                blob_name = str(blob_name) if blob_name is not None else ''
                             download_link = f'<a href="data:application/octet-stream;base64,{base64.b64encode(blob_data).decode("utf-8")}" download="{blob_name.split("/")[-1]}">Download {file_extension.upper()}</a>'
                             st.markdown(download_link, unsafe_allow_html=True)
                         else:
@@ -702,23 +798,24 @@ def explore_data_tab():
                                 
                                 # Create a more readable format for the details
                                 details_data = [
-                                    ["File ID", json_data.get('id', 'N/A')],
-                                    ["Blob Name", properties.get('blob_name', 'N/A')],
+                                    ["File ID", str(json_data.get('id', 'N/A'))],
+                                    ["Blob Name", str(properties.get('blob_name', 'N/A'))],
                                     ["Blob Size", f"{properties.get('blob_size', 0)} bytes"],
-                                    ["Number of Pages", properties.get('num_pages', 'N/A')],
+                                    ["Number of Pages", str(properties.get('num_pages', 'N/A'))],
                                     ["Total Processing Time", f"{properties.get('total_time_seconds', 0):.2f} seconds"],
-                                    ["Request Timestamp", properties.get('request_timestamp', 'N/A')],
+                                    ["Request Timestamp", str(properties.get('request_timestamp', 'N/A'))],
                                     ["File Landing Time", f"{state.get('file_landed_time_seconds', 0):.2f} seconds"],
                                     ["OCR Processing Time", f"{state.get('ocr_completed_time_seconds', 0):.2f} seconds"],
                                     ["GPT Extraction Time", f"{state.get('gpt_extraction_completed_time_seconds', 0):.2f} seconds"],
                                     ["GPT Evaluation Time", f"{state.get('gpt_evaluation_completed_time_seconds', 0):.2f} seconds"],
                                     ["GPT Summary Time", f"{state.get('gpt_summary_completed_time_seconds', 0):.2f} seconds"],
-                                    ["Model Deployment", model_input.get('model_deployment', 'N/A')],
-                                    ["Model Prompt", model_input.get('model_prompt', 'N/A')]
+                                    ["Model Deployment", str(model_input.get('model_deployment', 'N/A'))],
+                                    ["Model Prompt", str(model_input.get('model_prompt', 'N/A'))]
                                 ]
                                 
-                                # Convert to DataFrame for better display
+                                # Convert to DataFrame for better display - ensure all values are strings
                                 df_details = pd.DataFrame(details_data, columns=['Metric', 'Value'])
+                                df_details['Value'] = df_details['Value'].astype(str)
                                 
                                 # Display table
                                 st.table(df_details)

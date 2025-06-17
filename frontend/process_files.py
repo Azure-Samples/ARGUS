@@ -1,16 +1,16 @@
 import os, json
 import streamlit as st
-from backend_client import backend_client
 
 try:
     from azure.storage.blob import BlobServiceClient
     from azure.identity import DefaultAzureCredential
+    from azure.cosmos import CosmosClient
     AZURE_SDK_AVAILABLE = True
 except ImportError:
     AZURE_SDK_AVAILABLE = False
 
 
-def upload_files_to_backend(files, dataset_name):
+def upload_files_to_blob_storage(files, dataset_name):
     """Upload files directly to blob storage - blob trigger will handle processing"""
     if not AZURE_SDK_AVAILABLE:
         st.error("Azure SDK not available. Please install azure-storage-blob and azure-identity.")
@@ -56,25 +56,98 @@ def upload_files_to_backend(files, dataset_name):
     return success_count
 
 def fetch_configuration():
-    """Fetch configuration from the backend API"""
+    """Fetch configuration from Cosmos DB"""
+    if not AZURE_SDK_AVAILABLE:
+        st.error("Azure SDK not available. Cannot fetch configuration.")
+        return {
+            "id": "configuration", 
+            "partitionKey": "configuration",
+            "datasets": {}
+        }
+    
     try:
-        configuration = backend_client.get_configuration()
-        return configuration
+        # Get configuration from session state
+        cosmos_url = st.session_state.get('cosmos_url')
+        cosmos_db_name = st.session_state.get('cosmos_db_name')
+        cosmos_config_container_name = st.session_state.get('cosmos_config_container_name')
+        
+        if not all([cosmos_url, cosmos_db_name, cosmos_config_container_name]):
+            st.error("Missing Cosmos DB configuration. Please check environment variables.")
+            return {
+                "id": "configuration",
+                "partitionKey": "configuration",
+                "datasets": {}
+            }
+        
+        # Initialize Cosmos client
+        credential = DefaultAzureCredential()
+        cosmos_client = CosmosClient(cosmos_url, credential=credential)
+        database = cosmos_client.get_database_client(cosmos_db_name)
+        container = database.get_container_client(cosmos_config_container_name)
+        
+        # Try to fetch the configuration document
+        try:
+            config_doc = container.read_item(
+                item="configuration", 
+                partition_key="configuration"
+            )
+            return config_doc
+        except Exception as read_error:
+            # If configuration doesn't exist, create a default one
+            default_config = {
+                "id": "configuration",
+                "partitionKey": "configuration", 
+                "datasets": {}
+            }
+            
+            try:
+                container.create_item(default_config)
+                return default_config
+            except Exception as create_error:
+                st.warning(f"Could not create default configuration: {str(create_error)}")
+                return default_config
+                
     except Exception as e:
-        st.warning("No dataset found, create a new dataset to get started.")
+        st.error(f"Failed to fetch configuration from Cosmos DB: {str(e)}")
         return {
             "id": "configuration",
             "partitionKey": "configuration",
             "datasets": {}
-        }  # Initialize with the proper structure
+        }
 
 def update_configuration(config_data):
-    """Update configuration via the backend API"""
+    """Update configuration in Cosmos DB"""
+    if not AZURE_SDK_AVAILABLE:
+        st.error("Azure SDK not available. Cannot update configuration.")
+        return None
+    
     try:
-        result = backend_client.update_configuration(config_data)
-        return result
+        # Get configuration from session state
+        cosmos_url = st.session_state.get('cosmos_url')
+        cosmos_db_name = st.session_state.get('cosmos_db_name')
+        cosmos_config_container_name = st.session_state.get('cosmos_config_container_name')
+        
+        if not all([cosmos_url, cosmos_db_name, cosmos_config_container_name]):
+            st.error("Missing Cosmos DB configuration. Please check environment variables.")
+            return None
+        
+        # Initialize Cosmos client
+        credential = DefaultAzureCredential()
+        cosmos_client = CosmosClient(cosmos_url, credential=credential)
+        database = cosmos_client.get_database_client(cosmos_db_name)
+        container = database.get_container_client(cosmos_config_container_name)
+        
+        # Update the configuration document
+        try:
+            response = container.upsert_item(config_data)
+            st.success("Configuration updated successfully!")
+            return response
+        except Exception as e:
+            st.error(f"Failed to update configuration: {str(e)}")
+            return None
+            
     except Exception as e:
-        st.error(f"Error updating configuration: {e}")
+        st.error(f"Failed to connect to Cosmos DB: {str(e)}")
         return None
 
 def process_files_tab():
@@ -118,7 +191,7 @@ def process_files_tab():
         if st.button('Submit'):
             if uploaded_files:
                 # Upload the files to Blob storage
-                upload_files_to_backend(uploaded_files, selected_dataset)
+                upload_files_to_blob_storage(uploaded_files, selected_dataset)
             else:
                 st.warning('Please upload some files first.')
 
