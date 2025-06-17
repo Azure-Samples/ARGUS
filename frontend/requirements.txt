@@ -1,8 +1,9 @@
-streamlit==1.36.0
-streamlit_pdf_viewer==0.0.14
-pandas==2.2.2
-plotly==5.22.0
-azure-storage-blob==12.20.0
-azure-cosmos==4.7.0
+streamlit==1.40.2
+pandas==2.2.3
+plotly==5.24.1
+azure-storage-blob==12.24.0
+azure-cosmos==4.9.0
 python-dotenv==1.0.1
-azure-identity==1.17.1
+azure-identity==1.19.0
+requests==2.32.3
+numpy==2.1.3

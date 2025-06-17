@@ -19,24 +19,34 @@ from ai_ocr.model import Config
 from ai_ocr.azure.images import convert_pdf_into_image
 
 def connect_to_cosmos():
-    endpoint = os.environ['COSMOS_DB_ENDPOINT']
-    database_name = os.environ['COSMOS_DB_DATABASE_NAME']
-    container_name = os.environ['COSMOS_DB_CONTAINER_NAME']
+    endpoint = os.environ['COSMOS_URL']
+    database_name = os.environ['COSMOS_DB_NAME']
+    container_name = os.environ['COSMOS_DOCUMENTS_CONTAINER_NAME']
     client = CosmosClient(endpoint, DefaultAzureCredential())
     database = client.get_database_client(database_name)
     docs_container = database.get_container_client(container_name)
-    conf_container = database.get_container_client('configuration')
+    conf_container = database.get_container_client(os.environ['COSMOS_CONFIG_CONTAINER_NAME'])
 
     return docs_container, conf_container
 
-def initialize_document(file_name: str, file_size: int, num_pages:int, prompt: str, json_schema: str, request_timestamp: datetime) -> dict:
+def initialize_document(file_name: str, file_size: int, num_pages:int, prompt: str, json_schema: str, request_timestamp: datetime, dataset: str = None) -> dict:
+    # Extract dataset from file_name if not provided
+    if dataset is None:
+        blob_parts = file_name.split('/')
+        if len(blob_parts) >= 2:
+            dataset = blob_parts[0]
+        else:
+            dataset = 'default-dataset'
+    
     return {
         "id": file_name.replace('/', '__'),
+        "dataset": dataset,
         "properties": {
             "blob_name": file_name,
             "blob_size": file_size,
             "request_timestamp": request_timestamp.isoformat(),
-            "num_pages": num_pages
+            "num_pages": num_pages,
+            "dataset": dataset
         },
         "state": {
             "file_landed": False,
@@ -104,12 +114,20 @@ def fetch_model_prompt_and_schema(dataset_type):
     docs_container, conf_container = connect_to_cosmos()
 
     try:
-        config_item = conf_container.read_item(item='configuration', partition_key={})
+        config_item = conf_container.read_item(item='configuration', partition_key='configuration')
+        logging.info(f"Retrieved configuration from Cosmos DB: {type(config_item)}")
+        logging.info(f"Config item keys: {config_item.keys() if isinstance(config_item, dict) else 'Not a dict'}")
+    except exceptions.CosmosResourceExistsError:
+        # Handle the case where the item exists but there's a conflict
+        logging.info("Configuration item exists but there was a conflict, reading existing one.")
+        config_item = conf_container.read_item(item='configuration', partition_key='configuration')
     except exceptions.CosmosResourceNotFoundError:
         logging.info("Configuration item not found in Cosmos DB. Creating a new configuration item.")
         
         config_item = {
-            "id": "configuration"
+            "id": "configuration",
+            "partitionKey": "configuration",
+            "datasets": {}
         }
 
         # Get the absolute path of the script's directory and construct the demo folder path
@@ -151,25 +169,57 @@ def fetch_model_prompt_and_schema(dataset_type):
                 # Add item config to config_item
                 item_config['model_prompt'] = model_prompt
                 item_config['example_schema'] = example_schema
-                config_item[folder_name] = item_config
+                config_item['datasets'][folder_name] = item_config
 
-        conf_container.create_item(body=config_item)
-        logging.info("Configuration item created.")
+        try:
+            conf_container.create_item(body=config_item)
+            logging.info("Configuration item created.")
+        except exceptions.CosmosResourceExistsError:
+            # Configuration item already exists, try to read it again
+            logging.info("Configuration item already exists, reading existing one.")
+            config_item = conf_container.read_item(item='configuration', partition_key='configuration')
+
+    # Ensure config_item is a dictionary
+    if not isinstance(config_item, dict):
+        logging.error(f"Configuration item is not a dictionary: {type(config_item)}")
+        raise ValueError("Configuration item is not in expected format")
+
+    # Check if the new structure with 'datasets' key exists
+    if 'datasets' in config_item:
+        datasets_config = config_item['datasets']
+    else:
+        # Handle legacy structure where datasets are at the top level
+        # Remove system keys that shouldn't be treated as datasets
+        datasets_config = {k: v for k, v in config_item.items() 
+                          if k not in ['id', 'partitionKey', '_rid', '_self', '_etag', '_attachments', '_ts']}
 
     logging.info(f"Looking for dataset type '{dataset_type}' in configuration")
-    logging.info(f"Available dataset types: {list(config_item.keys())}")
+    logging.info(f"Available dataset types: {list(datasets_config.keys())}")
     
-    if dataset_type not in config_item:
+    if dataset_type not in datasets_config:
         logging.error(f"Dataset type '{dataset_type}' not found in configuration")
-        available_types = list(config_item.keys())
+        available_types = list(datasets_config.keys())
         if available_types:
             logging.info(f"Using first available dataset type: {available_types[0]}")
             dataset_type = available_types[0]
         else:
             raise ValueError(f"No dataset configurations found")
     
-    model_prompt = config_item[dataset_type]['model_prompt']
-    example_schema = config_item[dataset_type]['example_schema']
+    # Validate the dataset configuration structure
+    if not isinstance(datasets_config[dataset_type], dict):
+        logging.error(f"Dataset configuration for '{dataset_type}' is not a dictionary")
+        raise ValueError(f"Invalid configuration structure for dataset '{dataset_type}'")
+    
+    if 'model_prompt' not in datasets_config[dataset_type]:
+        logging.error(f"No model_prompt found for dataset '{dataset_type}'")
+        raise ValueError(f"Missing model_prompt for dataset '{dataset_type}'")
+    
+    if 'example_schema' not in datasets_config[dataset_type]:
+        logging.error(f"No example_schema found for dataset '{dataset_type}'")
+        raise ValueError(f"Missing example_schema for dataset '{dataset_type}'")
+    
+    model_prompt = datasets_config[dataset_type]['model_prompt']
+    example_schema = datasets_config[dataset_type]['example_schema']
     return model_prompt, example_schema
 
 def create_temp_dir():

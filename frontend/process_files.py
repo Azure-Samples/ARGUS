@@ -1,45 +1,46 @@
 import os, json
-from azure.storage.blob import BlobServiceClient
-from azure.cosmos import CosmosClient
-from azure.identity import DefaultAzureCredential
 import streamlit as st
+from backend_client import backend_client
 
-credential = DefaultAzureCredential()
 
-
-def upload_files_to_blob(files, dataset_name):
-    # Connect to the Blob storage account
-    blob_service_client = BlobServiceClient(account_url=st.session_state.blob_url, credential=credential)
-    container_client = blob_service_client.get_container_client(st.session_state.container_name)
-
-    # Upload each file to the specified dataset folder in Blob storage
+def upload_files_to_backend(files, dataset_name):
+    """Upload files to the backend API instead of directly to blob storage"""
+    success_count = 0
     for file in files:
-        blob_client = container_client.get_blob_client(f"{dataset_name}/{file.name}")
-        blob_client.upload_blob(file)
-        st.success(f"File {file.name} uploaded successfully to {dataset_name} folder!")
+        try:
+            # Read the file content
+            file_content = file.read()
+            
+            # Upload via backend API
+            result = backend_client.upload_file(file_content, file.name, dataset_name)
+            
+            if result.get('status') == 'success':
+                st.success(f"File {file.name} uploaded successfully to {dataset_name} folder!")
+                success_count += 1
+            else:
+                st.error(f"Failed to upload {file.name}: {result.get('message', 'Unknown error')}")
+        except Exception as e:
+            st.error(f"Error uploading {file.name}: {e}")
+            
+    return success_count
 
 def fetch_configuration():
-    # Connect to the Cosmos DB account
-    cosmos_client = CosmosClient(st.session_state.cosmos_url, credential)
-    database = cosmos_client.get_database_client(st.session_state.cosmos_db_name)
-    container = database.get_container_client(st.session_state.cosmos_config_container_name)
-    
+    """Fetch configuration from the backend API"""
     try:
-        # Read the configuration item from Cosmos DB
-        configuration = container.read_item(item="configuration", partition_key={})
+        configuration = backend_client.get_configuration()
+        return configuration
     except Exception as e:
         st.warning("No dataset found, create a new dataset to get started.")
-        configuration = {"id": "configuration"}  # Initialize with an empty dataset
-    return configuration
+        return {"id": "configuration"}  # Initialize with an empty dataset
 
 def update_configuration(config_data):
-    # Connect to the Cosmos DB account
-    cosmos_client = CosmosClient(st.session_state.cosmos_url, credential)
-    database = cosmos_client.get_database_client(st.session_state.cosmos_db_name)
-    container = database.get_container_client(st.session_state.cosmos_config_container_name)
-
-    # Upsert (insert or update) the configuration item in Cosmos DB
-    container.upsert_item(config_data)
+    """Update configuration via the backend API"""
+    try:
+        result = backend_client.update_configuration(config_data)
+        return result
+    except Exception as e:
+        st.error(f"Error updating configuration: {e}")
+        return None
 
 def process_files_tab():
     col1, col2 = st.columns([0.5, 0.5])
@@ -80,7 +81,7 @@ def process_files_tab():
         if st.button('Submit'):
             if uploaded_files:
                 # Upload the files to Blob storage
-                upload_files_to_blob(uploaded_files, selected_dataset)
+                upload_files_to_backend(uploaded_files, selected_dataset)
             else:
                 st.warning('Please upload some files first.')
 

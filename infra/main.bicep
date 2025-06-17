@@ -272,7 +272,7 @@ resource containerApp 'Microsoft.App/containerApps@2024-03-01' = {
               value: storageAccount.name
             }
             {
-              name: 'STORAGE_ACCOUNT_URL'
+              name: 'BLOB_ACCOUNT_URL'
               value: storageAccount.properties.primaryEndpoints.blob
             }
             {
@@ -280,16 +280,20 @@ resource containerApp 'Microsoft.App/containerApps@2024-03-01' = {
               value: blobContainer.name
             }
             {
-              name: 'COSMOS_DB_ENDPOINT'
+              name: 'COSMOS_URL'
               value: cosmosDbAccount.properties.documentEndpoint
             }
             {
-              name: 'COSMOS_DB_DATABASE_NAME'
+              name: 'COSMOS_DB_NAME'
               value: cosmosDbDatabaseName
             }
             {
-              name: 'COSMOS_DB_CONTAINER_NAME'
+              name: 'COSMOS_DOCUMENTS_CONTAINER_NAME'
               value: cosmosDbContainerName
+            }
+            {
+              name: 'COSMOS_CONFIG_CONTAINER_NAME'
+              value: 'configuration'
             }
             {
               name: 'DOCUMENT_INTELLIGENCE_ENDPOINT'
@@ -335,6 +339,104 @@ resource containerApp 'Microsoft.App/containerApps@2024-03-01' = {
     }
   }
   tags: serviceResourceTags
+}
+
+// Frontend Container App
+param frontendContainerAppName string = 'ca-frontend-${uniqueString(resourceGroup().id)}'
+
+resource frontendContainerApp 'Microsoft.App/containerApps@2024-03-01' = {
+  name: frontendContainerAppName
+  location: location
+  identity: {
+    type: 'SystemAssigned,UserAssigned'
+    userAssignedIdentities: {
+      '${userManagedIdentity.id}': {}
+    }
+  }
+  properties: {
+    environmentId: containerAppEnvironment.id
+    configuration: {
+      ingress: {
+        external: true
+        targetPort: 8501
+        corsPolicy: {
+          allowedOrigins: ['*']
+          allowedMethods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS']
+          allowedHeaders: ['*']
+          allowCredentials: false
+        }
+      }
+      registries: [
+        {
+          server: containerRegistry.properties.loginServer
+          identity: userManagedIdentity.id
+        }
+      ]
+    }
+    template: {
+      containers: [
+        {
+          name: frontendContainerAppName
+          image: 'mcr.microsoft.com/azuredocs/containerapps-helloworld:latest'
+          resources: {
+            cpu: json('1.0')
+            memory: '2Gi'
+          }
+          env: [
+            {
+              name: 'BLOB_ACCOUNT_URL'
+              value: storageAccount.properties.primaryEndpoints.blob
+            }
+            {
+              name: 'CONTAINER_NAME'
+              value: blobContainer.name
+            }
+            {
+              name: 'COSMOS_URL'
+              value: cosmosDbAccount.properties.documentEndpoint
+            }
+            {
+              name: 'COSMOS_DB_NAME'
+              value: cosmosDbDatabaseName
+            }
+            {
+              name: 'COSMOS_DOCUMENTS_CONTAINER_NAME'
+              value: cosmosDbContainerName
+            }
+            {
+              name: 'COSMOS_CONFIG_CONTAINER_NAME'
+              value: cosmosDbContainerConf.name
+            }
+            {
+              name: 'AZURE_CLIENT_ID'
+              value: userManagedIdentity.properties.clientId
+            }
+            {
+              name: 'BACKEND_URL'
+              value: 'https://${containerApp.properties.configuration.ingress.fqdn}'
+            }
+          ]
+        }
+      ]
+      scale: {
+        minReplicas: 1
+        maxReplicas: 5
+        rules: [
+          {
+            name: 'http-rule'
+            http: {
+              metadata: {
+                concurrentRequests: '10'
+              }
+            }
+          }
+        ]
+      }
+    }
+  }
+  tags: union(commonTags, {
+    'azd-service-name': 'frontend'
+  })
 }
 
 // Role assignments for User Managed Identity - ACR Pull
@@ -476,6 +578,7 @@ output resourceGroupName string = resourceGroup().name
 output RESOURCE_GROUP_ID string = resourceGroup().id
 output containerAppName string = containerApp.name
 output containerAppFqdn string = containerApp.properties.configuration.ingress.fqdn
+output BACKEND_URL string = 'https://${containerApp.properties.configuration.ingress.fqdn}'
 output containerRegistryName string = containerRegistry.name
 output containerRegistryLoginServer string = containerRegistry.properties.loginServer
 output AZURE_CONTAINER_REGISTRY_ENDPOINT string = containerRegistry.properties.loginServer
@@ -483,8 +586,6 @@ output storageAccountName string = storageAccount.name
 output containerName string = blobContainer.name
 output userManagedIdentityClientId string = userManagedIdentity.properties.clientId
 output userManagedIdentityPrincipalId string = userManagedIdentity.properties.principalId
-
-// Required outputs for AZD
 
 // Environment variables for the application
 output BLOB_ACCOUNT_URL string = storageAccount.properties.primaryEndpoints.blob
@@ -496,3 +597,8 @@ output COSMOS_CONFIG_CONTAINER_NAME string = cosmosDbContainerConf.name
 output DOCUMENT_INTELLIGENCE_ENDPOINT string = documentIntelligence.properties.endpoint
 output AZURE_OPENAI_MODEL_DEPLOYMENT_NAME string = azureOpenaiModelDeploymentName
 output APPLICATIONINSIGHTS_CONNECTION_STRING string = applicationInsights.properties.ConnectionString
+
+// Frontend outputs
+output frontendContainerAppName string = frontendContainerApp.name
+output frontendContainerAppFqdn string = frontendContainerApp.properties.configuration.ingress.fqdn
+output FRONTEND_URL string = 'https://${frontendContainerApp.properties.configuration.ingress.fqdn}'

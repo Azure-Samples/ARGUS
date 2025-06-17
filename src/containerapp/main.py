@@ -15,7 +15,7 @@ from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, Request, BackgroundTasks, HTTPException
 from fastapi.responses import JSONResponse
-from azure.storage.blob import BlobServiceClient
+from azure.storage.blob import BlobServiceClient, ContentSettings
 from azure.identity import DefaultAzureCredential
 import uvicorn
 
@@ -56,9 +56,9 @@ async def lifespan(app: FastAPI):
     
     try:
         # Initialize blob service client
-        storage_account_url = os.getenv('STORAGE_ACCOUNT_URL')
+        storage_account_url = os.getenv('BLOB_ACCOUNT_URL')
         if not storage_account_url:
-            raise ValueError("STORAGE_ACCOUNT_URL environment variable is required")
+            raise ValueError("BLOB_ACCOUNT_URL environment variable is required")
         
         blob_service_client = BlobServiceClient(
             account_url=storage_account_url,
@@ -319,7 +319,7 @@ def initialize_document_data(blob_name: str, temp_file_path: str, num_pages: int
     if prompt is None or json_schema is None:
         raise ValueError("Failed to fetch model prompt and schema from configuration.")
     
-    document = initialize_document(blob_name, file_size, num_pages, prompt, json_schema, timer_start)
+    document = initialize_document(blob_name, file_size, num_pages, prompt, json_schema, timer_start, dataset_type)
     update_state(document, data_container, 'file_landed', True, (datetime.now() - timer_start).total_seconds())
     return document
 
@@ -446,3 +446,370 @@ def process_blob(blob_input_stream: BlobInputStream, data_container):
         document['state']['processing_completed'] = False
         data_container.upsert_item(document)
         raise e
+
+# Additional API endpoints for frontend integration
+
+@app.get("/api/configuration")
+async def get_configuration():
+    """Get current configuration from Cosmos DB"""
+    try:
+        if not conf_container:
+            raise HTTPException(status_code=503, detail="Configuration container not available")
+        
+        # Query all configuration items
+        configs = list(conf_container.query_items(
+            query="SELECT * FROM c",
+            enable_cross_partition_query=True
+        ))
+        
+        # Convert to a dictionary format
+        config_dict = {}
+        for config in configs:
+            # Remove Cosmos DB specific fields
+            clean_config = {k: v for k, v in config.items() if not k.startswith('_')}
+            if 'id' in clean_config:
+                config_dict[clean_config['id']] = clean_config
+        
+        return config_dict
+        
+    except Exception as e:
+        logger.error(f"Error fetching configuration: {e}")
+        raise HTTPException(status_code=500, detail="Failed to fetch configuration")
+
+@app.post("/api/configuration")
+async def update_configuration(request: Request):
+    """Update configuration in Cosmos DB"""
+    try:
+        if not conf_container:
+            raise HTTPException(status_code=503, detail="Configuration container not available")
+        
+        config_data = await request.json()
+        
+        # Update each configuration item
+        for config_id, config_value in config_data.items():
+            config_item = {
+                "id": config_id,
+                **config_value
+            }
+            conf_container.upsert_item(config_item)
+        
+        return {"status": "success", "message": "Configuration updated"}
+        
+    except Exception as e:
+        logger.error(f"Error updating configuration: {e}")
+        raise HTTPException(status_code=500, detail="Failed to update configuration")
+
+# ===============================================
+# Helper Functions
+# ===============================================
+
+def extract_document_info(doc):
+    """Extract document information with proper dataset and filename parsing"""
+    # Extract filename and dataset from document ID or other fields
+    doc_id = doc.get("id", "")
+    
+    # Initialize defaults
+    filename = "unknown"
+    dataset = "unknown"
+    
+    # Method 1: Extract from document ID (format: dataset__filename) - This is the primary method
+    if "__" in doc_id:
+        parts = doc_id.split("__", 1)
+        dataset = parts[0]
+        filename = parts[1]
+    
+    # Method 2: Extract from properties.blob_name (most common in CosmosDB)
+    properties = doc.get("properties", {})
+    blob_name = properties.get("blob_name", "")
+    if blob_name and "/" in blob_name:
+        # Format: "dataset/filename.pdf"
+        blob_parts = blob_name.split("/")
+        if len(blob_parts) >= 2:
+            dataset = blob_parts[0]
+            filename = "/".join(blob_parts[1:])  # Handle nested paths
+    
+    # Method 3: Fallback to root-level blob_name if properties.blob_name not found
+    elif doc.get("blob_name"):
+        blob_name = doc.get("blob_name")
+        if "/" in blob_name:
+            blob_parts = blob_name.split("/")
+            dataset = blob_parts[0]
+            filename = "/".join(blob_parts[1:])
+        else:
+            filename = blob_name
+    
+    # Method 4: Use direct dataset/filename fields if available (override if they exist)
+    if doc.get("dataset"):
+        dataset = doc.get("dataset")
+    if doc.get("file_name"):
+        filename = doc.get("file_name")
+    elif doc.get("filename"):
+        filename = doc.get("filename")
+    
+    # Method 5: Extract from other properties fields as fallback
+    if filename == "unknown":
+        filename = (properties.get("original_filename") or 
+                   properties.get("filename") or 
+                   "unknown")
+    
+    # Final fallback for dataset
+    if dataset == "unknown":
+        dataset = (doc.get("dataset") or 
+                  properties.get("dataset") or 
+                  "default")
+    
+    # Remove Cosmos DB specific fields and simplify structure
+    cleaned_doc = {
+        "id": doc.get("id"),
+        "file_name": filename,
+        "dataset": dataset,
+        "finished": doc.get("state", {}).get("processing_completed", False),
+        "error": bool(doc.get("errors", [])),
+        "created_at": doc.get("properties", {}).get("request_timestamp"),
+        "modified_at": doc.get("_ts"),
+        "size": doc.get("properties", {}).get("blob_size"),
+        "pages": doc.get("properties", {}).get("num_pages"),
+        "total_time": doc.get("properties", {}).get("total_time_seconds", 0),
+        "extracted_data": doc.get("extracted_data", {}),
+        "state": doc.get("state", {})
+    }
+    return cleaned_doc
+
+# ===============================================
+# API Endpoints  
+# ===============================================
+
+@app.get("/api/datasets")
+async def get_datasets():
+    """Get list of available datasets from blob storage"""
+    try:
+        if not blob_service_client:
+            raise HTTPException(status_code=503, detail="Blob service not available")
+        
+        # Get the datasets container
+        datasets_container_client = blob_service_client.get_container_client("datasets")
+        
+        # List all "folders" (blob prefixes) in the datasets container
+        datasets = set()
+        blobs = datasets_container_client.list_blobs()
+        
+        for blob in blobs:
+            # Extract dataset name from blob path (first part before '/')
+            if '/' in blob.name:
+                dataset_name = blob.name.split('/')[0]
+                datasets.add(dataset_name)
+        
+        return sorted(list(datasets))
+        
+    except Exception as e:
+        logger.error(f"Error fetching datasets: {e}")
+        raise HTTPException(status_code=500, detail="Failed to fetch datasets")
+
+@app.get("/api/datasets/{dataset_name}/files")
+async def get_dataset_files(dataset_name: str):
+    """Get files in a specific dataset"""
+    try:
+        if not blob_service_client:
+            raise HTTPException(status_code=503, detail="Blob service not available")
+        
+        datasets_container_client = blob_service_client.get_container_client("datasets")
+        
+        # List blobs with the dataset prefix
+        blobs = datasets_container_client.list_blobs(name_starts_with=f"{dataset_name}/")
+        
+        files = []
+        for blob in blobs:
+            files.append({
+                "name": blob.name,
+                "size": blob.size,
+                "last_modified": blob.last_modified.isoformat() if blob.last_modified else None,
+                "content_type": blob.content_settings.content_type if blob.content_settings else None
+            })
+        
+        return files
+        
+    except Exception as e:
+        logger.error(f"Error fetching dataset files: {e}")
+        raise HTTPException(status_code=500, detail="Failed to fetch dataset files")
+
+@app.get("/api/documents")
+async def get_documents(dataset: str = None):
+    """Get processed documents from Cosmos DB"""
+    try:
+        if not data_container:
+            raise HTTPException(status_code=503, detail="Data container not available")
+        
+        # Build query based on parameters
+        if dataset:
+            query = "SELECT * FROM c WHERE c.dataset = @dataset"
+            parameters = [{"name": "@dataset", "value": dataset}]
+        else:
+            query = "SELECT * FROM c"
+            parameters = None
+        
+        # Query documents
+        documents = list(data_container.query_items(
+            query=query,
+            parameters=parameters,
+            enable_cross_partition_query=True
+        ))
+        
+        # Clean up documents for frontend consumption using helper function
+        cleaned_docs = []
+        for doc in documents:
+            cleaned_doc = extract_document_info(doc)
+            cleaned_docs.append(cleaned_doc)
+        
+        return cleaned_docs
+        
+    except Exception as e:
+        logger.error(f"Error fetching documents: {e}")
+        raise HTTPException(status_code=500, detail="Failed to fetch documents")
+
+@app.get("/api/documents/{document_id}")
+async def get_document_details(document_id: str):
+    """Get details for a specific document from Cosmos DB"""
+    try:
+        if not data_container:
+            raise HTTPException(status_code=503, detail="Data container not available")
+        
+        # Query for the specific document
+        try:
+            document = data_container.read_item(item=document_id, partition_key={})
+            
+            # Apply the same extraction logic as in the list endpoint
+            cleaned_document = extract_document_info(document)
+            return cleaned_document
+            
+        except Exception as e:
+            logger.error(f"Error fetching document {document_id}: {e}")
+            raise HTTPException(status_code=404, detail=f"Document {document_id} not found")
+            
+    except Exception as e:
+        logger.error(f"Error fetching document details: {e}")
+        raise HTTPException(status_code=500, detail="Failed to fetch document details")
+
+from fastapi import UploadFile, File, Form
+
+@app.post("/api/upload")
+async def upload_file(
+    background_tasks: BackgroundTasks,
+    file: UploadFile = File(...),
+    dataset_name: str = Form(...)
+):
+    """Upload a file to a specific dataset"""
+    try:
+        if not blob_service_client:
+            raise HTTPException(status_code=503, detail="Blob service not available")
+        
+        # Read file content
+        file_content = await file.read()
+        
+        # Create blob path
+        blob_name = f"{dataset_name}/{file.filename}"
+        
+        # Upload to blob storage
+        datasets_container_client = blob_service_client.get_container_client("datasets")
+        blob_client = datasets_container_client.get_blob_client(blob_name)
+        
+        blob_client.upload_blob(
+            file_content,
+            overwrite=True,
+            content_settings=ContentSettings(
+                content_type=file.content_type or "application/octet-stream"
+            )
+        )
+        
+        # Trigger processing manually since Event Grid is not configured
+        blob_url = f"{blob_service_client.url.rstrip('/')}/datasets/{blob_name}"
+        logger.info(f"Triggering manual processing for uploaded file: {blob_url}")
+        
+        # Add to background tasks for async processing
+        background_tasks.add_task(
+            process_blob_event,
+            blob_url,
+            {"url": blob_url, "api": blob_name}
+        )
+        
+        return {
+            "status": "success",
+            "message": f"File {file.filename} uploaded to dataset {dataset_name}",
+            "blob_name": blob_name,
+            "size": len(file_content)
+        }
+        
+    except Exception as e:
+        logger.error(f"Error uploading file: {e}")
+        raise HTTPException(status_code=500, detail="Failed to upload file")
+
+def extract_document_info(doc):
+    """Extract document information with proper dataset and filename parsing"""
+    # Extract filename and dataset from document ID or other fields
+    doc_id = doc.get("id", "")
+    
+    # Initialize defaults
+    filename = "unknown"
+    dataset = "unknown"
+    
+    # Method 1: Extract from document ID (format: dataset__filename) - This is the primary method
+    if "__" in doc_id:
+        parts = doc_id.split("__", 1)
+        dataset = parts[0]
+        filename = parts[1]
+    
+    # Method 2: Extract from properties.blob_name (most common in CosmosDB)
+    properties = doc.get("properties", {})
+    blob_name = properties.get("blob_name", "")
+    if blob_name and "/" in blob_name:
+        # Format: "dataset/filename.pdf"
+        blob_parts = blob_name.split("/")
+        if len(blob_parts) >= 2:
+            dataset = blob_parts[0]
+            filename = "/".join(blob_parts[1:])  # Handle nested paths
+    
+    # Method 3: Fallback to root-level blob_name if properties.blob_name not found
+    elif doc.get("blob_name"):
+        blob_name = doc.get("blob_name")
+        if "/" in blob_name:
+            blob_parts = blob_name.split("/")
+            dataset = blob_parts[0]
+            filename = "/".join(blob_parts[1:])
+        else:
+            filename = blob_name
+    
+    # Method 4: Use direct dataset/filename fields if available (override if they exist)
+    if doc.get("dataset"):
+        dataset = doc.get("dataset")
+    if doc.get("file_name"):
+        filename = doc.get("file_name")
+    elif doc.get("filename"):
+        filename = doc.get("filename")
+    
+    # Method 5: Extract from other properties fields as fallback
+    if filename == "unknown":
+        filename = (properties.get("original_filename") or 
+                   properties.get("filename") or 
+                   "unknown")
+    
+    # Final fallback for dataset
+    if dataset == "unknown":
+        dataset = (doc.get("dataset") or 
+                  properties.get("dataset") or 
+                  "default")
+    
+    # Remove Cosmos DB specific fields and simplify structure
+    cleaned_doc = {
+        "id": doc.get("id"),
+        "file_name": filename,
+        "dataset": dataset,
+        "finished": doc.get("state", {}).get("processing_completed", False),
+        "error": bool(doc.get("errors", [])),
+        "created_at": doc.get("properties", {}).get("request_timestamp"),
+        "modified_at": doc.get("_ts"),
+        "size": doc.get("properties", {}).get("blob_size"),
+        "pages": doc.get("properties", {}).get("num_pages"),
+        "total_time": doc.get("properties", {}).get("total_time_seconds", 0),
+        "extracted_data": doc.get("extracted_data", {}),
+        "state": doc.get("state", {})
+    }
+    return cleaned_doc

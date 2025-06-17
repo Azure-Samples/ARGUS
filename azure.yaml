@@ -9,3 +9,7 @@ services:
     project: src/containerapp
     language: python
     host: containerapp
+  frontend:
+    project: frontend
+    language: python
+    host: containerapp
