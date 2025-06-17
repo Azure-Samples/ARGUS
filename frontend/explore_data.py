@@ -57,7 +57,6 @@ def refresh_data():
         # Use cached version for better performance
         df = get_documents_cached()
         if not df.empty:
-            st.success("✅ Successfully loaded data from local backend!")
             return df
         else:
             st.info("📄 No documents found in backend")
@@ -84,11 +83,7 @@ def refresh_data():
         
         return pd.DataFrame()
 
-# Clear cache button for debugging
-def clear_cache():
-    """Clear all cached data"""
-    st.cache_data.clear()
-    st.success("Cache cleared! Please refresh the page.")
+# Clear cache function removed - no longer needed
 
 def fetch_data_from_cosmosdb(container_name):
     """Direct CosmosDB access - fallback method"""
@@ -303,20 +298,12 @@ def get_existing_feedback(item_id):
 def explore_data_tab():
     """Main explore data tab with full functionality"""
     
-    # Add cache clear button in sidebar for debugging
-    with st.sidebar:
-        if st.button("🔄 Clear Cache & Refresh"):
-            clear_cache()
-            st.rerun()
-    
     # Fetch data
     df = refresh_data()
     
     if df.empty:
         st.error('Failed to fetch data or no data found. If you submitted files for processing, please wait a few minutes and refresh the page. If problem remains, check your azure functionapp for errors and restart it.')
         return
-    
-    st.toast('Data fetched successfully!')
 
     # Process documents into display format
     extracted_data = []
@@ -516,14 +503,11 @@ def explore_data_tab():
                             file_size_mb = len(blob_data) / (1024 * 1024)
                             filename = blob_name.split("/")[-1]
                             
-                            # Always provide download option
                             try:
                                 pdf_base64 = base64.b64encode(blob_data).decode('utf-8')
-                                download_link = f'<a href="data:application/octet-stream;base64,{pdf_base64}" download="{filename}" style="text-decoration: none;"><button style="background-color: #4CAF50; color: white; border: none; padding: 8px 16px; border-radius: 4px; cursor: pointer; margin-bottom: 10px;">📥 Download {filename}</button></a>'
-                                st.markdown(download_link, unsafe_allow_html=True)
                                 
                                 if file_size_mb > 15:  # Very large files - download only
-                                    st.warning(f'PDF file is very large ({file_size_mb:.1f}MB). Please use the download button above to view the file.')
+                                    st.warning(f'PDF file is very large ({file_size_mb:.1f}MB). Please use the download button below to view the file.')
                                 else:
                                     # Try to display PDF with robust fallback
                                     st.info(f"📄 PDF Preview ({file_size_mb:.1f}MB)")
@@ -551,11 +535,15 @@ def explore_data_tab():
                                         st.markdown(pdf_display, unsafe_allow_html=True)
                                         
                                         # Additional fallback message
-                                        st.caption("💡 If the PDF doesn't display properly, use the download button above to view it locally.")
+                                        st.caption("💡 If the PDF doesn't display properly, use the download button below.")
                                         
                                     except Exception as e:
                                         st.error(f"Error displaying PDF: {str(e)}")
-                                        st.info("Please use the download button above to access the file.")
+                                        st.info("Please use the download button below to access the file.")
+                                
+                                # Download button below the preview
+                                download_link = f'<a href="data:application/octet-stream;base64,{pdf_base64}" download="{filename}" style="text-decoration: none;"><button style="background-color: #4CAF50; color: white; border: none; padding: 8px 16px; border-radius: 4px; cursor: pointer; margin-top: 10px;">📥 Download {filename}</button></a>'
+                                st.markdown(download_link, unsafe_allow_html=True)
                                         
                             except Exception as e:
                                 st.error(f"Error processing PDF file: {str(e)}. File may be corrupted or too large.")

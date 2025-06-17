@@ -87,6 +87,24 @@ class BackendClient:
             # Fallback to /api/health for production backend
             response = self._make_request('GET', '/health')
             return response.json()
+    
+    def delete_document(self, document_id: str) -> Optional[requests.Response]:
+        """Delete a document by ID"""
+        try:
+            response = self._make_request('DELETE', f'/documents/{document_id}')
+            return response
+        except requests.exceptions.RequestException as e:
+            st.error(f"Failed to delete document: {e}")
+            return None
+    
+    def reprocess_document(self, document_id: str) -> Optional[requests.Response]:
+        """Reprocess a document by ID"""
+        try:
+            response = self._make_request('POST', f'/documents/{document_id}/reprocess')
+            return response
+        except requests.exceptions.RequestException as e:
+            st.error(f"Failed to reprocess document: {e}")
+            return None
 
 
 # Global backend client instance

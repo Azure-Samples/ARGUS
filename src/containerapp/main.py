@@ -456,21 +456,20 @@ async def get_configuration():
         if not conf_container:
             raise HTTPException(status_code=503, detail="Configuration container not available")
         
-        # Query all configuration items
-        configs = list(conf_container.query_items(
-            query="SELECT * FROM c",
-            enable_cross_partition_query=True
-        ))
-        
-        # Convert to a dictionary format
-        config_dict = {}
-        for config in configs:
+        try:
+            # Try to get the main configuration item
+            config_item = conf_container.read_item(item='configuration', partition_key='configuration')
             # Remove Cosmos DB specific fields
-            clean_config = {k: v for k, v in config.items() if not k.startswith('_')}
-            if 'id' in clean_config:
-                config_dict[clean_config['id']] = clean_config
-        
-        return config_dict
+            clean_config = {k: v for k, v in config_item.items() if not k.startswith('_')}
+            return clean_config
+        except Exception as e:
+            logger.warning(f"Configuration item not found, returning default: {e}")
+            # Return default configuration structure
+            return {
+                "id": "configuration",
+                "partitionKey": "configuration", 
+                "datasets": {}
+            }
         
     except Exception as e:
         logger.error(f"Error fetching configuration: {e}")
@@ -485,19 +484,118 @@ async def update_configuration(request: Request):
         
         config_data = await request.json()
         
-        # Update each configuration item
-        for config_id, config_value in config_data.items():
-            config_item = {
-                "id": config_id,
-                **config_value
-            }
-            conf_container.upsert_item(config_item)
+        # Ensure the configuration has required fields
+        if "id" not in config_data:
+            config_data["id"] = "configuration"
+        if "partitionKey" not in config_data:
+            config_data["partitionKey"] = "configuration"
+        
+        # Upsert the single configuration item
+        conf_container.upsert_item(config_data)
         
         return {"status": "success", "message": "Configuration updated"}
         
     except Exception as e:
         logger.error(f"Error updating configuration: {e}")
         raise HTTPException(status_code=500, detail="Failed to update configuration")
+
+@app.delete("/api/documents/{document_id}")
+async def delete_document(document_id: str):
+    """Delete a document and its associated blob"""
+    try:
+        if not data_container:
+            raise HTTPException(status_code=503, detail="Data container not available")
+        
+        # First, get the document to find the blob name
+        try:
+            document = data_container.read_item(item=document_id, partition_key=document_id)
+            blob_name = document.get('properties', {}).get('blob_name', '')
+            
+            # Delete from Cosmos DB
+            data_container.delete_item(item=document_id, partition_key=document_id)
+            
+            # Delete from blob storage if blob name is available
+            if blob_name and blob_service_client:
+                blob_client = blob_service_client.get_blob_client(container='datasets', blob=blob_name)
+                try:
+                    blob_client.delete_blob()
+                    logger.info(f"Deleted blob: {blob_name}")
+                except Exception as blob_error:
+                    logger.warning(f"Failed to delete blob {blob_name}: {blob_error}")
+            
+            return {"status": "success", "message": f"Document {document_id} deleted"}
+            
+        except Exception as e:
+            if "Not Found" in str(e):
+                raise HTTPException(status_code=404, detail="Document not found")
+            raise e
+            
+    except Exception as e:
+        logger.error(f"Error deleting document {document_id}: {e}")
+        raise HTTPException(status_code=500, detail="Failed to delete document")
+
+@app.post("/api/documents/{document_id}/reprocess")
+async def reprocess_document(document_id: str, background_tasks: BackgroundTasks):
+    """Reprocess a document by triggering the processing pipeline"""
+    try:
+        if not data_container:
+            raise HTTPException(status_code=503, detail="Data container not available")
+        
+        # Get the document to find blob name
+        try:
+            document = data_container.read_item(item=document_id, partition_key=document_id)
+            blob_name = document.get('properties', {}).get('blob_name', '')
+            
+            if not blob_name:
+                raise HTTPException(status_code=400, detail="Document blob name not found")
+            
+            # Reset the document state for reprocessing
+            document['state'] = {
+                'file_landed': False,
+                'ocr_completed': False,
+                'gpt_extraction_completed': False,
+                'gpt_evaluation_completed': False,
+                'gpt_summary_completed': False,
+                'processing_completed': False
+            }
+            
+            # Update the document in Cosmos DB
+            data_container.upsert_item(document)
+            
+            # Trigger reprocessing by simulating a blob event
+            blob_url = f"https://{blob_service_client.account_name}.blob.core.windows.net/datasets/{blob_name}"
+            
+            # Create a simulated event for reprocessing
+            simulated_event = {
+                'id': f'reprocess-{document_id}',
+                'eventType': 'Microsoft.Storage.BlobCreated',
+                'subject': f'/blobServices/default/containers/datasets/blobs/{blob_name}',
+                'eventTime': datetime.now().isoformat(),
+                'data': {
+                    'api': 'PutBlob',
+                    'requestId': f'reprocess-{document_id}',
+                    'eTag': 'mock-etag',
+                    'contentType': 'application/octet-stream',
+                    'contentLength': document.get('properties', {}).get('blob_size', 0),
+                    'blobType': 'BlockBlob',
+                    'url': blob_url,
+                    'sequencer': f'reprocess-{datetime.now().timestamp()}'
+                }
+            }
+            
+            # Add the processing task to background
+            background_tasks.add_task(process_blob_event, blob_url, simulated_event['data'])
+            
+            return {"status": "success", "message": f"Document {document_id} queued for reprocessing"}
+            
+        except Exception as e:
+            if "Not Found" in str(e):
+                raise HTTPException(status_code=404, detail="Document not found")
+            raise e
+            
+    except Exception as e:
+        logger.error(f"Error reprocessing document {document_id}: {e}")
+        raise HTTPException(status_code=500, detail="Failed to reprocess document")
 
 # ===============================================
 # Helper Functions

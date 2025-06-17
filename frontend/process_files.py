@@ -31,7 +31,11 @@ def fetch_configuration():
         return configuration
     except Exception as e:
         st.warning("No dataset found, create a new dataset to get started.")
-        return {"id": "configuration"}  # Initialize with an empty dataset
+        return {
+            "id": "configuration",
+            "partitionKey": "configuration",
+            "datasets": {}
+        }  # Initialize with the proper structure
 
 def update_configuration(config_data):
     """Update configuration via the backend API"""
@@ -49,24 +53,26 @@ def process_files_tab():
         config_data = fetch_configuration()
 
         # Get the list of dataset options from the configuration
-        dataset_options = [key for key, value in config_data.items() if key != 'id' and isinstance(value, dict) and 'model_prompt' in value and 'example_schema' in value]
+        datasets = config_data.get("datasets", {})
+        dataset_options = [key for key, value in datasets.items() if isinstance(value, dict) and 'model_prompt' in value and 'example_schema' in value]
 
         # Select a dataset from the options
         selected_dataset = st.selectbox("Select Dataset:", dataset_options)
         
         if selected_dataset:
             # Display the model prompt and example schema for the selected dataset
-            model_prompt = config_data[selected_dataset].get("model_prompt", "")
-            example_schema = config_data[selected_dataset].get("example_schema", {})
+            dataset_config = datasets[selected_dataset]
+            model_prompt = dataset_config.get("model_prompt", "")
+            example_schema = dataset_config.get("example_schema", {})
 
             st.session_state.system_prompt = st.text_area("Model Prompt", value=model_prompt, height=150)
             st.session_state.schema = st.text_area("Example Schema", value=json.dumps(example_schema, indent=4), height=300)
 
             if st.button('Save'):
                 # Update the model prompt and example schema in the configuration
-                config_data[selected_dataset]['model_prompt'] = st.session_state.system_prompt
+                config_data["datasets"][selected_dataset]['model_prompt'] = st.session_state.system_prompt
                 try:
-                    config_data[selected_dataset]['example_schema'] = json.loads(st.session_state.schema)
+                    config_data["datasets"][selected_dataset]['example_schema'] = json.loads(st.session_state.schema)
                     update_configuration(config_data)
                     st.success('Configuration saved!')
                 except json.JSONDecodeError:
@@ -94,17 +100,25 @@ def process_files_tab():
             example_schema = st.text_area("Example Schema for new dataset", "{}")
 
             if st.button('Add New Dataset'):
-                if new_dataset_name and new_dataset_name not in config_data:
+                if new_dataset_name and new_dataset_name not in config_data.get("datasets", {}):
+                    # Ensure datasets key exists
+                    if "datasets" not in config_data:
+                        config_data["datasets"] = {}
+                    
                     # Add the new dataset to the configuration
-                    config_data[new_dataset_name] = {
-                        "model_prompt": model_prompt,
-                        "example_schema": json.loads(example_schema)
-                    }
-                    update_configuration(config_data)
-                    st.success(f"New dataset '{new_dataset_name}' added!")
-                    # Refresh configuration and select the new dataset
-                    config_data = fetch_configuration()
-                    st.session_state.selected_dataset = new_dataset_name
-                    st.rerun()
+                    try:
+                        parsed_schema = json.loads(example_schema)
+                        config_data["datasets"][new_dataset_name] = {
+                            "model_prompt": model_prompt,
+                            "example_schema": parsed_schema
+                        }
+                        update_configuration(config_data)
+                        st.success(f"New dataset '{new_dataset_name}' added!")
+                        # Refresh configuration and select the new dataset
+                        config_data = fetch_configuration()
+                        st.session_state.selected_dataset = new_dataset_name
+                        st.rerun()
+                    except json.JSONDecodeError:
+                        st.error('Invalid JSON format in Example Schema.')
                 else:
                     st.warning('Please enter a unique dataset name.')
