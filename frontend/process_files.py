@@ -168,13 +168,20 @@ def process_files_tab():
             dataset_config = datasets[selected_dataset]
             model_prompt = dataset_config.get("model_prompt", "")
             example_schema = dataset_config.get("example_schema", {})
+            max_pages_per_chunk = dataset_config.get("max_pages_per_chunk", 10)
 
             st.session_state.system_prompt = st.text_area("Model Prompt", value=model_prompt, height=150)
             st.session_state.schema = st.text_area("Example Schema", value=json.dumps(example_schema, indent=4), height=300)
+            st.session_state.max_pages_per_chunk = st.number_input("Max Pages per Chunk", 
+                                                                   min_value=1, 
+                                                                   max_value=100, 
+                                                                   value=max_pages_per_chunk, 
+                                                                   help="Maximum number of pages to include in each document chunk when splitting large documents")
 
             if st.button('Save'):
                 # Update the model prompt and example schema in the configuration
                 config_data["datasets"][selected_dataset]['model_prompt'] = st.session_state.system_prompt
+                config_data["datasets"][selected_dataset]['max_pages_per_chunk'] = st.session_state.max_pages_per_chunk
                 try:
                     config_data["datasets"][selected_dataset]['example_schema'] = json.loads(st.session_state.schema)
                     update_configuration(config_data)
@@ -202,6 +209,11 @@ def process_files_tab():
             new_dataset_name = st.text_input("New Dataset Name:")
             model_prompt = st.text_area("Model Prompt for new dataset", "Extract all data.")
             example_schema = st.text_area("Example Schema for new dataset", "{}")
+            new_max_pages_per_chunk = st.number_input("Max Pages per Chunk for new dataset", 
+                                                      min_value=1, 
+                                                      max_value=100, 
+                                                      value=10, 
+                                                      help="Maximum number of pages to include in each document chunk when splitting large documents")
 
             if st.button('Add New Dataset'):
                 if new_dataset_name and new_dataset_name not in config_data.get("datasets", {}):
@@ -214,7 +226,8 @@ def process_files_tab():
                         parsed_schema = json.loads(example_schema)
                         config_data["datasets"][new_dataset_name] = {
                             "model_prompt": model_prompt,
-                            "example_schema": parsed_schema
+                            "example_schema": parsed_schema,
+                            "max_pages_per_chunk": new_max_pages_per_chunk
                         }
                         update_configuration(config_data)
                         st.success(f"New dataset '{new_dataset_name}' added!")

@@ -315,11 +315,11 @@ def initialize_document_data(blob_name: str, temp_file_path: str, num_pages: int
     
     logger.info(f"Using dataset type: {dataset_type}")
     
-    prompt, json_schema = fetch_model_prompt_and_schema(dataset_type)
+    prompt, json_schema, max_pages_per_chunk = fetch_model_prompt_and_schema(dataset_type)
     if prompt is None or json_schema is None:
         raise ValueError("Failed to fetch model prompt and schema from configuration.")
     
-    document = initialize_document(blob_name, file_size, num_pages, prompt, json_schema, timer_start, dataset_type)
+    document = initialize_document(blob_name, file_size, num_pages, prompt, json_schema, timer_start, dataset_type, max_pages_per_chunk)
     update_state(document, data_container, 'file_landed', True, (datetime.now() - timer_start).total_seconds())
     return document
 
@@ -369,8 +369,9 @@ def process_blob(blob_input_stream: BlobInputStream, data_container):
     
     try:
         # Prepare all file paths
-        if num_pages and num_pages > 10:
-            file_paths = split_pdf_into_subsets(temp_file_path, max_pages_per_subset=10)
+        max_pages_per_chunk = document['model_input'].get('max_pages_per_chunk', 10)
+        if num_pages and num_pages > max_pages_per_chunk:
+            file_paths = split_pdf_into_subsets(temp_file_path, max_pages_per_subset=max_pages_per_chunk)
         else:
             file_paths = [temp_file_path]
 

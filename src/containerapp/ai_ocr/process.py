@@ -29,7 +29,7 @@ def connect_to_cosmos():
 
     return docs_container, conf_container
 
-def initialize_document(file_name: str, file_size: int, num_pages:int, prompt: str, json_schema: str, request_timestamp: datetime, dataset: str = None) -> dict:
+def initialize_document(file_name: str, file_size: int, num_pages:int, prompt: str, json_schema: str, request_timestamp: datetime, dataset: str = None, max_pages_per_chunk: int = 10) -> dict:
     # Extract dataset from file_name if not provided
     if dataset is None:
         blob_parts = file_name.split('/')
@@ -65,7 +65,8 @@ def initialize_document(file_name: str, file_size: int, num_pages:int, prompt: s
         "model_input":{
             "model_deployment": os.getenv("AZURE_OPENAI_MODEL_DEPLOYMENT_NAME"),
             "model_prompt": prompt,
-            "example_schema": json_schema
+            "example_schema": json_schema,
+            "max_pages_per_chunk": max_pages_per_chunk
         },
         "errors": []
     }
@@ -169,6 +170,7 @@ def fetch_model_prompt_and_schema(dataset_type):
                 # Add item config to config_item
                 item_config['model_prompt'] = model_prompt
                 item_config['example_schema'] = example_schema
+                item_config['max_pages_per_chunk'] = 10  # Default value for backward compatibility
                 config_item['datasets'][folder_name] = item_config
 
         try:
@@ -220,7 +222,8 @@ def fetch_model_prompt_and_schema(dataset_type):
     
     model_prompt = datasets_config[dataset_type]['model_prompt']
     example_schema = datasets_config[dataset_type]['example_schema']
-    return model_prompt, example_schema
+    max_pages_per_chunk = datasets_config[dataset_type].get('max_pages_per_chunk', 10)  # Default to 10 for backward compatibility
+    return model_prompt, example_schema, max_pages_per_chunk
 
 def create_temp_dir():
     """Create a temporary directory with a random UUID name under /tmp/"""
