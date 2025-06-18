@@ -319,6 +319,22 @@ resource containerApp 'Microsoft.App/containerApps@2024-03-01' = {
               name: 'AZURE_CLIENT_ID'
               value: userManagedIdentity.properties.clientId
             }
+            {
+              name: 'AZURE_SUBSCRIPTION_ID'
+              value: subscription().subscriptionId
+            }
+            {
+              name: 'AZURE_RESOURCE_GROUP_NAME'
+              value: resourceGroup().name
+            }
+            {
+              name: 'LOGIC_APP_NAME'
+              value: 'logic-argus-${resourceToken}'
+            }
+            {
+              name: 'AZURE_STORAGE_ACCOUNT_NAME'
+              value: storageAccount.name
+            }
           ]
         }
       ]
@@ -761,6 +777,17 @@ resource logicAppStorageRoleAssignment 'Microsoft.Authorization/roleAssignments@
   properties: {
     roleDefinitionId: subscriptionResourceId('Microsoft.Authorization/roleDefinitions', '2a2b9908-6ea1-4ae2-8e65-a410df84e7d1') // Storage Blob Data Reader
     principalId: logicApp.identity.principalId
+    principalType: 'ServicePrincipal'
+  }
+}
+
+// Role assignment for container app to manage Logic Apps
+resource containerAppLogicRoleAssignment 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
+  name: guid(userManagedIdentity.id, resourceGroup().id, 'LogicAppContributor')
+  scope: resourceGroup()
+  properties: {
+    roleDefinitionId: subscriptionResourceId('Microsoft.Authorization/roleDefinitions', '87a39d53-fc1b-424a-814c-f7e04687dc9e') // Logic App Contributor
+    principalId: userManagedIdentity.properties.principalId
     principalType: 'ServicePrincipal'
   }
 }

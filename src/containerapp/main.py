@@ -17,6 +17,8 @@ from fastapi import FastAPI, Request, BackgroundTasks, HTTPException
 from fastapi.responses import JSONResponse
 from azure.storage.blob import BlobServiceClient, ContentSettings
 from azure.identity import DefaultAzureCredential
+from azure.mgmt.logic import LogicManagementClient
+from azure.mgmt.resource import ResourceManagementClient
 import uvicorn
 
 # Import your existing processing functions
@@ -48,19 +50,297 @@ credential = DefaultAzureCredential()
 blob_service_client = None
 data_container = None
 conf_container = None
+logic_app_manager = None
 
 # Global thread pool executor for parallel processing
 global_executor = None
 
+# Global semaphore for concurrency control based on Logic App settings
+global_processing_semaphore = None
+
+class LogicAppManager:
+    """Manages Logic App concurrency settings via Azure Management API"""
+    
+    def __init__(self):
+        self.credential = DefaultAzureCredential()
+        self.subscription_id = os.getenv('AZURE_SUBSCRIPTION_ID')
+        self.resource_group_name = os.getenv('AZURE_RESOURCE_GROUP_NAME')
+        self.logic_app_name = os.getenv('LOGIC_APP_NAME')
+        
+        if not all([self.subscription_id, self.resource_group_name, self.logic_app_name]):
+            logger.warning("Logic App management requires AZURE_SUBSCRIPTION_ID, AZURE_RESOURCE_GROUP_NAME, and LOGIC_APP_NAME environment variables")
+            self.enabled = False
+        else:
+            self.enabled = True
+            logger.info(f"Logic App Manager initialized for {self.logic_app_name} in {self.resource_group_name}")
+    
+    def get_logic_management_client(self):
+        """Create a Logic Management client"""
+        if not self.enabled:
+            raise ValueError("Logic App Manager is not properly configured")
+        return LogicManagementClient(self.credential, self.subscription_id)
+    
+    async def get_concurrency_settings(self) -> Dict[str, Any]:
+        """Get current Logic App concurrency settings"""
+        try:
+            if not self.enabled:
+                return {"error": "Logic App Manager not configured", "enabled": False}
+            
+            logic_client = self.get_logic_management_client()
+            
+            # Get the Logic App workflow
+            workflow = logic_client.workflows.get(
+                resource_group_name=self.resource_group_name,
+                workflow_name=self.logic_app_name
+            )
+            
+            # Extract concurrency settings from workflow definition
+            definition = workflow.definition or {}
+            triggers = definition.get('triggers', {})
+            
+            # Get concurrency from the first trigger (most common case)
+            runs_on = 1  # Default value
+            trigger_name = None
+            for name, trigger_config in triggers.items():
+                trigger_name = name
+                runtime_config = trigger_config.get('runtimeConfiguration', {})
+                concurrency = runtime_config.get('concurrency', {})
+                runs_on = concurrency.get('runs', 1)
+                break  # Use the first trigger found
+            
+            return {
+                "enabled": True,
+                "logic_app_name": self.logic_app_name,
+                "resource_group": self.resource_group_name,
+                "current_max_runs": runs_on,
+                "trigger_name": trigger_name,
+                "workflow_state": workflow.state,
+                "last_modified": workflow.changed_time.isoformat() if workflow.changed_time else None
+            }
+            
+        except Exception as e:
+            logger.error(f"Error getting Logic App concurrency settings: {e}")
+            return {"error": str(e), "enabled": False}
+    
+    async def update_concurrency_settings(self, max_runs: int) -> Dict[str, Any]:
+        """Update Logic App concurrency settings"""
+        try:
+            if not self.enabled:
+                return {"error": "Logic App Manager not configured", "success": False}
+            
+            if max_runs < 1 or max_runs > 100:
+                return {"error": "Max runs must be between 1 and 100", "success": False}
+            
+            logic_client = self.get_logic_management_client()
+            
+            # Get the current workflow
+            current_workflow = logic_client.workflows.get(
+                resource_group_name=self.resource_group_name,
+                workflow_name=self.logic_app_name
+            )
+            
+            # Update the workflow definition with new concurrency settings
+            updated_definition = current_workflow.definition.copy() if current_workflow.definition else {}
+            
+            # Find the trigger and update its concurrency settings using runtimeConfiguration
+            triggers = updated_definition.get('triggers', {})
+            for trigger_name, trigger_config in triggers.items():
+                # Set runtime configuration for concurrency control
+                if 'runtimeConfiguration' not in trigger_config:
+                    trigger_config['runtimeConfiguration'] = {}
+                if 'concurrency' not in trigger_config['runtimeConfiguration']:
+                    trigger_config['runtimeConfiguration']['concurrency'] = {}
+                trigger_config['runtimeConfiguration']['concurrency']['runs'] = max_runs
+                logger.info(f"Updated concurrency for trigger {trigger_name} to {max_runs}")
+            
+            # Create the workflow update request using the proper Workflow object
+            from azure.mgmt.logic.models import Workflow
+            
+            workflow_update = Workflow(
+                location=current_workflow.location,
+                definition=updated_definition,
+                state=current_workflow.state,
+                parameters=current_workflow.parameters,
+                tags=current_workflow.tags  # Include tags to maintain existing metadata
+            )
+            
+            # Update the workflow
+            updated_workflow = logic_client.workflows.create_or_update(
+                resource_group_name=self.resource_group_name,
+                workflow_name=self.logic_app_name,
+                workflow=workflow_update
+            )
+            
+            logger.info(f"Successfully updated Logic App {self.logic_app_name} max concurrent runs to {max_runs}")
+            
+            return {
+                "success": True,
+                "logic_app_name": self.logic_app_name,
+                "new_max_runs": max_runs,
+                "updated_at": datetime.utcnow().isoformat()
+            }
+            
+        except Exception as e:
+            logger.error(f"Error updating Logic App concurrency settings: {e}")
+            return {"error": str(e), "success": False}
+
+    async def get_workflow_definition(self) -> Dict[str, Any]:
+        """Get the complete Logic App workflow definition for inspection"""
+        try:
+            if not self.enabled:
+                return {"error": "Logic App Manager not configured", "enabled": False}
+            
+            logic_client = self.get_logic_management_client()
+            
+            # Get the Logic App workflow
+            workflow = logic_client.workflows.get(
+                resource_group_name=self.resource_group_name,
+                workflow_name=self.logic_app_name
+            )
+            
+            return {
+                "enabled": True,
+                "logic_app_name": self.logic_app_name,
+                "resource_group": self.resource_group_name,
+                "workflow_state": workflow.state,
+                "definition": workflow.definition,
+                "last_modified": workflow.changed_time.isoformat() if workflow.changed_time else None
+            }
+            
+        except Exception as e:
+            logger.error(f"Error getting Logic App workflow definition: {e}")
+            return {"error": str(e), "enabled": False}
+
+    async def update_action_concurrency_settings(self, max_runs: int) -> Dict[str, Any]:
+        """Update Logic App action-level concurrency settings for HTTP actions"""
+        try:
+            if not self.enabled:
+                return {"error": "Logic App Manager not configured", "success": False}
+            
+            if max_runs < 1 or max_runs > 100:
+                return {"error": "Max runs must be between 1 and 100", "success": False}
+            
+            logic_client = self.get_logic_management_client()
+            
+            # Get the current workflow
+            current_workflow = logic_client.workflows.get(
+                resource_group_name=self.resource_group_name,
+                workflow_name=self.logic_app_name
+            )
+            
+            # Update the workflow definition with new concurrency settings
+            updated_definition = current_workflow.definition.copy() if current_workflow.definition else {}
+            
+            # Update trigger-level concurrency
+            triggers = updated_definition.get('triggers', {})
+            for trigger_name, trigger_config in triggers.items():
+                if 'runtimeConfiguration' not in trigger_config:
+                    trigger_config['runtimeConfiguration'] = {}
+                if 'concurrency' not in trigger_config['runtimeConfiguration']:
+                    trigger_config['runtimeConfiguration']['concurrency'] = {}
+                trigger_config['runtimeConfiguration']['concurrency']['runs'] = max_runs
+                logger.info(f"Updated trigger concurrency for {trigger_name} to {max_runs}")
+            
+            # Update action-level concurrency for HTTP actions and loops
+            actions = updated_definition.get('actions', {})
+            updated_actions = 0
+            
+            def update_action_concurrency(actions_dict):
+                nonlocal updated_actions
+                for action_name, action_config in actions_dict.items():
+                    # Set concurrency for HTTP actions
+                    if action_config.get('type') in ['Http', 'ApiConnection']:
+                        if 'runtimeConfiguration' not in action_config:
+                            action_config['runtimeConfiguration'] = {}
+                        if 'concurrency' not in action_config['runtimeConfiguration']:
+                            action_config['runtimeConfiguration']['concurrency'] = {}
+                        action_config['runtimeConfiguration']['concurrency']['runs'] = max_runs
+                        logger.info(f"Updated action concurrency for {action_name} to {max_runs}")
+                        updated_actions += 1
+                    
+                    # Handle nested actions in conditionals and loops
+                    if 'actions' in action_config:
+                        update_action_concurrency(action_config['actions'])
+                    if 'else' in action_config and 'actions' in action_config['else']:
+                        update_action_concurrency(action_config['else']['actions'])
+                    
+                    # Handle foreach loops specifically
+                    if action_config.get('type') == 'Foreach':
+                        if 'runtimeConfiguration' not in action_config:
+                            action_config['runtimeConfiguration'] = {}
+                        if 'concurrency' not in action_config['runtimeConfiguration']:
+                            action_config['runtimeConfiguration']['concurrency'] = {}
+                        action_config['runtimeConfiguration']['concurrency']['repetitions'] = max_runs
+                        logger.info(f"Updated foreach concurrency for {action_name} to {max_runs}")
+                        updated_actions += 1
+                        
+                        # Also update nested actions
+                        if 'actions' in action_config:
+                            update_action_concurrency(action_config['actions'])
+            
+            update_action_concurrency(actions)
+            
+            # Create the workflow update request
+            from azure.mgmt.logic.models import Workflow
+            
+            workflow_update = Workflow(
+                location=current_workflow.location,
+                definition=updated_definition,
+                state=current_workflow.state,
+                parameters=current_workflow.parameters,
+                tags=current_workflow.tags
+            )
+            
+            # Update the workflow
+            updated_workflow = logic_client.workflows.create_or_update(
+                resource_group_name=self.resource_group_name,
+                workflow_name=self.logic_app_name,
+                workflow=workflow_update
+            )
+            
+            logger.info(f"Successfully updated Logic App {self.logic_app_name} concurrency: trigger and {updated_actions} actions to {max_runs}")
+            
+            return {
+                "success": True,
+                "logic_app_name": self.logic_app_name,
+                "new_max_runs": max_runs,
+                "updated_triggers": len(triggers),
+                "updated_actions": updated_actions,
+                "updated_at": datetime.utcnow().isoformat()
+            }
+            
+        except Exception as e:
+            logger.error(f"Error updating Logic App action concurrency settings: {e}")
+            return {"error": str(e), "success": False}
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Initialize Azure clients on startup"""
-    global blob_service_client, data_container, conf_container, global_executor
+    global blob_service_client, data_container, conf_container, global_executor, logic_app_manager, global_processing_semaphore
     
     try:
         # Initialize global thread pool executor
         global_executor = ThreadPoolExecutor(max_workers=10)
         logger.info("Initialized global ThreadPoolExecutor with 10 workers")
+        
+        # Initialize processing semaphore with default concurrency of 1
+        # This will be updated when Logic App concurrency settings are retrieved
+        global_processing_semaphore = asyncio.Semaphore(1)
+        logger.info("Initialized global processing semaphore with 1 permit")
+        
+        # Initialize Logic App Manager
+        logic_app_manager = LogicAppManager()
+        
+        # Try to get current Logic App concurrency to set proper semaphore value
+        if logic_app_manager.enabled:
+            try:
+                settings = await logic_app_manager.get_concurrency_settings()
+                if settings.get('enabled'):
+                    max_runs = settings.get('current_max_runs', 1)
+                    global_processing_semaphore = asyncio.Semaphore(max_runs)
+                    logger.info(f"Updated processing semaphore to {max_runs} permits based on Logic App settings")
+            except Exception as e:
+                logger.warning(f"Could not retrieve Logic App concurrency settings on startup: {e}")
         
         # Initialize blob service client
         storage_account_url = os.getenv('BLOB_ACCOUNT_URL')
@@ -260,26 +540,36 @@ async def handle_blob_created(request: Request, background_tasks: BackgroundTask
         raise HTTPException(status_code=500, detail="Internal server error")
 
 async def process_blob_event(blob_url: str, event_data: Dict[str, Any]):
-    """Process a single blob event in the background"""
+    """Process a single blob event in the background with concurrency control"""
     try:
         # Create blob input stream
         blob_input_stream = create_blob_input_stream(blob_url)
         
         logger.info(f"Processing blob event for: {blob_input_stream.name}")
         
-        # Use global ThreadPoolExecutor for truly parallel processing
-        if global_executor:
-            future = global_executor.submit(
-                process_blob_async,
-                blob_input_stream,
-                data_container
-            )
-            logger.info(f"Background processing submitted to global executor for: {blob_input_stream.name}")
+        # Use semaphore to control concurrency
+        if global_processing_semaphore:
+            async with global_processing_semaphore:
+                logger.info(f"Acquired semaphore for processing: {blob_input_stream.name}")
+                
+                # Use global ThreadPoolExecutor for processing
+                if global_executor:
+                    # Run in executor but await the result to maintain semaphore control
+                    loop = asyncio.get_event_loop()
+                    await loop.run_in_executor(
+                        global_executor,
+                        process_blob_async,
+                        blob_input_stream,
+                        data_container
+                    )
+                    logger.info(f"Completed processing for: {blob_input_stream.name}")
+                else:
+                    logger.error("Global executor not available")
         else:
-            logger.error("Global executor not available")
+            logger.error("Global processing semaphore not available")
                 
     except Exception as e:
-        logger.error(f"Error starting background blob processing: {e}")
+        logger.error(f"Error in background blob processing: {e}")
         logger.error(traceback.format_exc())
 
 @app.post("/api/process-blob")
@@ -509,493 +799,182 @@ async def update_configuration(request: Request):
         logger.error(f"Error updating configuration: {e}")
         raise HTTPException(status_code=500, detail="Failed to update configuration")
 
-@app.delete("/api/documents/{document_id}")
-async def delete_document(document_id: str):
-    """Delete a document and its associated blob"""
+# Logic App Concurrency Management Endpoints
+
+@app.get("/api/concurrency")
+async def get_concurrency_settings():
+    """Get current Logic App concurrency settings"""
     try:
-        if not data_container:
-            raise HTTPException(status_code=503, detail="Data container not available")
+        if not logic_app_manager:
+            raise HTTPException(status_code=503, detail="Logic App Manager not initialized")
         
-        # First, get the document to find the blob name
-        try:
-            document = data_container.read_item(item=document_id, partition_key=document_id)
-            blob_name = document.get('properties', {}).get('blob_name', '')
-            
-            # Delete from Cosmos DB
-            data_container.delete_item(item=document_id, partition_key=document_id)
-            
-            # Delete from blob storage if blob name is available
-            if blob_name and blob_service_client:
-                blob_client = blob_service_client.get_blob_client(container='datasets', blob=blob_name)
-                try:
-                    blob_client.delete_blob()
-                    logger.info(f"Deleted blob: {blob_name}")
-                except Exception as blob_error:
-                    logger.warning(f"Failed to delete blob {blob_name}: {blob_error}")
-            
-            return {"status": "success", "message": f"Document {document_id} deleted"}
-            
-        except Exception as e:
-            if "Not Found" in str(e):
-                raise HTTPException(status_code=404, detail="Document not found")
-            raise e
-            
-    except Exception as e:
-        logger.error(f"Error deleting document {document_id}: {e}")
-        raise HTTPException(status_code=500, detail="Failed to delete document")
-
-@app.post("/api/documents/{document_id}/reprocess")
-async def reprocess_document(document_id: str, background_tasks: BackgroundTasks):
-    """Reprocess a document by triggering the processing pipeline"""
-    try:
-        if not data_container:
-            raise HTTPException(status_code=503, detail="Data container not available")
+        settings = await logic_app_manager.get_concurrency_settings()
         
-        # Get the document to find blob name
-        try:
-            document = data_container.read_item(item=document_id, partition_key=document_id)
-            blob_name = document.get('properties', {}).get('blob_name', '')
-            
-            if not blob_name:
-                raise HTTPException(status_code=400, detail="Document blob name not found")
-            
-            # Reset the document state for reprocessing
-            document['state'] = {
-                'file_landed': False,
-                'ocr_completed': False,
-                'gpt_extraction_completed': False,
-                'gpt_evaluation_completed': False,
-                'gpt_summary_completed': False,
-                'processing_completed': False
-            }
-            
-            # Update the document in Cosmos DB
-            data_container.upsert_item(document)
-            
-            # Trigger reprocessing by simulating a blob event
-            blob_url = f"https://{blob_service_client.account_name}.blob.core.windows.net/datasets/{blob_name}"
-            
-            # Create a simulated event for reprocessing
-            simulated_event = {
-                'id': f'reprocess-{document_id}',
-                'eventType': 'Microsoft.Storage.BlobCreated',
-                'subject': f'/blobServices/default/containers/datasets/blobs/{blob_name}',
-                'eventTime': datetime.now().isoformat(),
-                'data': {
-                    'api': 'PutBlob',
-                    'requestId': f'reprocess-{document_id}',
-                    'eTag': 'mock-etag',
-                    'contentType': 'application/octet-stream',
-                    'contentLength': document.get('properties', {}).get('blob_size', 0),
-                    'blobType': 'BlockBlob',
-                    'url': blob_url,
-                    'sequencer': f'reprocess-{datetime.now().timestamp()}'
-                }
-            }
-            
-            # Add the processing task to background
-            background_tasks.add_task(process_blob_event, blob_url, simulated_event['data'])
-            
-            return {"status": "success", "message": f"Document {document_id} queued for reprocessing"}
-            
-        except Exception as e:
-            if "Not Found" in str(e):
-                raise HTTPException(status_code=404, detail="Document not found")
-            raise e
-            
-    except Exception as e:
-        logger.error(f"Error reprocessing document {document_id}: {e}")
-        raise HTTPException(status_code=500, detail="Failed to reprocess document")
-
-# ===============================================
-# Helper Functions
-# ===============================================
-
-def extract_document_info(doc):
-    """Extract document information with proper dataset and filename parsing"""
-    # Extract filename and dataset from document ID or other fields
-    doc_id = doc.get("id", "")
-    
-    # Initialize defaults
-    filename = "unknown"
-    dataset = "unknown"
-    
-    # Method 1: Extract from document ID (format: dataset__filename) - This is the primary method
-    if "__" in doc_id:
-        parts = doc_id.split("__", 1)
-        dataset = parts[0]
-        filename = parts[1]
-    
-    # Method 2: Extract from properties.blob_name (most common in CosmosDB)
-    properties = doc.get("properties", {})
-    blob_name = properties.get("blob_name", "")
-    if blob_name and "/" in blob_name:
-        # Format: "dataset/filename.pdf"
-        blob_parts = blob_name.split("/")
-        if len(blob_parts) >= 2:
-            dataset = blob_parts[0]
-            filename = "/".join(blob_parts[1:])  # Handle nested paths
-    
-    # Method 3: Fallback to root-level blob_name if properties.blob_name not found
-    elif doc.get("blob_name"):
-        blob_name = doc.get("blob_name")
-        if "/" in blob_name:
-            blob_parts = blob_name.split("/")
-            dataset = blob_parts[0]
-            filename = "/".join(blob_parts[1:])
-        else:
-            filename = blob_name
-    
-    # Method 4: Use direct dataset/filename fields if available (override if they exist)
-    if doc.get("dataset"):
-        dataset = doc.get("dataset")
-    if doc.get("file_name"):
-        filename = doc.get("file_name")
-    elif doc.get("filename"):
-        filename = doc.get("filename")
-    
-    # Method 5: Extract from other properties fields as fallback
-    if filename == "unknown":
-        filename = (properties.get("original_filename") or 
-                   properties.get("filename") or 
-                   "unknown")
-    
-    # Final fallback for dataset
-    if dataset == "unknown":
-        dataset = (doc.get("dataset") or 
-                  properties.get("dataset") or 
-                  "default")
-    
-    # Remove Cosmos DB specific fields and simplify structure
-    cleaned_doc = {
-        "id": doc.get("id"),
-        "file_name": filename,
-        "dataset": dataset,
-        "finished": doc.get("state", {}).get("processing_completed", False),
-        "error": bool(doc.get("errors", [])),
-        "created_at": doc.get("properties", {}).get("request_timestamp"),
-        "modified_at": doc.get("_ts"),
-        "size": doc.get("properties", {}).get("blob_size"),
-        "pages": doc.get("properties", {}).get("num_pages"),
-        "total_time": doc.get("properties", {}).get("total_time_seconds", 0),
-        "extracted_data": doc.get("extracted_data", {}),
-        "state": doc.get("state", {})
-    }
-    return cleaned_doc
-
-# ===============================================
-# API Endpoints  
-# ===============================================
-
-@app.get("/api/datasets")
-async def get_datasets():
-    """Get list of available datasets from blob storage"""
-    try:
-        if not blob_service_client:
-            raise HTTPException(status_code=503, detail="Blob service not available")
+        if "error" in settings:
+            if not settings.get("enabled", False):
+                raise HTTPException(status_code=503, detail=settings["error"])
+            else:
+                raise HTTPException(status_code=500, detail=settings["error"])
         
-        # Get the datasets container
-        datasets_container_client = blob_service_client.get_container_client("datasets")
+        return settings
         
-        # List all "folders" (blob prefixes) in the datasets container
-        datasets = set()
-        blobs = datasets_container_client.list_blobs()
-        
-        for blob in blobs:
-            # Extract dataset name from blob path (first part before '/')
-            if '/' in blob.name:
-                dataset_name = blob.name.split('/')[0]
-                datasets.add(dataset_name)
-        
-        return sorted(list(datasets))
-        
-    except Exception as e:
-        logger.error(f"Error fetching datasets: {e}")
-        raise HTTPException(status_code=500, detail="Failed to fetch datasets")
-
-@app.get("/api/datasets/{dataset_name}/files")
-async def get_dataset_files(dataset_name: str):
-    """Get files in a specific dataset"""
-    try:
-        if not blob_service_client:
-            raise HTTPException(status_code=503, detail="Blob service not available")
-        
-        datasets_container_client = blob_service_client.get_container_client("datasets")
-        
-        # List blobs with the dataset prefix
-        blobs = datasets_container_client.list_blobs(name_starts_with=f"{dataset_name}/")
-        
-        files = []
-        for blob in blobs:
-            files.append({
-                "name": blob.name,
-                "size": blob.size,
-                "last_modified": blob.last_modified.isoformat() if blob.last_modified else None,
-                "content_type": blob.content_settings.content_type if blob.content_settings else None
-            })
-        
-        return files
-        
-    except Exception as e:
-        logger.error(f"Error fetching dataset files: {e}")
-        raise HTTPException(status_code=500, detail="Failed to fetch dataset files")
-
-@app.get("/api/documents")
-async def get_documents(dataset: str = None):
-    """Get processed documents from Cosmos DB"""
-    try:
-        if not data_container:
-            raise HTTPException(status_code=503, detail="Data container not available")
-        
-        # Build query based on parameters
-        if dataset:
-            query = "SELECT * FROM c WHERE c.dataset = @dataset"
-            parameters = [{"name": "@dataset", "value": dataset}]
-        else:
-            query = "SELECT * FROM c"
-            parameters = None
-        
-        # Query documents
-        documents = list(data_container.query_items(
-            query=query,
-            parameters=parameters,
-            enable_cross_partition_query=True
-        ))
-        
-        # Clean up documents for frontend consumption using helper function
-        cleaned_docs = []
-        for doc in documents:
-            cleaned_doc = extract_document_info(doc)
-            cleaned_docs.append(cleaned_doc)
-        
-        return cleaned_docs
-        
-    except Exception as e:
-        logger.error(f"Error fetching documents: {e}")
-        raise HTTPException(status_code=500, detail="Failed to fetch documents")
-
-@app.get("/api/documents/{document_id}")
-async def get_document_details(document_id: str):
-    """Get details for a specific document from Cosmos DB"""
-    try:
-        if not data_container:
-            raise HTTPException(status_code=503, detail="Data container not available")
-        
-        # Query for the specific document
-        try:
-            document = data_container.read_item(item=document_id, partition_key={})
-            
-            # Apply the same extraction logic as in the list endpoint
-            cleaned_document = extract_document_info(document)
-            return cleaned_document
-            
-        except Exception as e:
-            logger.error(f"Error fetching document {document_id}: {e}")
-            raise HTTPException(status_code=404, detail=f"Document {document_id} not found")
-            
-    except Exception as e:
-        logger.error(f"Error fetching document details: {e}")
-        raise HTTPException(status_code=500, detail="Failed to fetch document details")
-
-from fastapi import UploadFile, File, Form
-
-@app.post("/api/upload")
-async def upload_file(
-    background_tasks: BackgroundTasks,
-    file: UploadFile = File(...),
-    dataset_name: str = Form(...)
-):
-    """Upload a file to a specific dataset"""
-    try:
-        if not blob_service_client:
-            raise HTTPException(status_code=503, detail="Blob service not available")
-        
-        # Read file content
-        file_content = await file.read()
-        
-        # Create blob path
-        blob_name = f"{dataset_name}/{file.filename}"
-        
-        # Upload to blob storage
-        datasets_container_client = blob_service_client.get_container_client("datasets")
-        blob_client = datasets_container_client.get_blob_client(blob_name)
-        
-        blob_client.upload_blob(
-            file_content,
-            overwrite=True,
-            content_settings=ContentSettings(
-                content_type=file.content_type or "application/octet-stream"
-            )
-        )
-        
-        # Trigger processing manually since Event Grid is not configured
-        blob_url = f"{blob_service_client.url.rstrip('/')}/datasets/{blob_name}"
-        logger.info(f"Triggering manual processing for uploaded file: {blob_url}")
-        
-        # Add to background tasks for async processing
-        background_tasks.add_task(
-            process_blob_event,
-            blob_url,
-            {"url": blob_url, "api": blob_name}
-        )
-        
-        return {
-            "status": "success",
-            "message": f"File {file.filename} uploaded to dataset {dataset_name}",
-            "blob_name": blob_name,
-            "size": len(file_content)
-        }
-        
-    except Exception as e:
-        logger.error(f"Error uploading file: {e}")
-        raise HTTPException(status_code=500, detail="Failed to upload file")
-
-@app.post("/api/process-file")
-async def process_file_from_logic_app(request: Request, background_tasks: BackgroundTasks):
-    """Process file triggered by Logic Apps blob upload"""
-    try:
-        request_body = await request.json()
-        
-        # Extract data from Logic Apps payload
-        filename = request_body.get('filename')
-        dataset = request_body.get('dataset')
-        blob_path = request_body.get('blob_path')
-        trigger_source = request_body.get('trigger_source')
-        
-        if not all([filename, dataset, blob_path]):
-            raise HTTPException(
-                status_code=400, 
-                detail="Missing required fields: filename, dataset, blob_path"
-            )
-        
-        logger.info(f"Logic Apps triggered processing for file: {filename} in dataset: {dataset}")
-        
-        if trigger_source == 'blob_upload':
-            # Handle blob-triggered processing
-            if not blob_service_client:
-                raise HTTPException(status_code=503, detail="Blob service not available")
-            
-            # Construct blob URL for processing
-            # Assuming blob_path is like "/documents/dataset/filename.pdf"
-            # We need to construct the full blob URL
-            blob_name = blob_path.lstrip('/')  # Remove leading slash
-            blob_url = f"{blob_service_client.url.rstrip('/')}/{blob_name}"
-            
-            logger.info(f"Processing blob from Logic Apps trigger: {blob_url}")
-            
-            # Add to background tasks for async processing (reuse existing logic)
-            background_tasks.add_task(
-                process_blob_event,
-                blob_url,
-                {"url": blob_url, "source": "logic_app", "dataset": dataset}
-            )
-            
-            return JSONResponse(
-                status_code=202,
-                content={
-                    "status": "accepted",
-                    "message": f"File {filename} queued for processing",
-                    "filename": filename,
-                    "dataset": dataset,
-                    "source": "logic_app"
-                }
-            )
-        else:
-            # Handle other trigger sources if needed
-            raise HTTPException(
-                status_code=400, 
-                detail=f"Unsupported trigger_source: {trigger_source}"
-            )
-            
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"Error in Logic Apps file processing: {e}")
-        logger.error(traceback.format_exc())
-        raise HTTPException(status_code=500, detail=f"Processing failed: {str(e)}")
+        logger.error(f"Error getting concurrency settings: {e}")
+        raise HTTPException(status_code=500, detail="Failed to get concurrency settings")
 
-# Add after the process_blob_event function
-
-async def process_blob_event_v2(blob_url: str, event_data: Dict[str, Any]):
-    """Enhanced version with proper error handling and monitoring"""
-    document_id = None
+@app.put("/api/concurrency")
+async def update_concurrency_settings(request: Request):
+    """Update Logic App concurrency settings"""
+    global global_processing_semaphore
+    
     try:
-        # Create blob input stream
-        blob_input_stream = create_blob_input_stream(blob_url)
-        document_id = blob_input_stream.name.replace('/', '__')
+        if not logic_app_manager:
+            raise HTTPException(status_code=503, detail="Logic App Manager not initialized")
         
-        logger.info(f"Starting background processing for: {blob_input_stream.name}")
+        request_body = await request.json()
+        max_runs = request_body.get('max_runs')
         
-        # Update document status to "processing"
-        try:
-            # Try to get existing document or create placeholder
-            docs_container, _ = connect_to_cosmos()
-            try:
-                document = docs_container.read_item(item=document_id, partition_key=document_id)
-                document['state']['processing_started'] = datetime.now().isoformat()
-                document['state']['status'] = 'processing'
-            except:
-                # Create minimal document placeholder
-                document = {
-                    'id': document_id,
-                    'state': {
-                        'processing_started': datetime.now().isoformat(),
-                        'status': 'processing'
-                    },
-                    'properties': {
-                        'blob_name': blob_input_stream.name
-                    }
-                }
-            docs_container.upsert_item(document)
-        except Exception as e:
-            logger.warning(f"Could not update document status: {e}")
+        if max_runs is None:
+            raise HTTPException(status_code=400, detail="max_runs is required")
         
-        # Use ThreadPoolExecutor but don't wait for result
-        with ThreadPoolExecutor() as executor:
-            future = executor.submit(
-                process_blob_with_error_handling,
-                blob_input_stream,
-                data_container
-            )
-            
-            # Add future to a global set for monitoring (optional)
-            # You could implement a cleanup mechanism here
-            logger.info(f"Background processing task submitted for: {blob_input_stream.name}")
-                
+        if not isinstance(max_runs, int):
+            raise HTTPException(status_code=400, detail="max_runs must be an integer")
+        
+        result = await logic_app_manager.update_concurrency_settings(max_runs)
+        
+        if not result.get("success", False):
+            error_msg = result.get("error", "Unknown error occurred")
+            raise HTTPException(status_code=400, detail=error_msg)
+        
+        # Update the global semaphore to match the new concurrency setting
+        global_processing_semaphore = asyncio.Semaphore(max_runs)
+        logger.info(f"Updated global processing semaphore to allow {max_runs} concurrent operations")
+        
+        # Add semaphore info to the result
+        result["backend_semaphore_updated"] = True
+        result["backend_max_concurrent"] = max_runs
+        
+        return result
+        
+    except HTTPException:
+        raise
     except Exception as e:
-        logger.error(f"Error starting background processing for {document_id}: {e}")
-        logger.error(traceback.format_exc())
+        logger.error(f"Error updating concurrency settings: {e}")
+        raise HTTPException(status_code=500, detail="Failed to update concurrency settings")
 
-def process_blob_with_error_handling(blob_input_stream: BlobInputStream, data_container):
-    """Process blob with comprehensive error handling"""
-    document_id = blob_input_stream.name.replace('/', '__')
+@app.get("/api/workflow-definition")
+async def get_workflow_definition():
+    """Get the complete Logic App workflow definition for inspection"""
     try:
-        logger.info(f"Processing blob: {blob_input_stream.name}")
+        if not logic_app_manager:
+            raise HTTPException(status_code=503, detail="Logic App Manager not initialized")
         
-        # Call the main processing function
-        process_blob(blob_input_stream, data_container)
+        definition = await logic_app_manager.get_workflow_definition()
         
-        logger.info(f"Successfully completed processing: {blob_input_stream.name}")
+        if not definition.get("enabled", False):
+            error_msg = definition.get("error", "Unknown error occurred")
+            raise HTTPException(status_code=400, detail=error_msg)
         
-        # Update final status
-        try:
-            document = data_container.read_item(item=document_id, partition_key=document_id)
-            document['state']['processing_completed'] = datetime.now().isoformat()
-            document['state']['status'] = 'completed'
-            data_container.upsert_item(document)
-        except Exception as e:
-            logger.warning(f"Could not update completion status: {e}")
+        return definition
         
+    except HTTPException:
+        raise
     except Exception as e:
-        logger.error(f"Error processing blob {blob_input_stream.name}: {e}")
-        logger.error(traceback.format_exc())
+        logger.error(f"Error getting workflow definition: {e}")
+        raise HTTPException(status_code=500, detail="Failed to get workflow definition")
+
+@app.put("/api/concurrency-full")
+async def update_full_concurrency_settings(request: Request):
+    """Update Logic App concurrency settings for both triggers and actions"""
+    try:
+        if not logic_app_manager:
+            raise HTTPException(status_code=503, detail="Logic App Manager not initialized")
         
-        # Update error status
-        try:
-            document = data_container.read_item(item=document_id, partition_key=document_id)
-            document['state']['processing_failed'] = datetime.now().isoformat()
-            document['state']['status'] = 'failed'
-            document['state']['error'] = str(e)
-            data_container.upsert_item(document)
-        except Exception as update_error:
-            logger.error(f"Could not update error status: {update_error}")
+        request_body = await request.json()
+        max_runs = request_body.get('max_runs')
+        
+        if max_runs is None:
+            raise HTTPException(status_code=400, detail="max_runs is required")
+        
+        if not isinstance(max_runs, int):
+            raise HTTPException(status_code=400, detail="max_runs must be an integer")
+        
+        result = await logic_app_manager.update_action_concurrency_settings(max_runs)
+        
+        if not result.get("success", False):
+            error_msg = result.get("error", "Unknown error occurred")
+            raise HTTPException(status_code=400, detail=error_msg)
+        
+        return result
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error updating full concurrency settings: {e}")
+        raise HTTPException(status_code=500, detail="Failed to update full concurrency settings")
+
+@app.post("/api/process-file")
+async def process_file(request: Request, background_tasks: BackgroundTasks):
+    """Process file endpoint called by Logic App"""
+    try:
+        request_body = await request.json()
+        logger.info(f"Received process-file request: {request_body}")
+        
+        # Extract parameters from Logic App request
+        filename = request_body.get('filename')
+        dataset = request_body.get('dataset')
+        blob_path = request_body.get('blob_path')
+        trigger_source = request_body.get('trigger_source', 'logic_app')
+        
+        if not all([filename, dataset, blob_path]):
+            logger.error(f"Missing required parameters. filename: {filename}, dataset: {dataset}, blob_path: {blob_path}")
+            raise HTTPException(status_code=400, detail="Missing required parameters: filename, dataset, blob_path")
+        
+        # Convert to blob URL format expected by our processing function
+        # The blob_path should be in format: /datasets/dataset-name/filename
+        # We need to construct the full blob URL
+        storage_account_name = os.getenv('AZURE_STORAGE_ACCOUNT_NAME')
+        if not storage_account_name:
+            raise HTTPException(status_code=500, detail="Storage account name not configured")
+        
+        # Parse the blob_path to extract container and blob name
+        # blob_path format: /datasets/dataset-name/filename.pdf
+        path_parts = blob_path.strip('/').split('/', 1)  # Split into at most 2 parts
+        if len(path_parts) != 2:
+            raise HTTPException(status_code=400, detail="Invalid blob_path format. Expected: /container/blob-name")
+        
+        container_name, blob_name = path_parts
+        blob_url = f"https://{storage_account_name}.blob.core.windows.net/{container_name}/{blob_name}"
+        
+        logger.info(f"Processing file: {filename} from dataset: {dataset}")
+        logger.info(f"Blob path: {blob_path}")
+        logger.info(f"Constructed blob URL: {blob_url}")
+        
+        # Add to background tasks using our existing processing function
+        background_tasks.add_task(
+            process_blob_event,
+            blob_url,
+            {
+                "url": blob_url,
+                "filename": filename,
+                "dataset": dataset,
+                "trigger_source": trigger_source
+            }
+        )
+        
+        return {
+            "status": "accepted", 
+            "message": f"File {filename} queued for processing",
+            "filename": filename,
+            "dataset": dataset,
+            "blob_url": blob_url
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error in process-file endpoint: {e}")
+        logger.error(traceback.format_exc())
+        raise HTTPException(status_code=500, detail="Internal server error")

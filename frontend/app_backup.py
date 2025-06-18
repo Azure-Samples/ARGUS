@@ -1,6 +1,7 @@
 import os
 import streamlit as st
-from dotenv import load_dotenv
+from dote# Tabs navigation
+tabs = st.tabs(["🧠 Process Files", "🔎 Explore Data", "🚀 Concurrency", "📋 Instructions"]) import load_dotenv
 
 from process_files import process_files_tab
 from explore_data import explore_data_tab
@@ -41,7 +42,7 @@ st.set_page_config(layout="wide")
 st.header("ARGUS: Automated Retrieval and GPT Understanding System")
 
 # Tabs navigation
-tabs = st.tabs(["🧠 Process Files", "🔎 Explore Data", "🚀 Concurrency", "📋 Instructions"])
+tabs = st.tabs(["🧠 Process Files", "🔎 Explore Data", "� Concurrency", "�🖥️ Instructions"])
 
 # Render the tabs
 with tabs[0]:

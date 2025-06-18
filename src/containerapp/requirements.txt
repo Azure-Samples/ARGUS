@@ -3,6 +3,8 @@ uvicorn[standard]==0.24.0
 azure-storage-blob==12.19.0
 azure-identity==1.19.0
 azure-cosmos==4.9.0
+azure-mgmt-logic==10.0.0
+azure-mgmt-resource==23.1.1
 azure-ai-formrecognizer==3.3.3
 azure-ai-documentintelligence==1.0.0
 azure-cognitiveservices-vision-computervision==0.9.0
