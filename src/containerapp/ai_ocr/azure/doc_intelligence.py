@@ -6,17 +6,34 @@ from azure.ai.documentintelligence.models import DocumentAnalysisFeature
 from ai_ocr.azure.config import get_config
 
 
-config = get_config()
-
-document_intelligence_client = DocumentIntelligenceClient(endpoint=config["doc_intelligence_endpoint"],
-                                                               credential=DefaultAzureCredential(),
-                                                               headers={"solution":"ARGUS-1.0"})
+def get_document_intelligence_client():
+    """Create a new Document Intelligence client instance for each request to avoid connection pooling issues"""
+    config = get_config()
+    return DocumentIntelligenceClient(
+        endpoint=config["doc_intelligence_endpoint"],
+        credential=DefaultAzureCredential(),
+        headers={"solution":"ARGUS-1.0"}
+    )
 
 def get_ocr_results(file_path: str):
+    import threading
+    import logging
+    
+    thread_id = threading.current_thread().ident
+    logger = logging.getLogger(__name__)
+    
+    logger.info(f"[Thread-{thread_id}] Starting Document Intelligence OCR for: {file_path}")
+    
+    # Create a new client instance for this request to ensure parallel processing
+    client = get_document_intelligence_client()
+    
     with open(file_path, "rb") as f:
-        poller = document_intelligence_client.begin_analyze_document("prebuilt-layout", 
-                                                                        body=f)
+        logger.info(f"[Thread-{thread_id}] Submitting document to Document Intelligence API")
+        poller = client.begin_analyze_document("prebuilt-layout", body=f)
 
+    logger.info(f"[Thread-{thread_id}] Waiting for Document Intelligence results...")
     ocr_result = poller.result().content
+    logger.info(f"[Thread-{thread_id}] Document Intelligence OCR completed, {len(ocr_result)} characters")
+    
     return ocr_result
 

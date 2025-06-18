@@ -49,12 +49,19 @@ blob_service_client = None
 data_container = None
 conf_container = None
 
+# Global thread pool executor for parallel processing
+global_executor = None
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Initialize Azure clients on startup"""
-    global blob_service_client, data_container, conf_container
+    global blob_service_client, data_container, conf_container, global_executor
     
     try:
+        # Initialize global thread pool executor
+        global_executor = ThreadPoolExecutor(max_workers=10)
+        logger.info("Initialized global ThreadPoolExecutor with 10 workers")
+        
         # Initialize blob service client
         storage_account_url = os.getenv('BLOB_ACCOUNT_URL')
         if not storage_account_url:
@@ -77,6 +84,9 @@ async def lifespan(app: FastAPI):
     yield
     
     # Cleanup
+    if global_executor:
+        logger.info("Shutting down global ThreadPoolExecutor")
+        global_executor.shutdown(wait=True)
     logger.info("Shutting down application")
 
 # Initialize FastAPI app
@@ -145,17 +155,22 @@ def create_blob_input_stream(blob_url: str) -> BlobInputStream:
 
 def process_blob_async(blob_input_stream: BlobInputStream, data_container):
     """Process blob asynchronously - same logic as original function"""
+    import threading
+    thread_id = threading.current_thread().ident
+    
     try:
-        logger.info(f"Processing blob: {blob_input_stream.name}")
+        logger.info(f"[Thread-{thread_id}] Starting blob processing: {blob_input_stream.name}")
         
         # Your existing blob processing logic here
         # This calls the same process_blob function from your original code
+        start_time = datetime.now()
         process_blob(blob_input_stream, data_container)
+        end_time = datetime.now()
         
-        logger.info(f"Successfully processed blob: {blob_input_stream.name}")
+        logger.info(f"[Thread-{thread_id}] Successfully processed blob: {blob_input_stream.name} in {(end_time - start_time).total_seconds():.2f}s")
         
     except Exception as e:
-        logger.error(f"Error processing blob {blob_input_stream.name}: {e}")
+        logger.error(f"[Thread-{thread_id}] Error processing blob {blob_input_stream.name}: {e}")
         logger.error(traceback.format_exc())
         raise
 
@@ -252,16 +267,16 @@ async def process_blob_event(blob_url: str, event_data: Dict[str, Any]):
         
         logger.info(f"Processing blob event for: {blob_input_stream.name}")
         
-        # Use ThreadPoolExecutor for CPU-intensive work - fire and forget
-        with ThreadPoolExecutor() as executor:
-            future = executor.submit(
+        # Use global ThreadPoolExecutor for truly parallel processing
+        if global_executor:
+            future = global_executor.submit(
                 process_blob_async,
                 blob_input_stream,
                 data_container
             )
-            
-            # Don't block - let it run in parallel
-            logger.info(f"Background processing started for: {blob_input_stream.name}")
+            logger.info(f"Background processing submitted to global executor for: {blob_input_stream.name}")
+        else:
+            logger.error("Global executor not available")
                 
     except Exception as e:
         logger.error(f"Error starting background blob processing: {e}")
