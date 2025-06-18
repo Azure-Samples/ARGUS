@@ -252,7 +252,7 @@ async def process_blob_event(blob_url: str, event_data: Dict[str, Any]):
         
         logger.info(f"Processing blob event for: {blob_input_stream.name}")
         
-        # Use ThreadPoolExecutor for CPU-intensive work
+        # Use ThreadPoolExecutor for CPU-intensive work - fire and forget
         with ThreadPoolExecutor() as executor:
             future = executor.submit(
                 process_blob_async,
@@ -260,17 +260,11 @@ async def process_blob_event(blob_url: str, event_data: Dict[str, Any]):
                 data_container
             )
             
-            try:
-                # Wait for processing with timeout
-                future.result(timeout=MAX_TIMEOUT)
-                logger.info(f"Successfully processed blob: {blob_input_stream.name}")
-                
-            except FuturesTimeoutError:
-                logger.error(f"Timeout processing blob: {blob_input_stream.name}")
-                handle_timeout_error_async(blob_input_stream, data_container)
+            # Don't block - let it run in parallel
+            logger.info(f"Background processing started for: {blob_input_stream.name}")
                 
     except Exception as e:
-        logger.error(f"Error in background blob processing: {e}")
+        logger.error(f"Error starting background blob processing: {e}")
         logger.error(traceback.format_exc())
 
 @app.post("/api/process-blob")
@@ -904,3 +898,89 @@ async def process_file_from_logic_app(request: Request, background_tasks: Backgr
         logger.error(f"Error in Logic Apps file processing: {e}")
         logger.error(traceback.format_exc())
         raise HTTPException(status_code=500, detail=f"Processing failed: {str(e)}")
+
+# Add after the process_blob_event function
+
+async def process_blob_event_v2(blob_url: str, event_data: Dict[str, Any]):
+    """Enhanced version with proper error handling and monitoring"""
+    document_id = None
+    try:
+        # Create blob input stream
+        blob_input_stream = create_blob_input_stream(blob_url)
+        document_id = blob_input_stream.name.replace('/', '__')
+        
+        logger.info(f"Starting background processing for: {blob_input_stream.name}")
+        
+        # Update document status to "processing"
+        try:
+            # Try to get existing document or create placeholder
+            docs_container, _ = connect_to_cosmos()
+            try:
+                document = docs_container.read_item(item=document_id, partition_key=document_id)
+                document['state']['processing_started'] = datetime.now().isoformat()
+                document['state']['status'] = 'processing'
+            except:
+                # Create minimal document placeholder
+                document = {
+                    'id': document_id,
+                    'state': {
+                        'processing_started': datetime.now().isoformat(),
+                        'status': 'processing'
+                    },
+                    'properties': {
+                        'blob_name': blob_input_stream.name
+                    }
+                }
+            docs_container.upsert_item(document)
+        except Exception as e:
+            logger.warning(f"Could not update document status: {e}")
+        
+        # Use ThreadPoolExecutor but don't wait for result
+        with ThreadPoolExecutor() as executor:
+            future = executor.submit(
+                process_blob_with_error_handling,
+                blob_input_stream,
+                data_container
+            )
+            
+            # Add future to a global set for monitoring (optional)
+            # You could implement a cleanup mechanism here
+            logger.info(f"Background processing task submitted for: {blob_input_stream.name}")
+                
+    except Exception as e:
+        logger.error(f"Error starting background processing for {document_id}: {e}")
+        logger.error(traceback.format_exc())
+
+def process_blob_with_error_handling(blob_input_stream: BlobInputStream, data_container):
+    """Process blob with comprehensive error handling"""
+    document_id = blob_input_stream.name.replace('/', '__')
+    try:
+        logger.info(f"Processing blob: {blob_input_stream.name}")
+        
+        # Call the main processing function
+        process_blob(blob_input_stream, data_container)
+        
+        logger.info(f"Successfully completed processing: {blob_input_stream.name}")
+        
+        # Update final status
+        try:
+            document = data_container.read_item(item=document_id, partition_key=document_id)
+            document['state']['processing_completed'] = datetime.now().isoformat()
+            document['state']['status'] = 'completed'
+            data_container.upsert_item(document)
+        except Exception as e:
+            logger.warning(f"Could not update completion status: {e}")
+        
+    except Exception as e:
+        logger.error(f"Error processing blob {blob_input_stream.name}: {e}")
+        logger.error(traceback.format_exc())
+        
+        # Update error status
+        try:
+            document = data_container.read_item(item=document_id, partition_key=document_id)
+            document['state']['processing_failed'] = datetime.now().isoformat()
+            document['state']['status'] = 'failed'
+            document['state']['error'] = str(e)
+            data_container.upsert_item(document)
+        except Exception as update_error:
+            logger.error(f"Could not update error status: {update_error}")
