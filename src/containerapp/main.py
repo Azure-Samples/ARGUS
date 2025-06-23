@@ -616,11 +616,11 @@ def initialize_document_data(blob_name: str, temp_file_path: str, num_pages: int
     
     logger.info(f"Using dataset type: {dataset_type}")
     
-    prompt, json_schema, max_pages_per_chunk = fetch_model_prompt_and_schema(dataset_type)
+    prompt, json_schema, max_pages_per_chunk, processing_options = fetch_model_prompt_and_schema(dataset_type)
     if prompt is None or json_schema is None:
         raise ValueError("Failed to fetch model prompt and schema from configuration.")
     
-    document = initialize_document(blob_name, file_size, num_pages, prompt, json_schema, timer_start, dataset_type, max_pages_per_chunk)
+    document = initialize_document(blob_name, file_size, num_pages, prompt, json_schema, timer_start, dataset_type, max_pages_per_chunk, processing_options)
     update_state(document, data_container, 'file_landed', True, (datetime.now() - timer_start).total_seconds())
     return document
 
@@ -747,6 +747,19 @@ def process_blob(blob_input_stream: BlobInputStream, data_container):
     
     try:
         # Prepare all file paths
+        # Get processing options from document
+        processing_options = document.get('processing_options', {
+            "include_ocr": True,
+            "include_images": True,
+            "enable_summary": True,
+            "enable_evaluation": True
+        })
+        
+        logger.info(f"Processing options: OCR={processing_options.get('include_ocr', True)}, "
+                   f"Images={processing_options.get('include_images', True)}, "
+                   f"Summary={processing_options.get('enable_summary', True)}, "
+                   f"Evaluation={processing_options.get('enable_evaluation', True)}")
+        
         max_pages_per_chunk = document['model_input'].get('max_pages_per_chunk', 10)
         
         # Validate chunk size to prevent system overload
@@ -763,23 +776,35 @@ def process_blob(blob_input_stream: BlobInputStream, data_container):
             file_paths = [temp_file_path]
             logger.info(f"Processing single file with {num_pages} pages (no chunking needed)")
 
-        # Step 1: Run OCR for all files
-        logger.info(f"Starting OCR processing for {len(file_paths)} chunks")
-        ocr_start_time = datetime.now()
+        # Step 1: Run OCR for all files (conditional - only if OCR text will be used)
         ocr_results = []
         total_ocr_time = 0
-        for i, file_path in enumerate(file_paths):
-            logger.info(f"Processing OCR for chunk {i+1}/{len(file_paths)}")
-            ocr_result, ocr_time = run_ocr_processing(file_path, document, data_container, None, update_state=False)
-            ocr_results.append(ocr_result)
-            total_ocr_time += ocr_time
-            
-        # Only mark OCR as completed when ALL chunks are processed
-        processing_times['ocr_processing_time'] = total_ocr_time
-        document['extracted_data']['ocr_output'] = '\n'.join(str(result) for result in ocr_results)
-        update_state(document, data_container, 'ocr_completed', True, total_ocr_time)
-        data_container.upsert_item(document)
-        logger.info(f"Completed OCR processing for all chunks in {total_ocr_time:.2f}s")
+        
+        if processing_options.get('include_ocr', True):
+            logger.info(f"Starting OCR processing for {len(file_paths)} chunks")
+            ocr_start_time = datetime.now()
+            for i, file_path in enumerate(file_paths):
+                logger.info(f"Processing OCR for chunk {i+1}/{len(file_paths)}")
+                ocr_result, ocr_time = run_ocr_processing(file_path, document, data_container, None, update_state=False)
+                ocr_results.append(ocr_result)
+                total_ocr_time += ocr_time
+                
+            # Only mark OCR as completed when ALL chunks are processed
+            processing_times['ocr_processing_time'] = total_ocr_time
+            document['extracted_data']['ocr_output'] = '\n'.join(str(result) for result in ocr_results)
+            update_state(document, data_container, 'ocr_completed', True, total_ocr_time)
+            data_container.upsert_item(document)
+            logger.info(f"Completed OCR processing for all chunks in {total_ocr_time:.2f}s")
+        else:
+            logger.info("Skipping OCR processing (OCR text not needed for GPT extraction)")
+            # Create empty OCR results for each chunk
+            ocr_results = [""] * len(file_paths)
+            processing_times['ocr_processing_time'] = 0
+            document['extracted_data']['ocr_output'] = ""
+            # Mark OCR as skipped, not completed
+            update_state(document, data_container, 'ocr_skipped', True, 0)
+            data_container.upsert_item(document)
+            logger.info("OCR processing skipped - no OCR text will be extracted")
 
         # Step 2: Prepare images and run GPT extraction for all files
         logger.info(f"Starting GPT extraction for {len(file_paths)} chunks")
@@ -790,12 +815,33 @@ def process_blob(blob_input_stream: BlobInputStream, data_container):
         
         for i, file_path in enumerate(file_paths):
             logger.info(f"Processing GPT extraction for chunk {i+1}/{len(file_paths)}")
-            temp_dir, imgs = prepare_images(file_path, Config())
-            temp_dirs.append(temp_dir)
-            image_cache[i] = imgs  # Cache images for reuse
+            
+            # Prepare images only if image processing is enabled
+            if processing_options.get('include_images', True):
+                temp_dir, imgs = prepare_images(file_path, Config())
+                temp_dirs.append(temp_dir)
+                image_cache[i] = imgs  # Cache images for reuse
+            else:
+                imgs = []  # No images
+                image_cache[i] = []
+            
+            # Use OCR text only if OCR inclusion is enabled
+            ocr_text_for_extraction = ocr_results[i] if processing_options.get('include_ocr', True) else ""
+            
+            # Debug logging
+            logger.info(f"GPT Extraction Debug - Chunk {i+1}:")
+            logger.info(f"  - OCR text length: {len(ocr_text_for_extraction)} chars")
+            logger.info(f"  - Number of images: {len(imgs)}")
+            logger.info(f"  - OCR enabled: {processing_options.get('include_ocr', True)}")
+            logger.info(f"  - Images enabled: {processing_options.get('include_images', True)}")
+            
+            # Check if we have any input at all
+            if not ocr_text_for_extraction and not imgs:
+                logger.error("No input provided to GPT extraction - both OCR text and images are empty!")
+                raise ValueError("Cannot perform GPT extraction without either OCR text or images")
             
             extracted_data, extraction_time = run_gpt_extraction(
-                ocr_results[i],  # Use index directly instead of file_paths.index
+                ocr_text_for_extraction,
                 document['model_input']['model_prompt'],
                 document['model_input']['example_schema'],
                 imgs,
@@ -815,51 +861,72 @@ def process_blob(blob_input_stream: BlobInputStream, data_container):
         data_container.upsert_item(document)
         logger.info(f"Completed GPT extraction for all chunks in {total_extraction_time:.2f}s")
 
-        # Step 3: Run GPT evaluation for all files
-        logger.info(f"Starting GPT evaluation for {len(file_paths)} chunks")
-        evaluation_start_time = datetime.now()
-        evaluation_results = []
+        # Initialize variables for conditional processing
         total_evaluation_time = 0
-        for i, file_path in enumerate(file_paths):
-            logger.info(f"Processing GPT evaluation for chunk {i+1}/{len(file_paths)}")
-            # Use cached images instead of re-processing
-            imgs = image_cache.get(i)
-            if imgs is None:
-                # Fallback if cache is missing for some reason
-                _, imgs = prepare_images(file_path, Config())
-            
-            enriched_data, evaluation_time = run_gpt_evaluation(
-                imgs,
-                extracted_data_list[i],
-                document['model_input']['example_schema'],
-                document,
-                data_container,
-                None,
-                update_state=False  # Don't update state for individual chunks
-            )
-            evaluation_results.append(enriched_data)
-            total_evaluation_time += evaluation_time
-
-        # Only mark evaluation as completed when ALL chunks are processed
-        processing_times['gpt_evaluation_time'] = total_evaluation_time
-        merged_evaluation = merge_evaluation_results(evaluation_results)
-        document['extracted_data']['gpt_extraction_output_with_evaluation'] = merged_evaluation
-        update_state(document, data_container, 'gpt_evaluation_completed', True, total_evaluation_time)
-        data_container.upsert_item(document)
-        logger.info(f"Completed GPT evaluation for all chunks in {total_evaluation_time:.2f}s")
-
-        # Step 4: Process final summary
-        logger.info("Starting GPT summary processing")
-        summary_start_time = datetime.now()
-        # Combine OCR results into a single string for summary
-        combined_ocr_text = '\n'.join(str(result) for result in ocr_results)
-        summary_data, summary_time = run_gpt_summary(combined_ocr_text, document, data_container, None, update_state=False)
+        summary_time = 0
+        merged_evaluation = {}  # Initialize to empty dict
         
-        # Update summary data in document
-        document['extracted_data']['classification'] = summary_data['classification']
-        document['extracted_data']['gpt_summary_output'] = summary_data['gpt_summary_output']
-        update_state(document, data_container, 'gpt_summary_completed', True, summary_time)
-        logger.info(f"Completed GPT summary processing in {summary_time:.2f}s")
+        # Step 3: Run GPT evaluation for all files (conditional)
+        if processing_options.get('enable_evaluation', True):
+            logger.info(f"Starting GPT evaluation for {len(file_paths)} chunks")
+            evaluation_start_time = datetime.now()
+            evaluation_results = []
+            for i, file_path in enumerate(file_paths):
+                logger.info(f"Processing GPT evaluation for chunk {i+1}/{len(file_paths)}")
+                # Use cached images instead of re-processing, but only if images were processed
+                imgs = image_cache.get(i, [])
+                
+                enriched_data, evaluation_time = run_gpt_evaluation(
+                    imgs,
+                    extracted_data_list[i],
+                    document['model_input']['example_schema'],
+                    document,
+                    data_container,
+                    None,
+                    update_state=False  # Don't update state for individual chunks
+                )
+                evaluation_results.append(enriched_data)
+                total_evaluation_time += evaluation_time
+
+            # Only mark evaluation as completed when ALL chunks are processed
+            processing_times['gpt_evaluation_time'] = total_evaluation_time
+            merged_evaluation = merge_evaluation_results(evaluation_results)
+            document['extracted_data']['gpt_extraction_output_with_evaluation'] = merged_evaluation
+            update_state(document, data_container, 'gpt_evaluation_completed', True, total_evaluation_time)
+            data_container.upsert_item(document)
+            logger.info(f"Completed GPT evaluation for all chunks in {total_evaluation_time:.2f}s")
+        else:
+            logger.info("Skipping GPT evaluation (disabled in processing options)")
+            # Set empty evaluation result when disabled
+            merged_evaluation = {}  # Empty dictionary instead of reusing extraction
+            document['extracted_data']['gpt_extraction_output_with_evaluation'] = merged_evaluation
+            # Mark evaluation as skipped, not completed
+            update_state(document, data_container, 'gpt_evaluation_skipped', True, 0)
+            processing_times['gpt_evaluation_time'] = 0
+            logger.info("GPT evaluation skipped - evaluation results will be empty")
+
+        # Step 4: Process final summary (conditional)
+        if processing_options.get('enable_summary', True):
+            logger.info("Starting GPT summary processing")
+            summary_start_time = datetime.now()
+            # Combine OCR results into a single string for summary
+            combined_ocr_text = '\n'.join(str(result) for result in ocr_results)
+            summary_data, summary_time = run_gpt_summary(combined_ocr_text, document, data_container, None, update_state=False)
+            
+            # Update summary data in document
+            document['extracted_data']['classification'] = summary_data['classification']
+            document['extracted_data']['gpt_summary_output'] = summary_data['gpt_summary_output']
+            update_state(document, data_container, 'gpt_summary_completed', True, summary_time)
+            logger.info(f"Completed GPT summary processing in {summary_time:.2f}s")
+        else:
+            logger.info("Skipping GPT summary (disabled in processing options)")
+            # Set empty values when disabled
+            document['extracted_data']['classification'] = ""
+            document['extracted_data']['gpt_summary_output'] = ""
+            # Mark summary as skipped, not completed
+            update_state(document, data_container, 'gpt_summary_skipped', True, 0)
+            summary_time = 0
+            logger.info("GPT summary skipped - classification and summary will be empty")
         
         # Final update with accurate total processing time
         overall_end_time = datetime.now()
@@ -868,7 +935,13 @@ def process_blob(blob_input_stream: BlobInputStream, data_container):
         logger.info(f"Processing completed for {blob_input_stream.name}")
         logger.info(f"Total time: {total_processing_time:.2f}s | OCR: {processing_times['ocr_processing_time']:.2f}s | "
                    f"Extraction: {processing_times['gpt_extraction_time']:.2f}s | "
-                   f"Evaluation: {processing_times['gpt_evaluation_time']:.2f}s | Summary: {summary_time:.2f}s")
+                   f"Evaluation: {processing_times.get('gpt_evaluation_time', 0):.2f}s | Summary: {summary_time:.2f}s")
+        
+        # Log which steps were enabled/disabled
+        logger.info(f"Processing options applied - OCR: {processing_options.get('include_ocr', True)}, "
+                   f"Images: {processing_options.get('include_images', True)}, "
+                   f"Summary: {processing_options.get('enable_summary', True)}, "
+                   f"Evaluation: {processing_options.get('enable_evaluation', True)}")
         
         update_final_document(document, merged_extraction, ocr_results, 
                             merged_evaluation, processing_times, data_container)
@@ -881,14 +954,17 @@ def process_blob(blob_input_stream: BlobInputStream, data_container):
         document['state']['processing_completed'] = False
         
         # Mark any incomplete steps as failed for proper state tracking
-        if 'ocr_processing_time' not in processing_times:
+        # Only mark OCR as failed if it was supposed to run
+        if processing_options.get('include_ocr', True) and 'ocr_processing_time' not in processing_times:
             update_state(document, data_container, 'ocr_completed', False)
         if 'gpt_extraction_time' not in processing_times:
             update_state(document, data_container, 'gpt_extraction_completed', False)
-        if 'gpt_evaluation_time' not in processing_times:
+        # Only mark evaluation as failed if it was supposed to run
+        if processing_options.get('enable_evaluation', True) and 'gpt_evaluation_time' not in processing_times:
             update_state(document, data_container, 'gpt_evaluation_completed', False)
-        # Summary might not have been attempted yet
-        update_state(document, data_container, 'gpt_summary_completed', False)
+        # Only mark summary as failed if it was supposed to run  
+        if processing_options.get('enable_summary', True) and summary_time == 0:
+            update_state(document, data_container, 'gpt_summary_completed', False)
         
         data_container.upsert_item(document)
         raise e
@@ -947,6 +1023,42 @@ async def update_configuration(request: Request):
     except Exception as e:
         logger.error(f"Error updating configuration: {e}")
         raise HTTPException(status_code=500, detail="Failed to update configuration")
+
+@app.post("/api/configuration/refresh")
+async def refresh_configuration():
+    """Force refresh configuration by reloading demo datasets"""
+    try:
+        if not conf_container:
+            raise HTTPException(status_code=503, detail="Configuration container not available")
+        
+        logger.info("Forcing configuration refresh from demo files")
+        
+        # Force reload configuration by calling fetch function
+        # This will trigger the configuration loading logic in process.py
+        from ai_ocr.process import fetch_model_prompt_and_schema
+        
+        try:
+            # This will force reload the configuration from demo files
+            prompt, schema, max_pages, options = fetch_model_prompt_and_schema("default-dataset", force_refresh=True)
+            logger.info(f"Configuration refreshed successfully - prompt length: {len(prompt)}, schema size: {len(str(schema))}")
+            
+            return {
+                "status": "success", 
+                "message": "Configuration refreshed successfully",
+                "prompt_length": len(prompt),
+                "schema_size": len(str(schema)),
+                "schema_empty": not bool(schema)
+            }
+        except Exception as inner_e:
+            logger.error(f"Error during configuration refresh: {inner_e}")
+            return {
+                "status": "error",
+                "message": f"Failed to refresh configuration: {str(inner_e)}"
+            }
+        
+    except Exception as e:
+        logger.error(f"Error refreshing configuration: {e}")
+        raise HTTPException(status_code=500, detail="Failed to refresh configuration")
 
 # Logic App Concurrency Management Endpoints
 

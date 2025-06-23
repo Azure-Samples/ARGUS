@@ -1,1 +1,12 @@
-Extract all data.
+Extract all data from the document in a comprehensive and structured manner. 
+
+Focus on:
+- Key identifiers (invoice numbers, reference numbers, IDs)
+- Financial information (amounts, totals, currency, taxes)
+- Parties involved (vendors, customers, suppliers, recipients)
+- Dates and timelines (invoice dates, due dates, service periods)
+- Line items and details (products, services, quantities, prices)
+- Contact information (addresses, phone numbers, emails)
+- Any other relevant structured data visible in the document
+
+When both text and images are available, use the text as the primary source and cross-reference with images for accuracy. When only images are available, extract all visible information directly from the visual content.

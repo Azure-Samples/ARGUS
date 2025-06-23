@@ -10,7 +10,147 @@ from azure.identity import DefaultAzureCredential
 from azure.cosmos import CosmosClient, exceptions
 from azure.core.exceptions import ResourceNotFoundError
 from PyPDF2 import PdfReader, PdfWriter
-from langchain_core.output_parsers.json import parse_json_markdown
+
+def safe_parse_json(content: str) -> dict:
+    """
+    Safely parse JSON content with multiple fallback strategies and truncation detection
+    """
+    import re
+    
+    try:
+        # First try direct parsing
+        return json.loads(content)
+    except json.JSONDecodeError as e:
+        logging.warning(f"Initial JSON parse failed: {e}")
+        
+        # Check for signs of truncation before attempting cleanup
+        content_stripped = content.strip()
+        is_likely_truncated = False
+        truncation_indicators = []
+        
+        # Check for bracket/brace imbalance (strong indicator of truncation)
+        open_braces = content_stripped.count('{')
+        close_braces = content_stripped.count('}')
+        open_brackets = content_stripped.count('[')
+        close_brackets = content_stripped.count(']')
+        
+        if open_braces != close_braces:
+            is_likely_truncated = True
+            truncation_indicators.append(f"Unbalanced braces: {open_braces} open, {close_braces} close")
+        
+        if open_brackets != close_brackets:
+            is_likely_truncated = True
+            truncation_indicators.append(f"Unbalanced brackets: {open_brackets} open, {close_brackets} close")
+        
+        # Check if content ends abruptly without proper JSON closure
+        if content_stripped and not (content_stripped.endswith('}') or content_stripped.endswith(']')):
+            is_likely_truncated = True
+            truncation_indicators.append(f"Content ends abruptly: '{content_stripped[-50:]}'")
+        
+        # Check for incomplete string at the end (common in truncation)
+        if content_stripped.endswith('"') and content_stripped.count('"') % 2 != 0:
+            is_likely_truncated = True
+            truncation_indicators.append("Incomplete string at end")
+        
+        if is_likely_truncated:
+            logging.error(f"JSON appears to be truncated. Indicators: {'; '.join(truncation_indicators)}")
+            return {
+                "error": "JSON response appears to be truncated",
+                "error_type": "likely_truncation",
+                "parsing_error": str(e),
+                "raw_content": content[:1000],
+                "extraction_failed": True,
+                "truncation_indicators": truncation_indicators,
+                "user_action_required": "The response was likely truncated due to token limits.",
+                "recommendations": [
+                    "Reduce the 'max_pages_per_chunk' parameter to process smaller document chunks",
+                    "Simplify the JSON schema to reduce output complexity",
+                    "Use a more concise system prompt",
+                    "Consider processing the document in smaller sections"
+                ]
+            }
+        
+        # Define multiple cleanup strategies
+        def basic_cleanup(text):
+            """Basic markdown and whitespace cleanup"""
+            text = text.strip()
+            if text.startswith('```json'):
+                text = text[7:]
+            elif text.startswith('```'):
+                text = text[3:]
+            if text.endswith('```'):
+                text = text[:-3]
+            return text.strip()
+        
+        def extract_json_object(text):
+            """Extract just the JSON object from surrounding text"""
+            start_idx = text.find('{')
+            end_idx = text.rfind('}')
+            if start_idx != -1 and end_idx != -1 and end_idx > start_idx:
+                return text[start_idx:end_idx + 1]
+            return text
+        
+        def extract_json_array(text):
+            """Extract just the JSON array from surrounding text"""
+            start_idx = text.find('[')
+            end_idx = text.rfind(']')
+            if start_idx != -1 and end_idx != -1 and end_idx > start_idx:
+                return text[start_idx:end_idx + 1]
+            return text
+        
+        def fix_common_json_issues(text):
+            """Fix common JSON formatting issues"""
+            # Fix single quotes to double quotes
+            text = re.sub(r"'(\w+)':", r'"\1":', text)  # Property names
+            text = re.sub(r': \'([^\']*?)\'(?=\s*[,}\]])', r': "\1"', text)  # String values
+            
+            # Fix trailing commas
+            text = re.sub(r',(\s*[}\]])', r'\1', text)
+            
+            # Fix missing quotes around property names
+            text = re.sub(r'(\w+):', r'"\1":', text)
+            
+            # Fix missing quotes around string values (simple heuristic)
+            text = re.sub(r': ([A-Za-z][A-Za-z0-9\s]*?)(?=\s*[,}\]])', r': "\1"', text)
+            
+            return text
+        
+        # Try multiple cleanup strategies in order
+        cleanup_strategies = [
+            basic_cleanup,
+            lambda x: extract_json_object(basic_cleanup(x)),
+            lambda x: extract_json_array(basic_cleanup(x)),
+            lambda x: fix_common_json_issues(extract_json_object(basic_cleanup(x))),
+            lambda x: fix_common_json_issues(extract_json_array(basic_cleanup(x))),
+        ]
+        
+        for i, strategy in enumerate(cleanup_strategies):
+            try:
+                cleaned_content = strategy(content)
+                if cleaned_content and cleaned_content != content:
+                    result = json.loads(cleaned_content)
+                    logging.info(f"Successfully parsed JSON using cleanup strategy {i+1}")
+                    return result
+            except (json.JSONDecodeError, Exception) as cleanup_error:
+                logging.debug(f"Cleanup strategy {i+1} failed: {cleanup_error}")
+                continue
+        
+        # If all else fails, return an error structure
+        logging.error(f"All JSON parsing strategies failed. Content: {content[:500]}...")
+        return {
+            "error": "Failed to parse JSON response after multiple cleanup attempts",
+            "error_type": "json_parse_error",
+            "raw_content": content[:1000],
+            "parsing_error": str(e),
+            "extraction_failed": True,
+            "user_action_required": "GPT returned malformed JSON that could not be repaired.",
+            "recommendations": [
+                "Try running the extraction again (temporary GPT formatting issue)",
+                "Reduce document complexity if the issue persists",
+                "Simplify the JSON schema to reduce formatting complexity",
+                "Check if the system prompt is causing formatting conflicts"
+            ]
+        }
 
 from ai_ocr.azure.doc_intelligence import get_ocr_results
 from ai_ocr.azure.openai_ops import load_image, get_size_of_base64_images
@@ -29,7 +169,7 @@ def connect_to_cosmos():
 
     return docs_container, conf_container
 
-def initialize_document(file_name: str, file_size: int, num_pages:int, prompt: str, json_schema: str, request_timestamp: datetime, dataset: str = None, max_pages_per_chunk: int = 10) -> dict:
+def initialize_document(file_name: str, file_size: int, num_pages:int, prompt: str, json_schema: str, request_timestamp: datetime, dataset: str = None, max_pages_per_chunk: int = 10, processing_options: dict = None) -> dict:
     # Extract dataset from file_name if not provided
     if dataset is None:
         blob_parts = file_name.split('/')
@@ -37,6 +177,15 @@ def initialize_document(file_name: str, file_size: int, num_pages:int, prompt: s
             dataset = blob_parts[0]
         else:
             dataset = 'default-dataset'
+    
+    # Set default processing options if not provided
+    if processing_options is None:
+        processing_options = {
+            "include_ocr": True,
+            "include_images": True,
+            "enable_summary": True,
+            "enable_evaluation": True
+        }
     
     return {
         "id": file_name.replace('/', '__'),
@@ -68,6 +217,7 @@ def initialize_document(file_name: str, file_size: int, num_pages:int, prompt: s
             "example_schema": json_schema,
             "max_pages_per_chunk": max_pages_per_chunk
         },
+        "processing_options": processing_options,
         "errors": []
     }
 
@@ -111,8 +261,18 @@ def split_pdf_into_subsets(pdf_path, max_pages_per_subset=10):
     return subset_paths
 
 
-def fetch_model_prompt_and_schema(dataset_type):
+def fetch_model_prompt_and_schema(dataset_type, force_refresh=False):
     docs_container, conf_container = connect_to_cosmos()
+
+    # If force refresh is requested, try to delete existing configuration
+    if force_refresh:
+        try:
+            conf_container.delete_item(item='configuration', partition_key='configuration')
+            logging.info("Deleted existing configuration for force refresh")
+        except exceptions.CosmosResourceNotFoundError:
+            logging.info("No existing configuration to delete")
+        except Exception as e:
+            logging.warning(f"Could not delete existing configuration: {e}")
 
     try:
         config_item = conf_container.read_item(item='configuration', partition_key='configuration')
@@ -151,21 +311,23 @@ def fetch_model_prompt_and_schema(dataset_type):
                 model_prompt = "Default model prompt."
                 example_schema = {}
 
-                # Find any txt file for model prompt
-                for file_name in os.listdir(folder_path):
-                    file_path = os.path.join(folder_path, file_name)
-                    if file_name.endswith('.txt'):
-                        with open(file_path, 'r') as txt_file:
-                            model_prompt = txt_file.read().strip()
-                            break
+                # Look specifically for system_prompt.txt
+                prompt_file_path = os.path.join(folder_path, 'system_prompt.txt')
+                if os.path.exists(prompt_file_path):
+                    with open(prompt_file_path, 'r') as txt_file:
+                        model_prompt = txt_file.read().strip()
+                        logging.info(f"Loaded prompt from {prompt_file_path}: {len(model_prompt)} characters")
+                else:
+                    logging.warning(f"No system_prompt.txt found in {folder_path}, using default prompt")
 
-                # Find any json file for example schema
-                for file_name in os.listdir(folder_path):
-                    file_path = os.path.join(folder_path, file_name)
-                    if file_name.endswith('.json'):
-                        with open(file_path, 'r') as json_file:
-                            example_schema = json.load(json_file)
-                            break
+                # Look specifically for output_schema.json
+                schema_file_path = os.path.join(folder_path, 'output_schema.json')
+                if os.path.exists(schema_file_path):
+                    with open(schema_file_path, 'r') as json_file:
+                        example_schema = json.load(json_file)
+                        logging.info(f"Loaded schema from {schema_file_path}: {len(str(example_schema))} characters")
+                else:
+                    logging.warning(f"No output_schema.json found in {folder_path}, using empty schema")
 
                 # Add item config to config_item
                 item_config['model_prompt'] = model_prompt
@@ -177,9 +339,12 @@ def fetch_model_prompt_and_schema(dataset_type):
             conf_container.create_item(body=config_item)
             logging.info("Configuration item created.")
         except exceptions.CosmosResourceExistsError:
-            # Configuration item already exists, try to read it again
-            logging.info("Configuration item already exists, reading existing one.")
-            config_item = conf_container.read_item(item='configuration', partition_key='configuration')
+            # Configuration item already exists, update it with fresh data
+            logging.info("Configuration item already exists, updating with fresh data.")
+            config_item['id'] = 'configuration'
+            config_item['partitionKey'] = 'configuration'
+            conf_container.upsert_item(body=config_item)
+            logging.info("Configuration item updated successfully.")
 
     # Ensure config_item is a dictionary
     if not isinstance(config_item, dict):
@@ -223,7 +388,16 @@ def fetch_model_prompt_and_schema(dataset_type):
     model_prompt = datasets_config[dataset_type]['model_prompt']
     example_schema = datasets_config[dataset_type]['example_schema']
     max_pages_per_chunk = datasets_config[dataset_type].get('max_pages_per_chunk', 10)  # Default to 10 for backward compatibility
-    return model_prompt, example_schema, max_pages_per_chunk
+    
+    # Get processing options with defaults
+    processing_options = datasets_config[dataset_type].get('processing_options', {
+        "include_ocr": True,
+        "include_images": True,
+        "enable_summary": True,
+        "enable_evaluation": True
+    })
+    
+    return model_prompt, example_schema, max_pages_per_chunk, processing_options
 
 def create_temp_dir():
     """Create a temporary directory with a random UUID name under /tmp/"""
@@ -296,14 +470,90 @@ def run_gpt_extraction(ocr_result: str, prompt: str, json_schema: str, imgs: lis
     """
     gpt_extraction_start_time = datetime.now()
     try:
+        # Debug logging
+        logging.info(f"GPT Extraction Input Debug:")
+        logging.info(f"  - OCR text length: {len(ocr_result)} characters")
+        logging.info(f"  - Number of images: {len(imgs)}")
+        logging.info(f"  - OCR text preview: {ocr_result[:200]}..." if ocr_result else "  - OCR text: EMPTY")
+        logging.info(f"  - Images provided: {len(imgs) > 0}")
+        
         structured = get_structured_data(ocr_result, prompt, json_schema, imgs, None)
-        extracted_data = parse_json_markdown(structured.content)
+        
+        # Debug the structured response
+        logging.info(f"GPT Response length: {len(structured.content)} characters")
+        logging.info(f"GPT Response preview: {structured.content[:500]}...")
+        
+        extracted_data = safe_parse_json(structured.content)
+        
+        # Debug the parsed data
+        logging.info(f"Parsed data keys: {list(extracted_data.keys()) if isinstance(extracted_data, dict) else 'Not a dict'}")
+        logging.info(f"Parsed data empty: {not bool(extracted_data)}")
+        
+        # Additional debugging for common issues
+        if isinstance(extracted_data, dict):
+            if "error" in extracted_data or "extraction_failed" in extracted_data:
+                logging.warning(f"Error detected in extracted data: {extracted_data}")
+            if len(extracted_data) < 3:  # Very few fields extracted
+                logging.warning(f"Suspiciously few fields extracted: {len(extracted_data)} fields")
+        
+        # Check if we got an error response
+        if isinstance(extracted_data, dict) and ("error" in extracted_data or "extraction_failed" in extracted_data):
+            error_type = extracted_data.get('error_type', 'unknown')
+            error_msg = extracted_data.get('error', 'Unknown error')
+            
+            # Provide specific error handling for truncation cases
+            if error_type in ['token_limit_exceeded', 'likely_truncation']:
+                user_msg = f"Document processing failed: {error_msg}"
+                if 'user_action_required' in extracted_data:
+                    user_msg += f"\n\n{extracted_data['user_action_required']}"
+                if 'recommendations' in extracted_data:
+                    user_msg += "\n\nRecommended solutions:"
+                    for i, rec in enumerate(extracted_data['recommendations'], 1):
+                        user_msg += f"\n{i}. {rec}"
+                
+                # Log technical details for debugging
+                if 'technical_details' in extracted_data:
+                    tech_details = extracted_data['technical_details']
+                    logging.error(f"Truncation technical details: {tech_details}")
+                
+                logging.error(user_msg)
+                document['errors'].append(user_msg)
+            else:
+                # Handle other types of errors
+                logging.error(f"GPT extraction failed: {error_msg}")
+                if "json_error" in extracted_data:
+                    logging.error(f"JSON parsing error: {extracted_data['json_error']}")
+                if "parsing_error" in extracted_data:
+                    logging.error(f"JSON parsing error: {extracted_data['parsing_error']}")
+                if "raw_content" in extracted_data:
+                    logging.error(f"Raw response content: {extracted_data['raw_content'][:500]}...")
+                
+                # Provide user-friendly message for other errors too
+                if 'user_action_required' in extracted_data:
+                    user_friendly_msg = f"{error_msg}\n\n{extracted_data['user_action_required']}"
+                    if 'recommendations' in extracted_data:
+                        user_friendly_msg += "\n\nRecommended solutions:"
+                        for i, rec in enumerate(extracted_data['recommendations'], 1):
+                            user_friendly_msg += f"\n{i}. {rec}"
+                    document['errors'].append(user_friendly_msg)
+                else:
+                    document['errors'].append(error_msg)
+            
+            # Return a structured error instead of raising
+            if update_state:
+                update_state(document, container, 'gpt_extraction_completed', False)
+            return {"error": error_msg, "error_type": error_type}, 0.0
+        
         gpt_extraction_time = (datetime.now() - gpt_extraction_start_time).total_seconds()
         if update_state:
             document['extracted_data']['gpt_extraction_output'] = extracted_data
             update_state(document, container, 'gpt_extraction_completed', True, gpt_extraction_time)
         return extracted_data, gpt_extraction_time
     except Exception as e:
+        logging.error(f"GPT extraction error: {str(e)}")
+        logging.error(f"Exception type: {type(e).__name__}")
+        import traceback
+        logging.error(f"Traceback: {traceback.format_exc()}")
         document['errors'].append(f"GPT extraction error: {str(e)}")
         if update_state:
             update_state(document, container, 'gpt_extraction_completed', False)
