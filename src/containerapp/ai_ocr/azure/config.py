@@ -7,12 +7,14 @@ logger = logging.getLogger(__name__)
 
 def get_config(cosmos_config_container=None):
     """
-    Get configuration with support for loading OpenAI settings from Cosmos DB.
-    Falls back to environment variables if Cosmos DB is not available.
+    Get configuration from environment variables only.
+    
+    Note: cosmos_config_container parameter is kept for backwards compatibility 
+    but is ignored. Configuration is now sourced exclusively from environment variables.
     """
     load_dotenv()
     
-    # Base configuration from environment variables
+    # Configuration from environment variables only
     config = {
         "doc_intelligence_endpoint": os.getenv("DOCUMENT_INTELLIGENCE_ENDPOINT", None),
         "openai_api_key": os.getenv("AZURE_OPENAI_KEY", None),
@@ -22,28 +24,10 @@ def get_config(cosmos_config_container=None):
         "temp_images_outdir": os.getenv("TEMP_IMAGES_OUTDIR", "/tmp/")
     }
     
-    # Try to load OpenAI settings from Cosmos DB if container is provided
-    if cosmos_config_container:
-        try:
-            openai_config_item = cosmos_config_container.read_item(
-                item='openai_config', 
-                partition_key='openai_config'
-            )
-            
-            # Override environment variables with Cosmos DB values if they exist
-            if openai_config_item.get("openai_endpoint"):
-                config["openai_api_endpoint"] = openai_config_item["openai_endpoint"]
-                logger.info("Using OpenAI endpoint from Cosmos DB configuration")
-            
-            if openai_config_item.get("openai_key"):
-                config["openai_api_key"] = openai_config_item["openai_key"]
-                logger.info("Using OpenAI API key from Cosmos DB configuration")
-                
-            if openai_config_item.get("deployment_name"):
-                config["openai_model_deployment"] = openai_config_item["deployment_name"]
-                logger.info(f"Using OpenAI deployment '{openai_config_item['deployment_name']}' from Cosmos DB configuration")
-                
-        except Exception as e:
-            logger.info(f"OpenAI configuration not found in Cosmos DB, using environment variables: {e}")
+    # Log which values are configured (without exposing secrets)
+    logger.info("Using OpenAI configuration from environment variables")
+    logger.info(f"OpenAI endpoint: {'✓ Set' if config['openai_api_endpoint'] else '✗ Missing'}")
+    logger.info(f"OpenAI API key: {'✓ Set' if config['openai_api_key'] else '✗ Missing'}")
+    logger.info(f"OpenAI deployment: {'✓ Set' if config['openai_model_deployment'] else '✗ Missing'}")
     
     return config

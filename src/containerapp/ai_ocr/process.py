@@ -275,7 +275,7 @@ def run_ocr_processing(file_to_ocr: str, document: dict, container: any, conf_co
     """
     ocr_start_time = datetime.now()
     try:
-        ocr_result = get_ocr_results(file_to_ocr, conf_container)
+        ocr_result = get_ocr_results(file_to_ocr, None)
         # Don't update document's ocr_output here for chunks - let caller handle merging
         ocr_processing_time = (datetime.now() - ocr_start_time).total_seconds()
         if update_state:
@@ -296,7 +296,7 @@ def run_gpt_extraction(ocr_result: str, prompt: str, json_schema: str, imgs: lis
     """
     gpt_extraction_start_time = datetime.now()
     try:
-        structured = get_structured_data(ocr_result, prompt, json_schema, imgs, conf_container)
+        structured = get_structured_data(ocr_result, prompt, json_schema, imgs, None)
         extracted_data = parse_json_markdown(structured.content)
         gpt_extraction_time = (datetime.now() - gpt_extraction_start_time).total_seconds()
         if update_state:
@@ -317,7 +317,7 @@ def run_gpt_evaluation(imgs: list, extracted_data: dict, json_schema: str,
     """
     evaluation_start_time = datetime.now()
     try:
-        enriched_data = perform_gpt_evaluation_and_enrichment(imgs, extracted_data, json_schema, conf_container)
+        enriched_data = perform_gpt_evaluation_and_enrichment(imgs, extracted_data, json_schema, None)
         evaluation_time = (datetime.now() - evaluation_start_time).total_seconds()
         if update_state:
             document['extracted_data']['gpt_extraction_output_with_evaluation'] = enriched_data
@@ -337,7 +337,7 @@ def run_gpt_summary(ocr_result: str, document: dict, container: any, conf_contai
     summary_start_time = datetime.now()
     try:
         classification = getattr(ocr_result, 'categorization', 'N/A')
-        gpt_summary = get_summary_with_gpt(ocr_result, conf_container)
+        gpt_summary = get_summary_with_gpt(ocr_result, None)
         
         summary_data = {
             'classification': classification,

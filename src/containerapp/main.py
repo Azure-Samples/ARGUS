@@ -770,7 +770,7 @@ def process_blob(blob_input_stream: BlobInputStream, data_container):
         total_ocr_time = 0
         for i, file_path in enumerate(file_paths):
             logger.info(f"Processing OCR for chunk {i+1}/{len(file_paths)}")
-            ocr_result, ocr_time = run_ocr_processing(file_path, document, data_container, conf_container, update_state=False)
+            ocr_result, ocr_time = run_ocr_processing(file_path, document, data_container, None, update_state=False)
             ocr_results.append(ocr_result)
             total_ocr_time += ocr_time
             
@@ -801,7 +801,7 @@ def process_blob(blob_input_stream: BlobInputStream, data_container):
                 imgs,
                 document,
                 data_container,
-                conf_container,
+                None,
                 update_state=False  # Don't update state for individual chunks
             )
             extracted_data_list.append(extracted_data)
@@ -834,7 +834,7 @@ def process_blob(blob_input_stream: BlobInputStream, data_container):
                 document['model_input']['example_schema'],
                 document,
                 data_container,
-                conf_container,
+                None,
                 update_state=False  # Don't update state for individual chunks
             )
             evaluation_results.append(enriched_data)
@@ -853,7 +853,7 @@ def process_blob(blob_input_stream: BlobInputStream, data_container):
         summary_start_time = datetime.now()
         # Combine OCR results into a single string for summary
         combined_ocr_text = '\n'.join(str(result) for result in ocr_results)
-        summary_data, summary_time = run_gpt_summary(combined_ocr_text, document, data_container, conf_container, update_state=False)
+        summary_data, summary_time = run_gpt_summary(combined_ocr_text, document, data_container, None, update_state=False)
         
         # Update summary data in document
         document['extracted_data']['classification'] = summary_data['classification']
@@ -1132,28 +1132,15 @@ async def process_file(request: Request, background_tasks: BackgroundTasks):
 
 @app.get("/api/openai-settings")
 async def get_openai_settings():
-    """Get current OpenAI configuration from Cosmos DB"""
+    """Get current OpenAI configuration from environment variables (read-only)"""
     try:
-        if not conf_container:
-            raise HTTPException(status_code=503, detail="Configuration container not available")
-        
-        try:
-            # Try to get the OpenAI configuration item
-            config_item = conf_container.read_item(item='openai_config', partition_key='openai_config')
-            # Remove Cosmos DB specific fields and return only the relevant settings
-            return {
-                "openai_endpoint": config_item.get("openai_endpoint", ""),
-                "openai_key": config_item.get("openai_key", ""),
-                "deployment_name": config_item.get("deployment_name", "")
-            }
-        except Exception as e:
-            logger.info(f"OpenAI configuration not found, returning empty settings: {e}")
-            # Return empty configuration if not found
-            return {
-                "openai_endpoint": "",
-                "openai_key": "",
-                "deployment_name": ""
-            }
+        # Return current environment variable values (for display purposes only)
+        return {
+            "openai_endpoint": os.getenv("AZURE_OPENAI_ENDPOINT", ""),
+            "openai_key": "***HIDDEN***" if os.getenv("AZURE_OPENAI_KEY") else "",
+            "deployment_name": os.getenv("AZURE_OPENAI_MODEL_DEPLOYMENT_NAME", ""),
+            "note": "Configuration is read from environment variables only. Update via deployment/infrastructure."
+        }
         
     except Exception as e:
         logger.error(f"Error fetching OpenAI settings: {e}")
@@ -1161,57 +1148,11 @@ async def get_openai_settings():
 
 @app.put("/api/openai-settings")
 async def update_openai_settings(request: Request):
-    """Update OpenAI configuration in Cosmos DB"""
-    try:
-        if not conf_container:
-            raise HTTPException(status_code=503, detail="Configuration container not available")
-        
-        request_body = await request.json()
-        
-        # Validate required fields
-        openai_endpoint = request_body.get('openai_endpoint', '').strip()
-        openai_key = request_body.get('openai_key', '').strip()
-        deployment_name = request_body.get('deployment_name', '').strip()
-        
-        if not openai_endpoint or not openai_key or not deployment_name:
-            raise HTTPException(
-                status_code=400, 
-                detail="openai_endpoint, openai_key, and deployment_name are all required"
-            )
-        
-        # Validate endpoint format
-        if not openai_endpoint.startswith('https://'):
-            raise HTTPException(
-                status_code=400, 
-                detail="openai_endpoint must be a valid HTTPS URL"
-            )
-        
-        # Create the configuration document
-        config_data = {
-            "id": "openai_config",
-            "partitionKey": "openai_config",
-            "openai_endpoint": openai_endpoint,
-            "openai_key": openai_key,
-            "deployment_name": deployment_name,
-            "updated_at": datetime.utcnow().isoformat()
-        }
-        
-        # Upsert the OpenAI configuration item
-        conf_container.upsert_item(config_data)
-        
-        logger.info(f"OpenAI configuration updated for deployment: {deployment_name}")
-        
-        return {
-            "status": "success", 
-            "message": "OpenAI settings updated successfully",
-            "deployment_name": deployment_name
-        }
-        
-    except HTTPException:
-        raise
-    except Exception as e:
-        logger.error(f"Error updating OpenAI settings: {e}")
-        raise HTTPException(status_code=500, detail="Failed to update OpenAI settings")
+    """OpenAI settings are now managed via environment variables only"""
+    raise HTTPException(
+        status_code=501, 
+        detail="OpenAI configuration is managed via environment variables. Please update your deployment configuration."
+    )
 
 def merge_evaluation_results(evaluation_results):
     """
