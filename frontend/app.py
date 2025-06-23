@@ -5,7 +5,7 @@ from dotenv import load_dotenv
 from process_files import process_files_tab
 from explore_data import explore_data_tab
 from instructions import instructions_tab
-from concurrency_settings import concurrency_settings_tab
+from settings import settings_tab
 
 ## IMPORTANT: Instructions on how to run the Streamlit app locally can be found in the README.md file.
 
@@ -41,7 +41,7 @@ st.set_page_config(layout="wide")
 st.header("ARGUS: Automated Retrieval and GPT Understanding System")
 
 # Tabs navigation
-tabs = st.tabs(["🧠 Process Files", "🔎 Explore Data", "🚀 Concurrency", "📋 Instructions"])
+tabs = st.tabs(["🧠 Process Files", "🔎 Explore Data", "⚙️ Settings", "📋 Instructions"])
 
 # Render the tabs
 with tabs[0]:
@@ -49,6 +49,6 @@ with tabs[0]:
 with tabs[1]:
     explore_data_tab()
 with tabs[2]:
-    concurrency_settings_tab()
+    settings_tab()
 with tabs[3]:
     instructions_tab()

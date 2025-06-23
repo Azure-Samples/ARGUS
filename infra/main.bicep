@@ -591,7 +591,7 @@ resource blobCreatedEventSubscription 'Microsoft.EventGrid/systemTopics/eventSub
 
 // Logic App for blob-triggered file processing
 resource logicApp 'Microsoft.Logic/workflows@2019-05-01' = {
-  name: 'logic-argus-${resourceToken}'
+  name: 'logic-argus-v2-${resourceToken}'
   location: location
   identity: {
     type: 'SystemAssigned'
@@ -798,9 +798,9 @@ output RESOURCE_GROUP_ID string = resourceGroup().id
 output containerAppName string = containerApp.name
 output containerAppFqdn string = containerApp.properties.configuration.ingress.fqdn
 output BACKEND_URL string = 'https://${containerApp.properties.configuration.ingress.fqdn}'
+output AZURE_CONTAINER_REGISTRY_ENDPOINT string = containerRegistry.properties.loginServer
 output containerRegistryName string = containerRegistry.name
 output containerRegistryLoginServer string = containerRegistry.properties.loginServer
-output AZURE_CONTAINER_REGISTRY_ENDPOINT string = containerRegistry.properties.loginServer
 output storageAccountName string = storageAccount.name
 output containerName string = blobContainer.name
 output userManagedIdentityClientId string = userManagedIdentity.properties.clientId

@@ -7,6 +7,8 @@ import os
 import json
 import traceback
 import sys
+import copy
+import shutil
 from datetime import datetime
 from concurrent.futures import ThreadPoolExecutor, TimeoutError as FuturesTimeoutError
 from typing import Dict, Any
@@ -623,22 +625,64 @@ def initialize_document_data(blob_name: str, temp_file_path: str, num_pages: int
     return document
 
 def merge_extracted_data(gpt_responses):
-    """Merge extracted data from multiple GPT responses"""
-    merged_data = {}
-    for response in gpt_responses:
-        for key, value in response.items():
-            if key in merged_data:
-                if isinstance(value, list):
-                    merged_data[key].extend(value)
-                else:
-                    # Decide how to handle non-list duplicates - keeping latest value
-                    merged_data[key] = value
-            else:
-                if isinstance(value, list):
-                    merged_data[key] = value.copy()
-                else:
-                    merged_data[key] = value
+    """
+    Merges extracted data from multiple GPT responses into a single result.
+    
+    This function properly handles different data types:
+    - Lists: concatenated together
+    - Strings: joined with spaces and cleaned up
+    - Numbers: summed together
+    - Dicts: recursively merged
+    """
+    if not gpt_responses:
+        return {}
+    
+    # Start with the first response as base
+    merged_data = copy.deepcopy(gpt_responses[0]) if gpt_responses else {}
+    
+    # Merge remaining responses
+    for response in gpt_responses[1:]:
+        merged_data = _deep_merge_data(merged_data, response)
+    
     return merged_data
+
+
+def _deep_merge_data(base_data, new_data):
+    """
+    Deep merge two data dictionaries with intelligent type handling.
+    """
+    if not isinstance(base_data, dict) or not isinstance(new_data, dict):
+        return new_data if new_data else base_data
+    
+    result = copy.deepcopy(base_data)
+    
+    for key, value in new_data.items():
+        if key not in result:
+            result[key] = copy.deepcopy(value)
+        else:
+            existing_value = result[key]
+            
+            # Handle different data types appropriately
+            if isinstance(existing_value, list) and isinstance(value, list):
+                # Concatenate lists
+                result[key] = existing_value + value
+            elif isinstance(existing_value, str) and isinstance(value, str):
+                # Join strings with space, clean up multiple spaces
+                combined = f"{existing_value} {value}".strip()
+                result[key] = " ".join(combined.split())  # Clean up multiple spaces
+            elif isinstance(existing_value, (int, float)) and isinstance(value, (int, float)):
+                # Sum numbers
+                result[key] = existing_value + value
+            elif isinstance(existing_value, dict) and isinstance(value, dict):
+                # Recursively merge dictionaries
+                result[key] = _deep_merge_data(existing_value, value)
+            else:
+                # For other types or type mismatches, prefer non-empty values
+                if value:  # Use new value if it's truthy
+                    result[key] = value
+                # Otherwise keep existing value
+    
+    return result
 
 def update_final_document(document, gpt_response, ocr_response, evaluation_result, processing_times, data_container):
     """Update the final document with all processing results"""
@@ -656,8 +700,43 @@ def update_final_document(document, gpt_response, ocr_response, evaluation_resul
 
 # BlobInputStream class defined earlier in the file
 
+def cleanup_temp_resources(temp_dirs, file_paths, temp_file_path):
+    """
+    Clean up temporary directories and files created during processing.
+    Ensures proper resource cleanup even if processing fails.
+    """
+    import shutil
+    
+    # Clean up temporary directories
+    for temp_dir in temp_dirs:
+        try:
+            if temp_dir and os.path.exists(temp_dir):
+                shutil.rmtree(temp_dir)
+                logger.info(f"Cleaned up temporary directory: {temp_dir}")
+        except Exception as e:
+            logger.warning(f"Failed to clean up temp directory {temp_dir}: {e}")
+    
+    # Clean up split PDF files (but not the original temp file)
+    for file_path in file_paths:
+        try:
+            if file_path and file_path != temp_file_path and os.path.exists(file_path):
+                os.remove(file_path)
+                logger.info(f"Cleaned up split file: {file_path}")
+        except Exception as e:
+            logger.warning(f"Failed to clean up split file {file_path}: {e}")
+    
+    # Clean up the main temporary file
+    try:
+        if temp_file_path and os.path.exists(temp_file_path):
+            os.remove(temp_file_path)
+            logger.info(f"Cleaned up main temp file: {temp_file_path}")
+    except Exception as e:
+        logger.warning(f"Failed to clean up main temp file {temp_file_path}: {e}")
+
+
 def process_blob(blob_input_stream: BlobInputStream, data_container):
     """Process a blob for OCR and data extraction (adapted for container app)"""
+    overall_start_time = datetime.now()
     temp_file_path, num_pages, file_size = write_blob_to_temp_file(blob_input_stream)
     logger.info("processing blob")
     document = initialize_document_data(blob_input_stream.name, temp_file_path, num_pages, file_size, data_container)
@@ -669,83 +748,153 @@ def process_blob(blob_input_stream: BlobInputStream, data_container):
     try:
         # Prepare all file paths
         max_pages_per_chunk = document['model_input'].get('max_pages_per_chunk', 10)
+        
+        # Validate chunk size to prevent system overload
+        if max_pages_per_chunk < 1:
+            logger.warning(f"Invalid max_pages_per_chunk: {max_pages_per_chunk}, using default of 10")
+            max_pages_per_chunk = 10
+        elif max_pages_per_chunk > 50:  # Reasonable upper limit
+            logger.warning(f"Large max_pages_per_chunk: {max_pages_per_chunk}, consider reducing for better performance")
+        
         if num_pages and num_pages > max_pages_per_chunk:
             file_paths = split_pdf_into_subsets(temp_file_path, max_pages_per_subset=max_pages_per_chunk)
+            logger.info(f"Split {num_pages} pages into {len(file_paths)} chunks of max {max_pages_per_chunk} pages each")
         else:
             file_paths = [temp_file_path]
+            logger.info(f"Processing single file with {num_pages} pages (no chunking needed)")
 
         # Step 1: Run OCR for all files
+        logger.info(f"Starting OCR processing for {len(file_paths)} chunks")
+        ocr_start_time = datetime.now()
         ocr_results = []
         total_ocr_time = 0
-        for file_path in file_paths:
-            ocr_result, ocr_time = run_ocr_processing(file_path, document, data_container)
+        for i, file_path in enumerate(file_paths):
+            logger.info(f"Processing OCR for chunk {i+1}/{len(file_paths)}")
+            ocr_result, ocr_time = run_ocr_processing(file_path, document, data_container, conf_container, update_state=False)
             ocr_results.append(ocr_result)
             total_ocr_time += ocr_time
             
+        # Only mark OCR as completed when ALL chunks are processed
         processing_times['ocr_processing_time'] = total_ocr_time
         document['extracted_data']['ocr_output'] = '\n'.join(str(result) for result in ocr_results)
+        update_state(document, data_container, 'ocr_completed', True, total_ocr_time)
         data_container.upsert_item(document)
+        logger.info(f"Completed OCR processing for all chunks in {total_ocr_time:.2f}s")
 
         # Step 2: Prepare images and run GPT extraction for all files
+        logger.info(f"Starting GPT extraction for {len(file_paths)} chunks")
+        extraction_start_time = datetime.now()
         extracted_data_list = []
         total_extraction_time = 0
-        for file_path in file_paths:
+        image_cache = {}  # Cache images to reuse between extraction and evaluation
+        
+        for i, file_path in enumerate(file_paths):
+            logger.info(f"Processing GPT extraction for chunk {i+1}/{len(file_paths)}")
             temp_dir, imgs = prepare_images(file_path, Config())
             temp_dirs.append(temp_dir)
+            image_cache[i] = imgs  # Cache images for reuse
             
             extracted_data, extraction_time = run_gpt_extraction(
-                ocr_results[file_paths.index(file_path)],
+                ocr_results[i],  # Use index directly instead of file_paths.index
                 document['model_input']['model_prompt'],
                 document['model_input']['example_schema'],
                 imgs,
                 document,
-                data_container
+                data_container,
+                conf_container,
+                update_state=False  # Don't update state for individual chunks
             )
             extracted_data_list.append(extracted_data)
             total_extraction_time += extraction_time
 
+        # Only mark extraction as completed when ALL chunks are processed
         processing_times['gpt_extraction_time'] = total_extraction_time
         merged_extraction = merge_extracted_data(extracted_data_list)
         document['extracted_data']['gpt_extraction_output'] = merged_extraction
+        update_state(document, data_container, 'gpt_extraction_completed', True, total_extraction_time)
         data_container.upsert_item(document)
+        logger.info(f"Completed GPT extraction for all chunks in {total_extraction_time:.2f}s")
 
         # Step 3: Run GPT evaluation for all files
+        logger.info(f"Starting GPT evaluation for {len(file_paths)} chunks")
+        evaluation_start_time = datetime.now()
         evaluation_results = []
         total_evaluation_time = 0
         for i, file_path in enumerate(file_paths):
-            temp_dir = temp_dirs[i]
-            # Using the same prepare_images function that existed before
-            _, imgs = prepare_images(file_path, Config())
+            logger.info(f"Processing GPT evaluation for chunk {i+1}/{len(file_paths)}")
+            # Use cached images instead of re-processing
+            imgs = image_cache.get(i)
+            if imgs is None:
+                # Fallback if cache is missing for some reason
+                _, imgs = prepare_images(file_path, Config())
             
             enriched_data, evaluation_time = run_gpt_evaluation(
                 imgs,
                 extracted_data_list[i],
                 document['model_input']['example_schema'],
                 document,
-                data_container
+                data_container,
+                conf_container,
+                update_state=False  # Don't update state for individual chunks
             )
             evaluation_results.append(enriched_data)
             total_evaluation_time += evaluation_time
 
+        # Only mark evaluation as completed when ALL chunks are processed
         processing_times['gpt_evaluation_time'] = total_evaluation_time
-        merged_evaluation = merge_extracted_data(evaluation_results)
+        merged_evaluation = merge_evaluation_results(evaluation_results)
         document['extracted_data']['gpt_extraction_output_with_evaluation'] = merged_evaluation
+        update_state(document, data_container, 'gpt_evaluation_completed', True, total_evaluation_time)
         data_container.upsert_item(document)
+        logger.info(f"Completed GPT evaluation for all chunks in {total_evaluation_time:.2f}s")
 
         # Step 4: Process final summary
-        run_gpt_summary(ocr_results, document, data_container)
+        logger.info("Starting GPT summary processing")
+        summary_start_time = datetime.now()
+        # Combine OCR results into a single string for summary
+        combined_ocr_text = '\n'.join(str(result) for result in ocr_results)
+        summary_data, summary_time = run_gpt_summary(combined_ocr_text, document, data_container, conf_container, update_state=False)
         
-        # Final update
+        # Update summary data in document
+        document['extracted_data']['classification'] = summary_data['classification']
+        document['extracted_data']['gpt_summary_output'] = summary_data['gpt_summary_output']
+        update_state(document, data_container, 'gpt_summary_completed', True, summary_time)
+        logger.info(f"Completed GPT summary processing in {summary_time:.2f}s")
+        
+        # Final update with accurate total processing time
+        overall_end_time = datetime.now()
+        total_processing_time = (overall_end_time - overall_start_time).total_seconds()
+        
+        logger.info(f"Processing completed for {blob_input_stream.name}")
+        logger.info(f"Total time: {total_processing_time:.2f}s | OCR: {processing_times['ocr_processing_time']:.2f}s | "
+                   f"Extraction: {processing_times['gpt_extraction_time']:.2f}s | "
+                   f"Evaluation: {processing_times['gpt_evaluation_time']:.2f}s | Summary: {summary_time:.2f}s")
+        
         update_final_document(document, merged_extraction, ocr_results, 
                             merged_evaluation, processing_times, data_container)
         
         return document
         
     except Exception as e:
+        logger.error(f"Processing error in process_blob: {str(e)}")
         document['errors'].append(f"Processing error: {str(e)}")
         document['state']['processing_completed'] = False
+        
+        # Mark any incomplete steps as failed for proper state tracking
+        if 'ocr_processing_time' not in processing_times:
+            update_state(document, data_container, 'ocr_completed', False)
+        if 'gpt_extraction_time' not in processing_times:
+            update_state(document, data_container, 'gpt_extraction_completed', False)
+        if 'gpt_evaluation_time' not in processing_times:
+            update_state(document, data_container, 'gpt_evaluation_completed', False)
+        # Summary might not have been attempted yet
+        update_state(document, data_container, 'gpt_summary_completed', False)
+        
         data_container.upsert_item(document)
         raise e
+    finally:
+        # Clean up temporary directories and files
+        cleanup_temp_resources(temp_dirs, file_paths, temp_file_path)
 
 # Additional API endpoints for frontend integration
 
@@ -978,3 +1127,202 @@ async def process_file(request: Request, background_tasks: BackgroundTasks):
         logger.error(f"Error in process-file endpoint: {e}")
         logger.error(traceback.format_exc())
         raise HTTPException(status_code=500, detail="Internal server error")
+
+# OpenAI Configuration Management Endpoints
+
+@app.get("/api/openai-settings")
+async def get_openai_settings():
+    """Get current OpenAI configuration from Cosmos DB"""
+    try:
+        if not conf_container:
+            raise HTTPException(status_code=503, detail="Configuration container not available")
+        
+        try:
+            # Try to get the OpenAI configuration item
+            config_item = conf_container.read_item(item='openai_config', partition_key='openai_config')
+            # Remove Cosmos DB specific fields and return only the relevant settings
+            return {
+                "openai_endpoint": config_item.get("openai_endpoint", ""),
+                "openai_key": config_item.get("openai_key", ""),
+                "deployment_name": config_item.get("deployment_name", "")
+            }
+        except Exception as e:
+            logger.info(f"OpenAI configuration not found, returning empty settings: {e}")
+            # Return empty configuration if not found
+            return {
+                "openai_endpoint": "",
+                "openai_key": "",
+                "deployment_name": ""
+            }
+        
+    except Exception as e:
+        logger.error(f"Error fetching OpenAI settings: {e}")
+        raise HTTPException(status_code=500, detail="Failed to fetch OpenAI settings")
+
+@app.put("/api/openai-settings")
+async def update_openai_settings(request: Request):
+    """Update OpenAI configuration in Cosmos DB"""
+    try:
+        if not conf_container:
+            raise HTTPException(status_code=503, detail="Configuration container not available")
+        
+        request_body = await request.json()
+        
+        # Validate required fields
+        openai_endpoint = request_body.get('openai_endpoint', '').strip()
+        openai_key = request_body.get('openai_key', '').strip()
+        deployment_name = request_body.get('deployment_name', '').strip()
+        
+        if not openai_endpoint or not openai_key or not deployment_name:
+            raise HTTPException(
+                status_code=400, 
+                detail="openai_endpoint, openai_key, and deployment_name are all required"
+            )
+        
+        # Validate endpoint format
+        if not openai_endpoint.startswith('https://'):
+            raise HTTPException(
+                status_code=400, 
+                detail="openai_endpoint must be a valid HTTPS URL"
+            )
+        
+        # Create the configuration document
+        config_data = {
+            "id": "openai_config",
+            "partitionKey": "openai_config",
+            "openai_endpoint": openai_endpoint,
+            "openai_key": openai_key,
+            "deployment_name": deployment_name,
+            "updated_at": datetime.utcnow().isoformat()
+        }
+        
+        # Upsert the OpenAI configuration item
+        conf_container.upsert_item(config_data)
+        
+        logger.info(f"OpenAI configuration updated for deployment: {deployment_name}")
+        
+        return {
+            "status": "success", 
+            "message": "OpenAI settings updated successfully",
+            "deployment_name": deployment_name
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error updating OpenAI settings: {e}")
+        raise HTTPException(status_code=500, detail="Failed to update OpenAI settings")
+
+def merge_evaluation_results(evaluation_results):
+    """
+    Specialized merge function for GPT evaluation results.
+    Handles confidence scores, error messages, and image descriptions intelligently.
+    """
+    if not evaluation_results:
+        return {}
+    
+    if len(evaluation_results) == 1:
+        return evaluation_results[0]
+    
+    merged_result = {}
+    all_errors = []
+    
+    # Collect all error messages
+    for result in evaluation_results:
+        if isinstance(result, dict) and "error" in result:
+            all_errors.append(result["error"])
+    
+    # If we have errors, create a comprehensive error summary
+    if all_errors:
+        merged_result["error"] = "Multiple evaluation errors: " + " | ".join(all_errors)
+        return merged_result
+    
+    # Process successful evaluation results
+    for i, result in enumerate(evaluation_results):
+        if not isinstance(result, dict):
+            continue
+            
+        for key, value in result.items():
+            if key == "original_data":
+                # Special handling for original_data which contains image descriptions
+                if key not in merged_result:
+                    merged_result[key] = {}
+                
+                if isinstance(value, dict):
+                    for sub_key, sub_value in value.items():
+                        if sub_key == "image_description":
+                            # Collect all image descriptions
+                            if sub_key not in merged_result[key]:
+                                merged_result[key][sub_key] = []
+                            if isinstance(sub_value, str) and sub_value.strip():
+                                merged_result[key][sub_key].append(f"Chunk {i+1}: {sub_value}")
+                        else:
+                            # For other fields in original_data, use the merging logic
+                            if sub_key not in merged_result[key]:
+                                merged_result[key][sub_key] = sub_value
+                            else:
+                                merged_result[key][sub_key] = _merge_values_with_confidence(
+                                    merged_result[key][sub_key], sub_value
+                                )
+                
+            elif key == "content" or key == "image_description":
+                # Handle content and top-level image descriptions with confidence aggregation
+                if key not in merged_result:
+                    merged_result[key] = value
+                else:
+                    merged_result[key] = _merge_values_with_confidence(merged_result[key], value)
+            
+            else:
+                # For other keys, use standard merging
+                if key not in merged_result:
+                    merged_result[key] = copy.deepcopy(value)
+                else:
+                    merged_result[key] = _deep_merge_data(merged_result[key], value)
+    
+    # Post-process image descriptions to create a comprehensive summary
+    if "original_data" in merged_result and "image_description" in merged_result["original_data"]:
+        if isinstance(merged_result["original_data"]["image_description"], list):
+            # Join all chunk descriptions into a comprehensive description
+            merged_result["original_data"]["image_description"] = " ".join(
+                merged_result["original_data"]["image_description"]
+            )
+    
+    return merged_result
+
+
+def _merge_values_with_confidence(existing_value, new_value):
+    """
+    Merge values that may contain confidence scores.
+    Prefers higher confidence values or combines information intelligently.
+    """
+    # If either value is not a dict, fall back to simple merging
+    if not isinstance(existing_value, dict) or not isinstance(new_value, dict):
+        if isinstance(existing_value, str) and isinstance(new_value, str):
+            return f"{existing_value} {new_value}".strip()
+        return new_value if new_value else existing_value
+    
+    result = copy.deepcopy(existing_value)
+    
+    for key, value in new_value.items():
+        if key not in result:
+            result[key] = copy.deepcopy(value)
+        elif key == "confidence":
+            # For confidence scores, take the average or use the higher value
+            if isinstance(result[key], (int, float)) and isinstance(value, (int, float)):
+                # Use weighted average, giving slight preference to higher confidence
+                result[key] = max(result[key], value)
+        elif key == "value":
+            # For value fields, combine intelligently
+            if isinstance(result[key], str) and isinstance(value, str):
+                if result[key] != value:
+                    # If values are different, combine them
+                    result[key] = f"{result[key]} {value}".strip()
+                    result[key] = " ".join(result[key].split())  # Clean up spaces
+        else:
+            # Recursively merge other nested objects
+            if isinstance(result[key], dict) and isinstance(value, dict):
+                result[key] = _merge_values_with_confidence(result[key], value)
+            else:
+                result[key] = value
+    
+    return result

@@ -4,17 +4,17 @@ import json
 from typing import List, Any, Dict, Optional
 from ai_ocr.azure.config import get_config
 
-def get_client():
-    config = get_config()
+def get_client(cosmos_config_container=None):
+    config = get_config(cosmos_config_container)
     return AzureOpenAI(
         api_key=config["openai_api_key"],
         api_version=config["openai_api_version"],
         azure_endpoint=config["openai_api_endpoint"]
     )
 
-def get_structured_data(markdown_content: str, prompt: str, json_schema: str, images: List[str] = []) -> Any:
-    client = get_client()
-    config = get_config()
+def get_structured_data(markdown_content: str, prompt: str, json_schema: str, images: List[str] = [], cosmos_config_container=None) -> Any:
+    client = get_client(cosmos_config_container)
+    config = get_config(cosmos_config_container)
     
     system_content = f"""
     Your task is to extract the JSON contents from a document using the provided materials:
@@ -67,9 +67,9 @@ def get_structured_data(markdown_content: str, prompt: str, json_schema: str, im
     
     return response.choices[0].message
 
-def perform_gpt_evaluation_and_enrichment(images: List[str], extracted_data: Dict, json_schema: str) -> Dict:
-    client = get_client()
-    config = get_config()
+def perform_gpt_evaluation_and_enrichment(images: List[str], extracted_data: Dict, json_schema: str, cosmos_config_container=None) -> Dict:
+    client = get_client(cosmos_config_container)
+    config = get_config(cosmos_config_container)
     
     system_content = f"""
     You are an AI assistant tasked with evaluating extracted data from a document.
@@ -145,9 +145,9 @@ def perform_gpt_evaluation_and_enrichment(images: List[str], extracted_data: Dic
             "original_data": extracted_data
         }
 
-def get_summary_with_gpt(mkd_output_json) -> Any:
-    client = get_client()
-    config = get_config()
+def get_summary_with_gpt(mkd_output_json, cosmos_config_container=None) -> Any:
+    client = get_client(cosmos_config_container)
+    config = get_config(cosmos_config_container)
     
     reasoning_prompt = """
     Use the provided data represented in the schema to produce a summary in natural language. 

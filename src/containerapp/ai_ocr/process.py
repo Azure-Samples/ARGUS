@@ -268,81 +268,95 @@ def convert_pdf_into_image(pdf_path):
         shutil.rmtree(temp_dir, ignore_errors=True)
         raise e
 
-def run_ocr_processing(file_to_ocr: str, document: dict, container: any) -> (str, float):
+def run_ocr_processing(file_to_ocr: str, document: dict, container: any, conf_container: any = None, update_state: bool = True) -> tuple[str, float]:
     """
     Run OCR processing on the input file.
     Returns OCR result and processing time.
     """
     ocr_start_time = datetime.now()
     try:
-        ocr_result = get_ocr_results(file_to_ocr)
-        document['extracted_data']['ocr_output'] = ocr_result
+        ocr_result = get_ocr_results(file_to_ocr, conf_container)
+        # Don't update document's ocr_output here for chunks - let caller handle merging
         ocr_processing_time = (datetime.now() - ocr_start_time).total_seconds()
-        update_state(document, container, 'ocr_completed', True, ocr_processing_time)
+        if update_state:
+            document['extracted_data']['ocr_output'] = ocr_result
+            update_state(document, container, 'ocr_completed', True, ocr_processing_time)
         return ocr_result, ocr_processing_time
     except Exception as e:
         document['errors'].append(f"OCR processing error: {str(e)}")
-        update_state(document, container, 'ocr_completed', False)
+        if update_state:
+            update_state(document, container, 'ocr_completed', False)
         raise e
 
 def run_gpt_extraction(ocr_result: str, prompt: str, json_schema: str, imgs: list, 
-                      document: dict, container: any) -> (dict, float):
+                      document: dict, container: any, conf_container: any = None, update_state: bool = True) -> tuple[dict, float]:
     """
     Run GPT extraction on OCR results.
     Returns extracted data and processing time.
     """
     gpt_extraction_start_time = datetime.now()
     try:
-        structured = get_structured_data(ocr_result, prompt, json_schema, imgs)
+        structured = get_structured_data(ocr_result, prompt, json_schema, imgs, conf_container)
         extracted_data = parse_json_markdown(structured.content)
-        document['extracted_data']['gpt_extraction_output'] = extracted_data
         gpt_extraction_time = (datetime.now() - gpt_extraction_start_time).total_seconds()
-        update_state(document, container, 'gpt_extraction_completed', True, gpt_extraction_time)
+        if update_state:
+            document['extracted_data']['gpt_extraction_output'] = extracted_data
+            update_state(document, container, 'gpt_extraction_completed', True, gpt_extraction_time)
         return extracted_data, gpt_extraction_time
     except Exception as e:
         document['errors'].append(f"GPT extraction error: {str(e)}")
-        update_state(document, container, 'gpt_extraction_completed', False)
+        if update_state:
+            update_state(document, container, 'gpt_extraction_completed', False)
         raise e
 
 def run_gpt_evaluation(imgs: list, extracted_data: dict, json_schema: str, 
-                      document: dict, container: any) -> (dict, float):
+                      document: dict, container: any, conf_container: any = None, update_state: bool = True) -> tuple[dict, float]:
     """
     Run GPT evaluation and enrichment on extracted data.
     Returns enriched data and processing time.
     """
     evaluation_start_time = datetime.now()
     try:
-        enriched_data = perform_gpt_evaluation_and_enrichment(imgs, extracted_data, json_schema)
-        document['extracted_data']['gpt_extraction_output_with_evaluation'] = enriched_data
+        enriched_data = perform_gpt_evaluation_and_enrichment(imgs, extracted_data, json_schema, conf_container)
         evaluation_time = (datetime.now() - evaluation_start_time).total_seconds()
-        update_state(document, container, 'gpt_evaluation_completed', True, evaluation_time)
+        if update_state:
+            document['extracted_data']['gpt_extraction_output_with_evaluation'] = enriched_data
+            update_state(document, container, 'gpt_evaluation_completed', True, evaluation_time)
         return enriched_data, evaluation_time
     except Exception as e:
         document['errors'].append(f"GPT evaluation error: {str(e)}")
-        update_state(document, container, 'gpt_evaluation_completed', False)
+        if update_state:
+            update_state(document, container, 'gpt_evaluation_completed', False)
         raise e
 
-def run_gpt_summary(ocr_result: str, document: dict, container: any) -> float:
+def run_gpt_summary(ocr_result: str, document: dict, container: any, conf_container: any = None, update_state: bool = True) -> tuple[dict, float]:
     """
     Run GPT summary on OCR results.
-    Returns processing time.
+    Returns summary data and processing time.
     """
     summary_start_time = datetime.now()
     try:
         classification = getattr(ocr_result, 'categorization', 'N/A')
-        gpt_summary = get_summary_with_gpt(ocr_result)
+        gpt_summary = get_summary_with_gpt(ocr_result, conf_container)
         
-        document['extracted_data']['classification'] = classification
-        document['extracted_data']['gpt_summary_output'] = gpt_summary.content
+        summary_data = {
+            'classification': classification,
+            'gpt_summary_output': gpt_summary.content
+        }
+        
         summary_processing_time = (datetime.now() - summary_start_time).total_seconds()
-        update_state(document, container, 'gpt_summary_completed', True, summary_processing_time)
-        return summary_processing_time
+        if update_state:
+            document['extracted_data']['classification'] = classification
+            document['extracted_data']['gpt_summary_output'] = gpt_summary.content
+            update_state(document, container, 'gpt_summary_completed', True, summary_processing_time)
+        return summary_data, summary_processing_time
     except Exception as e:
         document['errors'].append(f"Summary processing error: {str(e)}")
-        update_state(document, container, 'gpt_summary_completed', False)
+        if update_state:
+            update_state(document, container, 'gpt_summary_completed', False)
         raise e
 
-def prepare_images(file_to_ocr: str, config: Config = Config()) -> (str, list):
+def prepare_images(file_to_ocr: str, config: Config = Config()) -> tuple[str, list]:
     """
     Prepare images from PDF file for processing.
     Returns temporary directory path and processed images.
