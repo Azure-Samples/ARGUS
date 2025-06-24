@@ -626,65 +626,10 @@ def initialize_document_data(blob_name: str, temp_file_path: str, num_pages: int
     update_state(document, data_container, 'file_landed', True, (datetime.now() - timer_start).total_seconds())
     return document
 
-def merge_extracted_data(gpt_responses):
-    """
-    Merges extracted data from multiple GPT responses into a single result.
-    
-    This function properly handles different data types:
-    - Lists: concatenated together
-    - Strings: joined with spaces and cleaned up
-    - Numbers: summed together
-    - Dicts: recursively merged
-    """
-    if not gpt_responses:
-        return {}
-    
-    # Start with the first response as base
-    merged_data = copy.deepcopy(gpt_responses[0]) if gpt_responses else {}
-    
-    # Merge remaining responses
-    for response in gpt_responses[1:]:
-        merged_data = _deep_merge_data(merged_data, response)
-    
-    return merged_data
-
-
-def _deep_merge_data(base_data, new_data):
-    """
-    Deep merge two data dictionaries with intelligent type handling.
-    """
-    if not isinstance(base_data, dict) or not isinstance(new_data, dict):
-        return new_data if new_data else base_data
-    
-    result = copy.deepcopy(base_data)
-    
-    for key, value in new_data.items():
-        if key not in result:
-            result[key] = copy.deepcopy(value)
-        else:
-            existing_value = result[key]
-            
-            # Handle different data types appropriately
-            if isinstance(existing_value, list) and isinstance(value, list):
-                # Concatenate lists
-                result[key] = existing_value + value
-            elif isinstance(existing_value, str) and isinstance(value, str):
-                # Join strings with space, clean up multiple spaces
-                combined = f"{existing_value} {value}".strip()
-                result[key] = " ".join(combined.split())  # Clean up multiple spaces
-            elif isinstance(existing_value, (int, float)) and isinstance(value, (int, float)):
-                # Sum numbers
-                result[key] = existing_value + value
-            elif isinstance(existing_value, dict) and isinstance(value, dict):
-                # Recursively merge dictionaries
-                result[key] = _deep_merge_data(existing_value, value)
-            else:
-                # For other types or type mismatches, prefer non-empty values
-                if value:  # Use new value if it's truthy
-                    result[key] = value
-                # Otherwise keep existing value
-    
-    return result
+# Note: merge_extracted_data function functionality replaced
+# Instead of merging chunks together into a single output, we now use
+# create_page_range_structure and create_page_range_evaluations to
+# organize data by page ranges (e.g., "pages_1-10", "pages_11-20", etc.)
 
 def update_final_document(document, gpt_response, ocr_response, evaluation_result, processing_times, data_container):
     """Update the final document with all processing results"""
@@ -857,11 +802,12 @@ def process_blob(blob_input_stream: BlobInputStream, data_container):
 
         # Only mark extraction as completed when ALL chunks are processed
         processing_times['gpt_extraction_time'] = total_extraction_time
-        merged_extraction = merge_extracted_data(extracted_data_list)
-        document['extracted_data']['gpt_extraction_output'] = merged_extraction
+        # Create page range structure instead of merging
+        page_range_extraction = create_page_range_structure(extracted_data_list, file_paths, max_pages_per_chunk)
+        document['extracted_data']['gpt_extraction_output'] = page_range_extraction
         update_state(document, data_container, 'gpt_extraction_completed', True, total_extraction_time)
         data_container.upsert_item(document)
-        logger.info(f"Completed GPT extraction for all chunks in {total_extraction_time:.2f}s")
+        logger.info(f"Completed GPT extraction for all chunks in {total_extraction_time:.2f}s with page range structure")
 
         # Initialize variables for conditional processing
         total_evaluation_time = 0
@@ -892,20 +838,21 @@ def process_blob(blob_input_stream: BlobInputStream, data_container):
 
             # Only mark evaluation as completed when ALL chunks are processed
             processing_times['gpt_evaluation_time'] = total_evaluation_time
-            merged_evaluation = merge_evaluation_results(evaluation_results)
-            document['extracted_data']['gpt_extraction_output_with_evaluation'] = merged_evaluation
+            # Create page range structure for evaluation results
+            page_range_evaluation = create_page_range_evaluations(evaluation_results, file_paths, max_pages_per_chunk)
+            document['extracted_data']['gpt_extraction_output_with_evaluation'] = page_range_evaluation
             update_state(document, data_container, 'gpt_evaluation_completed', True, total_evaluation_time)
             data_container.upsert_item(document)
-            logger.info(f"Completed GPT evaluation for all chunks in {total_evaluation_time:.2f}s")
+            logger.info(f"Completed GPT evaluation for all chunks in {total_evaluation_time:.2f}s with page range structure")
         else:
             logger.info("Skipping GPT evaluation (disabled in processing options)")
-            # Set empty evaluation result when disabled
-            merged_evaluation = {}  # Empty dictionary instead of reusing extraction
-            document['extracted_data']['gpt_extraction_output_with_evaluation'] = merged_evaluation
+            # Set empty page range evaluation result when disabled
+            page_range_evaluation = {"pages_all": {}}  # Empty page range structure
+            document['extracted_data']['gpt_extraction_output_with_evaluation'] = page_range_evaluation
             # Mark evaluation as skipped, not completed
             update_state(document, data_container, 'gpt_evaluation_skipped', True, 0)
             processing_times['gpt_evaluation_time'] = 0
-            logger.info("GPT evaluation skipped - evaluation results will be empty")
+            logger.info("GPT evaluation skipped - evaluation results will be empty page range structure")
 
         # Step 4: Process final summary (conditional)
         if processing_options.get('enable_summary', True):
@@ -945,8 +892,8 @@ def process_blob(blob_input_stream: BlobInputStream, data_container):
                    f"Summary: {processing_options.get('enable_summary', True)}, "
                    f"Evaluation: {processing_options.get('enable_evaluation', True)}")
         
-        update_final_document(document, merged_extraction, ocr_results, 
-                            merged_evaluation, processing_times, data_container)
+        update_final_document(document, page_range_extraction, ocr_results, 
+                            page_range_evaluation, processing_times, data_container)
         
         return document
         
@@ -1288,87 +1235,14 @@ async def update_openai_settings(request: Request):
         logger.error(f"Error updating OpenAI settings: {e}")
         raise HTTPException(status_code=400, detail=f"Error updating settings: {str(e)}")
 
-def merge_evaluation_results(evaluation_results):
-    """
-    Specialized merge function for GPT evaluation results.
-    Handles confidence scores, error messages, and image descriptions intelligently.
-    """
-    if not evaluation_results:
-        return {}
-    
-    if len(evaluation_results) == 1:
-        return evaluation_results[0]
-    
-    merged_result = {}
-    all_errors = []
-    
-    # Collect all error messages
-    for result in evaluation_results:
-        if isinstance(result, dict) and "error" in result:
-            all_errors.append(result["error"])
-    
-    # If we have errors, create a comprehensive error summary
-    if all_errors:
-        merged_result["error"] = "Multiple evaluation errors: " + " | ".join(all_errors)
-        return merged_result
-    
-    # Process successful evaluation results
-    for i, result in enumerate(evaluation_results):
-        if not isinstance(result, dict):
-            continue
-            
-        for key, value in result.items():
-            if key == "original_data":
-                # Special handling for original_data which contains image descriptions
-                if key not in merged_result:
-                    merged_result[key] = {}
-                
-                if isinstance(value, dict):
-                    for sub_key, sub_value in value.items():
-                        if sub_key == "image_description":
-                            # Collect all image descriptions
-                            if sub_key not in merged_result[key]:
-                                merged_result[key][sub_key] = []
-                            if isinstance(sub_value, str) and sub_value.strip():
-                                merged_result[key][sub_key].append(f"Chunk {i+1}: {sub_value}")
-                        else:
-                            # For other fields in original_data, use the merging logic
-                            if sub_key not in merged_result[key]:
-                                merged_result[key][sub_key] = sub_value
-                            else:
-                                merged_result[key][sub_key] = _merge_values_with_confidence(
-                                    merged_result[key][sub_key], sub_value
-                                )
-                
-            elif key == "content" or key == "image_description":
-                # Handle content and top-level image descriptions with confidence aggregation
-                if key not in merged_result:
-                    merged_result[key] = value
-                else:
-                    merged_result[key] = _merge_values_with_confidence(merged_result[key], value)
-            
-            else:
-                # For other keys, use standard merging
-                if key not in merged_result:
-                    merged_result[key] = copy.deepcopy(value)
-                else:
-                    merged_result[key] = _deep_merge_data(merged_result[key], value)
-    
-    # Post-process image descriptions to create a comprehensive summary
-    if "original_data" in merged_result and "image_description" in merged_result["original_data"]:
-        if isinstance(merged_result["original_data"]["image_description"], list):
-            # Join all chunk descriptions into a comprehensive description
-            merged_result["original_data"]["image_description"] = " ".join(
-                merged_result["original_data"]["image_description"]
-            )
-    
-    return merged_result
-
+# Note: merge_evaluation_results and related helper functions removed
+# They are replaced by create_page_range_evaluations which organizes evaluation
+# data by page ranges instead of merging them together
 
 def _merge_values_with_confidence(existing_value, new_value):
     """
-    Merge values that may contain confidence scores.
-    Prefers higher confidence values or combines information intelligently.
+    Helper function kept for backward compatibility.
+    May be used by other parts of the codebase.
     """
     # If either value is not a dict, fall back to simple merging
     if not isinstance(existing_value, dict) or not isinstance(new_value, dict):
@@ -1399,6 +1273,43 @@ def _merge_values_with_confidence(existing_value, new_value):
                 result[key] = _merge_values_with_confidence(result[key], value)
             else:
                 result[key] = value
+    
+    return result
+
+def _deep_merge_data(base_data, new_data):
+    """
+    Compatibility implementation of deep merge function.
+    This is kept for backward compatibility with other code that might use it.
+    """
+    if not isinstance(base_data, dict) or not isinstance(new_data, dict):
+        return new_data if new_data else base_data
+    
+    result = copy.deepcopy(base_data)
+    
+    for key, value in new_data.items():
+        if key not in result:
+            result[key] = copy.deepcopy(value)
+        else:
+            existing_value = result[key]
+            
+            if isinstance(existing_value, list) and isinstance(value, list):
+                # Concatenate lists
+                result[key] = existing_value + value
+            elif isinstance(existing_value, str) and isinstance(value, str):
+                # Join strings with space, clean up multiple spaces
+                combined = f"{existing_value} {value}".strip()
+                result[key] = " ".join(combined.split())  # Clean up multiple spaces
+            elif isinstance(existing_value, (int, float)) and isinstance(value, (int, float)):
+                # Sum numbers
+                result[key] = existing_value + value
+            elif isinstance(existing_value, dict) and isinstance(value, dict):
+                # Recursively merge dictionaries
+                result[key] = _deep_merge_data(existing_value, value)
+            else:
+                # For other types or type mismatches, prefer non-empty values
+                if value:  # Use new value if it's truthy
+                    result[key] = value
+                # Otherwise keep existing value
     
     return result
 
@@ -1545,3 +1456,63 @@ Please answer the user's question based on this document context."""
         logger.error(f"Error in chat endpoint: {e}")
         logger.error(traceback.format_exc())
         raise HTTPException(status_code=500, detail=f"Chat processing failed: {str(e)}")
+
+def create_page_range_structure(data_list, file_paths, max_pages_per_chunk):
+    """
+    Create a structured JSON with page ranges instead of merging chunks.
+    
+    Args:
+        data_list: List of extracted data from each chunk
+        file_paths: List of file paths for each chunk
+        max_pages_per_chunk: Maximum pages per chunk setting
+    
+    Returns:
+        Dict with page range keys like {"pages_1-10": {chunk_data}, "pages_11-20": {chunk_data}, ...}
+    """
+    if not data_list:
+        return {}
+    
+    # If there's only one chunk, return it with a single page range
+    if len(data_list) == 1:
+        return {"pages_1-all": data_list[0]}
+    
+    # Multiple chunks - create page range structure
+    structured_data = {}
+    
+    for i, (data, file_path) in enumerate(zip(data_list, file_paths)):
+        # Parse page range from file_path if it contains subset information
+        if "_subset_" in file_path:
+            # Format: originalfile_subset_0_9.pdf -> pages_1-10
+            parts = file_path.split("_subset_")
+            if len(parts) == 2:
+                page_part = parts[1].replace(".pdf", "")
+                start_end = page_part.split("_")
+                if len(start_end) == 2:
+                    try:
+                        start_page = int(start_end[0]) + 1  # Convert to 1-indexed
+                        end_page = int(start_end[1]) + 1    # Convert to 1-indexed
+                        page_key = f"pages_{start_page}-{end_page}"
+                        structured_data[page_key] = data
+                        continue
+                    except ValueError:
+                        pass
+        
+        # Fallback: calculate page range from chunk index and max_pages_per_chunk
+        chunk_start = i * max_pages_per_chunk + 1
+        chunk_end = (i + 1) * max_pages_per_chunk
+        page_key = f"pages_{chunk_start}-{chunk_end}"
+        structured_data[page_key] = data
+    
+    return structured_data
+
+# For evaluations, keep data separated by page ranges
+def create_page_range_evaluations(evaluation_list, file_paths, max_pages_per_chunk):
+    """
+    Create a structured JSON with page ranges for evaluations similar to extraction data.
+    Uses the same logic as create_page_range_structure but for evaluation data.
+    
+    Returns:
+        Dict with page range keys like {"pages_1-10": {evaluation_data}, ...}
+    """
+    # Use the same logic as create_page_range_structure
+    return create_page_range_structure(evaluation_list, file_paths, max_pages_per_chunk)
