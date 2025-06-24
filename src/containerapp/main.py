@@ -9,6 +9,7 @@ import traceback
 import sys
 import copy
 import shutil
+import threading
 from datetime import datetime
 from concurrent.futures import ThreadPoolExecutor, TimeoutError as FuturesTimeoutError
 from typing import Dict, Any
@@ -439,7 +440,6 @@ def create_blob_input_stream(blob_url: str) -> BlobInputStream:
 
 def process_blob_async(blob_input_stream: BlobInputStream, data_container):
     """Process blob asynchronously - same logic as original function"""
-    import threading
     thread_id = threading.current_thread().ident
     
     try:
@@ -707,7 +707,6 @@ def cleanup_temp_resources(temp_dirs, file_paths, temp_file_path):
     Clean up temporary directories and files created during processing.
     Ensures proper resource cleanup even if processing fails.
     """
-    import shutil
     
     # Clean up temporary directories
     for temp_dir in temp_dirs:
@@ -857,18 +856,26 @@ def process_blob(blob_input_stream: BlobInputStream, data_container):
 
         # Only mark extraction as completed when ALL chunks are processed
         processing_times['gpt_extraction_time'] = total_extraction_time
+        
         # Create page range structure instead of merging
-        page_range_extraction = create_page_range_structure(extracted_data_list, file_paths, max_pages_per_chunk)
-        document['extracted_data']['gpt_extraction_output'] = page_range_extraction
+        if len(extracted_data_list) > 1:
+            structured_extraction = create_page_range_structure(
+                extracted_data_list, file_paths, max_pages_per_chunk
+            )
+            logger.info(f"Created page range structure with {len(structured_extraction)} chunks")
+        else:
+            # Single chunk - use the original data directly
+            structured_extraction = extracted_data_list[0] if extracted_data_list else {}
+            
+        document['extracted_data']['gpt_extraction_output'] = structured_extraction
         update_state(document, data_container, 'gpt_extraction_completed', True, total_extraction_time)
         data_container.upsert_item(document)
-        logger.info(f"Completed GPT extraction for all chunks in {total_extraction_time:.2f}s with page range structure")
+        logger.info(f"Completed GPT extraction for all chunks in {total_extraction_time:.2f}s")
 
         # Initialize variables for conditional processing
         total_evaluation_time = 0
         summary_time = 0
-        page_range_extraction = {}  # Initialize extraction result
-        page_range_evaluation = {}  # Initialize evaluation result
+        merged_evaluation = {}  # Initialize to empty dict
         
         # Step 3: Run GPT evaluation for all files (conditional)
         if processing_options.get('enable_evaluation', True):
@@ -894,17 +901,26 @@ def process_blob(blob_input_stream: BlobInputStream, data_container):
 
             # Only mark evaluation as completed when ALL chunks are processed
             processing_times['gpt_evaluation_time'] = total_evaluation_time
+            
             # Create page range structure for evaluations instead of merging
-            page_range_evaluation = create_page_range_evaluations(evaluation_results, file_paths, max_pages_per_chunk)
-            document['extracted_data']['gpt_extraction_output_with_evaluation'] = page_range_evaluation
+            if len(evaluation_results) > 1:
+                structured_evaluation = create_page_range_evaluations(
+                    evaluation_results, file_paths, max_pages_per_chunk
+                )
+                logger.info(f"Created evaluation page range structure with {len(structured_evaluation)} chunks")
+            else:
+                # Single chunk - use the original evaluation data directly
+                structured_evaluation = evaluation_results[0] if evaluation_results else {}
+                
+            document['extracted_data']['gpt_extraction_output_with_evaluation'] = structured_evaluation
             update_state(document, data_container, 'gpt_evaluation_completed', True, total_evaluation_time)
             data_container.upsert_item(document)
-            logger.info(f"Completed GPT evaluation for all chunks in {total_evaluation_time:.2f}s with page range structure")
+            logger.info(f"Completed GPT evaluation for all chunks in {total_evaluation_time:.2f}s")
         else:
             logger.info("Skipping GPT evaluation (disabled in processing options)")
             # Set empty evaluation result when disabled
-            page_range_evaluation = {}  # Empty dictionary instead of reusing extraction
-            document['extracted_data']['gpt_extraction_output_with_evaluation'] = page_range_evaluation
+            structured_evaluation = {}  # Empty dictionary instead of reusing extraction
+            document['extracted_data']['gpt_extraction_output_with_evaluation'] = structured_evaluation
             # Mark evaluation as skipped, not completed
             update_state(document, data_container, 'gpt_evaluation_skipped', True, 0)
             processing_times['gpt_evaluation_time'] = 0
@@ -948,8 +964,8 @@ def process_blob(blob_input_stream: BlobInputStream, data_container):
                    f"Summary: {processing_options.get('enable_summary', True)}, "
                    f"Evaluation: {processing_options.get('enable_evaluation', True)}")
         
-        update_final_document(document, page_range_extraction, ocr_results, 
-                            page_range_evaluation, processing_times, data_container)
+        update_final_document(document, document['extracted_data']['gpt_extraction_output'], ocr_results, 
+                            document['extracted_data']['gpt_extraction_output_with_evaluation'], processing_times, data_container)
         
         return document
         
@@ -1599,7 +1615,7 @@ def create_page_range_structure(data_list, file_paths, max_pages_per_chunk):
 
 def create_page_range_evaluations(evaluation_list, file_paths, max_pages_per_chunk):
     """
-    Create a structured JSON with page ranges for evaluations similar to extraction data.
+    Create a structured JSON with page ranges for evaluations.
     Uses the same logic as create_page_range_structure but for evaluation data.
     
     Returns:
