@@ -220,7 +220,6 @@ def get_structured_data(markdown_content: str, prompt: str, json_schema: str, im
             messages=messages,
             seed=0,
             temperature=0.1,  # Lower temperature for more consistent output
-            max_tokens=4000,  # Ensure we have enough tokens for JSON output
             response_format={"type": "json_object"} if "gpt-4" in config["openai_model_deployment"].lower() else None
         )
         
@@ -247,7 +246,6 @@ def get_structured_data(markdown_content: str, prompt: str, json_schema: str, im
                     "Consider using a model with higher token limits if available"
                 ],
                 "technical_details": {
-                    "max_tokens_configured": 4000,
                     "response_length": len(raw_content),
                     "truncated": True
                 }
@@ -291,7 +289,6 @@ def get_structured_data(markdown_content: str, prompt: str, json_schema: str, im
                         "Consider processing the document in smaller sections"
                     ],
                     "technical_details": {
-                        "max_tokens_configured": 4000,
                         "response_length": len(raw_content),
                         "brackets_balanced": content_stripped.count('{') == content_stripped.count('}'),
                         "likely_truncated": True
@@ -339,7 +336,6 @@ def get_structured_data(markdown_content: str, prompt: str, json_schema: str, im
                     "Check if the system prompt is causing formatting conflicts"
                 ],
                 "technical_details": {
-                    "max_tokens_configured": 4000,
                     "response_length": len(raw_content),
                     "cleanup_attempts": len(cleanup_strategies),
                     "all_cleanup_failed": True
@@ -430,7 +426,6 @@ def perform_gpt_evaluation_and_enrichment(images: List[str], extracted_data: Dic
             messages=messages,
             seed=0,
             temperature=0.1,  # Lower temperature for more consistent output
-            max_tokens=4000,  # Ensure we have enough tokens for JSON output
             response_format={"type": "json_object"} if "gpt-4" in config["openai_model_deployment"].lower() else None
         )
         
@@ -481,11 +476,12 @@ def perform_gpt_evaluation_and_enrichment(images: List[str], extracted_data: Dic
                     "json_error": str(json_error),
                     "original_data": extracted_data,
                     "raw_response": raw_content[:500],
-                    "user_action_required": "The evaluation response was likely truncated.",
+                    "user_action_required": "The evaluation response was likely truncated due to complexity.",
                     "recommendations": [
-                        "Reduce the complexity of the data being evaluated",
-                        "Process evaluation in smaller chunks",
-                        "Simplify the evaluation criteria"
+                        "Reduce the 'max_pages_per_chunk' parameter to process smaller document chunks",
+                        "Simplify the evaluation criteria by using a more focused JSON schema",
+                        "Process evaluation in smaller chunks or split into multiple simpler evaluations",
+                        "Consider skipping evaluation for very large documents if extraction quality is sufficient"
                     ]
                 }
             
@@ -521,8 +517,9 @@ def perform_gpt_evaluation_and_enrichment(images: List[str], extracted_data: Dic
                 "user_action_required": "GPT returned malformed evaluation JSON.",
                 "recommendations": [
                     "Try running the evaluation again (temporary GPT formatting issue)",
-                    "Reduce evaluation complexity if the issue persists",
-                    "Process evaluation in smaller chunks"
+                    "Reduce evaluation complexity by simplifying the JSON schema",
+                    "Process evaluation in smaller chunks or with fewer images",
+                    "Consider using extraction results without evaluation if quality is acceptable"
                 ]
             }
             
@@ -531,7 +528,14 @@ def perform_gpt_evaluation_and_enrichment(images: List[str], extracted_data: Dic
         return {
             "error": "Failed to get GPT evaluation",
             "exception": str(e),
-            "original_data": extracted_data
+            "original_data": extracted_data,
+            "user_action_required": "An unexpected error occurred during evaluation.",
+            "recommendations": [
+                "Check network connectivity and API availability",
+                "Try running the evaluation again",
+                "Reduce document complexity if the issue persists",
+                "Consider using extraction results without evaluation"
+            ]
         }
 
 def get_summary_with_gpt(mkd_output_json, cosmos_config_container=None) -> Any:
