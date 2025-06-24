@@ -1363,11 +1363,20 @@ async def chat_with_document(request: Request):
         context_parts = []
         
         if gpt_extraction:
+            context_parts.append("GPT EXTRACTED DATA:")
+            
             if isinstance(gpt_extraction, dict):
-                context_parts.append("GPT EXTRACTED DATA:")
-                context_parts.append(json.dumps(gpt_extraction, indent=2))
+                # Check if this is a page range structure
+                if any(key.startswith("pages_") for key in gpt_extraction.keys()):
+                    # This is a page range structure - format it clearly
+                    for page_range, data in gpt_extraction.items():
+                        context_parts.append(f"--- {page_range} ---")
+                        context_parts.append(json.dumps(data, indent=2))
+                else:
+                    # Regular dictionary
+                    context_parts.append(json.dumps(gpt_extraction, indent=2))
             else:
-                context_parts.append("GPT EXTRACTED DATA:")
+                # Not a dictionary
                 context_parts.append(str(gpt_extraction))
         
         if ocr_data and len(context_parts) == 0:
@@ -1393,12 +1402,16 @@ async def chat_with_document(request: Request):
         
 The user has uploaded a document that has been processed and analyzed. You have access to the extracted data from this document.
 
+The document may have been split into multiple page ranges (e.g., "pages_1-10", "pages_11-20", etc.) if it was a large document.
+Each page range contains the extracted data for those specific pages.
+
 Your role is to:
 - Answer questions about the document content accurately
 - Help users understand specific details from the document
-- Provide insights based on the extracted information
+- Provide insights based on the extracted information across all page ranges
 - Be concise but thorough in your responses
 - If information is not available in the extracted data, clearly state that
+- If applicable, mention which page range(s) your information comes from
 
 DOCUMENT CONTEXT:
 {document_context}
