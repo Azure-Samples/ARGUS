@@ -11,7 +11,7 @@ import os
 from pathlib import Path
 
 # Configuration
-BACKEND_URL = "https://ca-argus.jollyriver-a6fa0b27.eastus2.azurecontainerapps.io"
+BACKEND_URL = "https://ca-argus.politesea-e2f9610e.northcentralusstage.azurecontainerapps.io"
 TEST_DOCUMENT = "sample-invoice.pdf"  # Use the sample document
 
 def test_truncation_error_handling():

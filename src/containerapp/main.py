@@ -21,6 +21,7 @@ from azure.storage.blob import BlobServiceClient, ContentSettings
 from azure.identity import DefaultAzureCredential
 from azure.mgmt.logic import LogicManagementClient
 from azure.mgmt.resource import ResourceManagementClient
+from openai import AzureOpenAI
 import uvicorn
 
 # Import your existing processing functions
@@ -35,6 +36,7 @@ from ai_ocr.process import (
     split_pdf_into_subsets
 )
 from ai_ocr.model import Config
+from ai_ocr.azure.config import get_config
 
 # Configure logging
 logging.basicConfig(
@@ -923,7 +925,7 @@ def process_blob(blob_input_stream: BlobInputStream, data_container):
             # Set empty values when disabled
             document['extracted_data']['classification'] = ""
             document['extracted_data']['gpt_summary_output'] = ""
-            # Mark summary as skipped, not completed
+            # Mark summary as failed, not completed
             update_state(document, data_container, 'gpt_summary_skipped', True, 0)
             summary_time = 0
             logger.info("GPT summary skipped - classification and summary will be empty")
@@ -1399,3 +1401,147 @@ def _merge_values_with_confidence(existing_value, new_value):
                 result[key] = value
     
     return result
+
+@app.post("/api/chat")
+async def chat_with_document(request: Request):
+    """
+    Chat endpoint for asking questions about a specific document.
+    Uses the GPT extraction as context for answering questions.
+    """
+    try:
+        data = await request.json()
+        document_id = data.get("document_id")
+        message = data.get("message", "").strip()
+        chat_history = data.get("chat_history", [])
+        
+        if not document_id or not message:
+            raise HTTPException(status_code=400, detail="document_id and message are required")
+        
+        # Get the document from Cosmos DB
+        cosmos_container, cosmos_config_container = connect_to_cosmos()
+        if not cosmos_container:
+            raise HTTPException(status_code=500, detail="Unable to connect to Cosmos DB")
+        
+        try:
+            # Fetch the document using a query (similar to frontend approach)
+            query = f"SELECT * FROM c WHERE c.id = '{document_id}'"
+            items = list(cosmos_container.query_items(
+                query=query,
+                enable_cross_partition_query=True
+            ))
+            
+            if not items:
+                raise HTTPException(status_code=404, detail="Document not found")
+            
+            document = items[0]
+        except HTTPException:
+            raise
+        except Exception as e:
+            logger.error(f"Error fetching document {document_id}: {e}")
+            raise HTTPException(status_code=404, detail="Document not found")
+        
+        # Extract GPT extraction data to use as context
+        extracted_data = document.get('extracted_data', {})
+        gpt_extraction = extracted_data.get('gpt_extraction_output')
+        ocr_data = extracted_data.get('ocr_output', '')
+        
+        if not gpt_extraction and not ocr_data:
+            raise HTTPException(status_code=400, detail="No extracted data available for this document")
+        
+        # Prepare context for the chat
+        context_parts = []
+        
+        if gpt_extraction:
+            if isinstance(gpt_extraction, dict):
+                context_parts.append("GPT EXTRACTED DATA:")
+                context_parts.append(json.dumps(gpt_extraction, indent=2))
+            else:
+                context_parts.append("GPT EXTRACTED DATA:")
+                context_parts.append(str(gpt_extraction))
+        
+        if ocr_data and len(context_parts) == 0:
+            # Only include OCR if no GPT extraction available
+            context_parts.append("DOCUMENT TEXT (OCR):")
+            # Limit OCR data to prevent token overflow
+            ocr_snippet = ocr_data[:3000] + "..." if len(ocr_data) > 3000 else ocr_data
+            context_parts.append(ocr_snippet)
+        
+        document_context = "\n\n".join(context_parts)
+        
+        # Build chat history for context
+        conversation_context = ""
+        if chat_history:
+            conversation_context = "\n\nPREVIOUS CONVERSATION:\n"
+            for i, chat_item in enumerate(chat_history[-5:]):  # Last 5 messages only
+                role = chat_item.get('role', 'user')
+                content = chat_item.get('content', '')
+                conversation_context += f"{role.upper()}: {content}\n"
+        
+        # Create the system prompt
+        system_prompt = f"""You are an AI assistant helping users understand and analyze document content. 
+        
+The user has uploaded a document that has been processed and analyzed. You have access to the extracted data from this document.
+
+Your role is to:
+- Answer questions about the document content accurately
+- Help users understand specific details from the document
+- Provide insights based on the extracted information
+- Be concise but thorough in your responses
+- If information is not available in the extracted data, clearly state that
+
+DOCUMENT CONTEXT:
+{document_context}
+{conversation_context}
+
+Please answer the user's question based on this document context."""
+
+        # Get Azure OpenAI configuration
+        _, cosmos_config_container = connect_to_cosmos()
+        config = get_config(cosmos_config_container)
+        
+        # Initialize OpenAI client
+        client = AzureOpenAI(
+            api_key=config["openai_api_key"],
+            api_version=config["openai_api_version"],
+            azure_endpoint=config["openai_api_endpoint"]
+        )
+        
+        # Prepare messages for the chat
+        messages = [
+            {"role": "system", "content": system_prompt},
+            {"role": "user", "content": message}
+        ]
+        
+        # Make the API call
+        response = client.chat.completions.create(
+            model=config["openai_model_deployment"],
+            messages=messages,
+            max_tokens=1000,
+            temperature=0.3,
+            top_p=0.9
+        )
+        
+        # Extract the response
+        assistant_message = response.choices[0].message.content
+        
+        # Check for truncation
+        finish_reason = response.choices[0].finish_reason
+        if finish_reason == "length":
+            assistant_message += "\n\n[Note: Response was truncated due to length limits. Please ask for more specific details if needed.]"
+        
+        return {
+            "response": assistant_message,
+            "finish_reason": finish_reason,
+            "usage": {
+                "prompt_tokens": response.usage.prompt_tokens,
+                "completion_tokens": response.usage.completion_tokens,
+                "total_tokens": response.usage.total_tokens
+            }
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error in chat endpoint: {e}")
+        logger.error(traceback.format_exc())
+        raise HTTPException(status_code=500, detail=f"Chat processing failed: {str(e)}")

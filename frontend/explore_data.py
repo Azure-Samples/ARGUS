@@ -14,6 +14,7 @@ import streamlit as st
 import pandas as pd
 import plotly.express as px
 import plotly.graph_objects as go
+from document_chat import DocumentChatComponent
 
 # Try to initialize Azure credential if SDK is available
 COSMOS_INIT_ERROR = None
@@ -708,7 +709,7 @@ def explore_data_tab():
                 # Document data column
                 with json_col:
                     if json_data:
-                        tabs = st.tabs(["GPT Extraction", "OCR Extraction", "GPT Evaluation", "GPT Summary", "Processing Details"])
+                        tabs = st.tabs(["GPT Extraction", "OCR Extraction", "GPT Evaluation", "GPT Summary", "Processing Details", "Chat with Document"])
                         
                         # GPT Extraction Tab
                         with tabs[0]:
@@ -822,6 +823,35 @@ def explore_data_tab():
                                 
                             except Exception as e:
                                 st.warning(f"Some details are not available: {str(e)}")
+                        
+                        # Chat with Document Tab
+                        with tabs[5]:
+                            try:
+                                # Import the chat component
+                                from document_chat import render_document_chat_tab
+                                
+                                # Get backend URL from session state
+                                backend_url = st.session_state.get('backend_url', 'http://localhost:8000')
+                                
+                                # Get document context from extracted data
+                                extracted_data = json_data.get('extracted_data', {})
+                                gpt_extraction = extracted_data.get('gpt_extraction_output', {})
+                                
+                                # Convert to JSON string for API
+                                document_context = json.dumps(gpt_extraction) if gpt_extraction else "{}"
+                                
+                                # Render the chat interface
+                                render_document_chat_tab(
+                                    document_id=json_item_id,
+                                    document_name=selected_item['File Name'],
+                                    backend_url=backend_url,
+                                    document_context=document_context
+                                )
+                                
+                            except Exception as e:
+                                st.error(f"Error loading chat interface: {e}")
+                                st.info("Please make sure the backend is running and accessible.")
+                        
                     else:
                         st.error("No document details available")
 

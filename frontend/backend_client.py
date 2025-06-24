@@ -105,7 +105,17 @@ class BackendClient:
         except requests.exceptions.RequestException as e:
             st.error(f"Failed to reprocess document: {e}")
             return None
-
+    
+    def chat_with_document(self, document_id: str, message: str, chat_history: list = None) -> Dict[str, Any]:
+        """Send a chat message about a specific document"""
+        data = {
+            'document_id': document_id,
+            'message': message,
+            'chat_history': chat_history or []
+        }
+        response = self._make_request('POST', '/chat', json=data)
+        return response.json()
+    
 
 # Global backend client instance
 backend_client = BackendClient()
