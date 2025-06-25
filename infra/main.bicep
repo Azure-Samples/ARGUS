@@ -329,7 +329,7 @@ resource containerApp 'Microsoft.App/containerApps@2024-03-01' = {
             }
             {
               name: 'LOGIC_APP_NAME'
-              value: 'logic-argus-${resourceToken}'
+              value: 'logic-argus-v2-${resourceToken}'
             }
             {
               name: 'AZURE_STORAGE_ACCOUNT_NAME'

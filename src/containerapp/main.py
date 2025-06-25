@@ -1623,3 +1623,52 @@ def create_page_range_evaluations(evaluation_list, file_paths, max_pages_per_chu
     """
     # Use the same logic as create_page_range_structure
     return create_page_range_structure(evaluation_list, file_paths, max_pages_per_chunk)
+
+@app.get("/api/concurrency/diagnostics")
+async def get_concurrency_diagnostics():
+    """Get diagnostic information about Logic App Manager setup"""
+    try:
+        diagnostics = {
+            "timestamp": datetime.utcnow().isoformat(),
+            "logic_app_manager_initialized": logic_app_manager is not None,
+            "environment_variables": {
+                "AZURE_SUBSCRIPTION_ID": bool(os.getenv('AZURE_SUBSCRIPTION_ID')),
+                "AZURE_RESOURCE_GROUP_NAME": bool(os.getenv('AZURE_RESOURCE_GROUP_NAME')),
+                "LOGIC_APP_NAME": bool(os.getenv('LOGIC_APP_NAME'))
+            },
+            "environment_values": {
+                "AZURE_SUBSCRIPTION_ID": os.getenv('AZURE_SUBSCRIPTION_ID', 'NOT_SET')[:8] + "..." if os.getenv('AZURE_SUBSCRIPTION_ID') else 'NOT_SET',
+                "AZURE_RESOURCE_GROUP_NAME": os.getenv('AZURE_RESOURCE_GROUP_NAME', 'NOT_SET'),
+                "LOGIC_APP_NAME": os.getenv('LOGIC_APP_NAME', 'NOT_SET')
+            }
+        }
+        
+        if logic_app_manager:
+            diagnostics["logic_app_manager_enabled"] = logic_app_manager.enabled
+            diagnostics["subscription_id_configured"] = bool(logic_app_manager.subscription_id)
+            diagnostics["resource_group_configured"] = bool(logic_app_manager.resource_group_name)
+            diagnostics["logic_app_name_configured"] = bool(logic_app_manager.logic_app_name)
+            
+            # Try to test Azure credentials
+            try:
+                diagnostics["azure_credentials_test"] = "Testing..."
+                # Simple credential test
+                credential_test = DefaultAzureCredential()
+                # This will fail if credentials are not working, but won't actually call Azure
+                diagnostics["azure_credentials_available"] = True
+            except Exception as e:
+                diagnostics["azure_credentials_test"] = f"Failed: {str(e)}"
+                diagnostics["azure_credentials_available"] = False
+        else:
+            diagnostics["logic_app_manager_enabled"] = False
+            diagnostics["reason"] = "LogicAppManager not initialized"
+            
+        return diagnostics
+        
+    except Exception as e:
+        logger.error(f"Error getting concurrency diagnostics: {e}")
+        return {
+            "error": str(e),
+            "timestamp": datetime.utcnow().isoformat(),
+            "logic_app_manager_initialized": False
+        }

@@ -62,6 +62,49 @@ def concurrency_settings_tab():
         if current_settings and 'error' in current_settings:
             st.error(f"Error: {current_settings['error']}")
         st.info("Please check your configuration and ensure the backend service is running.")
+        
+        # Add diagnostics section for troubleshooting
+        st.markdown("---")
+        st.markdown("### 🔍 Diagnostics")
+        
+        if st.button("Run Diagnostics", type="secondary"):
+            with st.spinner("Running diagnostics..."):
+                try:
+                    diag_response = requests.get(f"{backend_url}/api/concurrency/diagnostics", timeout=10)
+                    if diag_response.status_code == 200:
+                        diagnostics = diag_response.json()
+                        
+                        st.markdown("**Diagnostic Results:**")
+                        
+                        # Environment Variables Check
+                        env_vars = diagnostics.get("environment_variables", {})
+                        st.markdown("**Environment Variables:**")
+                        for var, is_set in env_vars.items():
+                            status_icon = "✅" if is_set else "❌"
+                            value = diagnostics.get("environment_values", {}).get(var, "NOT_SET")
+                            st.markdown(f"{status_icon} `{var}`: {value}")
+                        
+                        # Logic App Manager Status
+                        st.markdown("**Logic App Manager Status:**")
+                        manager_init = diagnostics.get("logic_app_manager_initialized", False)
+                        st.markdown(f"{'✅' if manager_init else '❌'} Logic App Manager Initialized: {manager_init}")
+                        
+                        if manager_init:
+                            manager_enabled = diagnostics.get("logic_app_manager_enabled", False)
+                            st.markdown(f"{'✅' if manager_enabled else '❌'} Logic App Manager Enabled: {manager_enabled}")
+                            
+                            creds_available = diagnostics.get("azure_credentials_available", False)
+                            st.markdown(f"{'✅' if creds_available else '❌'} Azure Credentials Available: {creds_available}")
+                        
+                        # Show full diagnostic data
+                        with st.expander("Full Diagnostic Data"):
+                            st.json(diagnostics)
+                            
+                    else:
+                        st.error(f"Failed to get diagnostics: HTTP {diag_response.status_code}")
+                        
+                except Exception as e:
+                    st.error(f"Error running diagnostics: {str(e)}")
     
     # Enhanced help section
     st.markdown("---")
@@ -124,7 +167,35 @@ def load_current_settings(backend_url):
             if response.status_code == 200:
                 return response.json()
             else:
-                st.error(f"Failed to load settings: HTTP {response.status_code}")
+                # Enhanced error reporting for 503 errors
+                if response.status_code == 503:
+                    try:
+                        error_detail = response.json().get('detail', response.text)
+                        st.error(f"Failed to load concurrency settings: HTTP 503")
+                        st.error(f"Details: {error_detail}")
+                        
+                        # Show diagnostic information
+                        with st.expander("🔍 Diagnostic Information", expanded=True):
+                            st.markdown("**Possible causes:**")
+                            st.markdown("1. **Missing Environment Variables**: Logic App Manager requires these environment variables:")
+                            st.code("""
+AZURE_SUBSCRIPTION_ID
+AZURE_RESOURCE_GROUP_NAME  
+LOGIC_APP_NAME
+""")
+                            st.markdown("2. **Logic App Not Deployed**: The Logic App workflow may not exist in Azure")
+                            st.markdown("3. **Authentication Issues**: The container app may not have permissions to access the Logic App")
+                            
+                            st.markdown("**To diagnose further:**")
+                            st.markdown("- Check Azure Container App environment variables in the Azure Portal")
+                            st.markdown("- Verify the Logic App exists in your resource group")
+                            st.markdown("- Check container app logs for authentication errors")
+                            
+                    except:
+                        st.error(f"Failed to load settings: HTTP {response.status_code}")
+                        st.error(f"Response: {response.text}")
+                else:
+                    st.error(f"Failed to load settings: HTTP {response.status_code}")
                 return None
     except requests.exceptions.RequestException as e:
         st.error(f"Connection error: {str(e)}")
