@@ -74,38 +74,44 @@ ARGUS employs a modern, cloud-native architecture designed for enterprise worklo
 
 ```mermaid
 graph TB
-    subgraph "Document Input"
-        A[📄 Documents] --> B[📁 Blob Storage]
-        C[🌐 Direct Upload] --> D[🚀 FastAPI Backend]
+    subgraph "📥 Document Input"
+        A[📄 Documents] --> B[📁 Azure Blob Storage]
+        C[🌐 Direct Upload API] --> D[🚀 FastAPI Backend]
     end
     
-    subgraph "Processing Engine"
+    subgraph "🧠 AI Processing Engine"
         B --> D
-        D --> E[🔍 Document Intelligence]
-        D --> F[🧠 GPT-4 Vision]
-        E --> G[⚙️ Processing Pipeline]
+        D --> E[🔍 Azure Document Intelligence]
+        D --> F[� GPT-4 Vision]
+        E --> G[⚙️ Hybrid Processing Pipeline]
         F --> G
     end
     
-    subgraph "Intelligence Layer"
+    subgraph "💡 Intelligence & Analytics"
         G --> H[📊 Custom Evaluators]
-        G --> I[💬 Chat Interface]
-        H --> J[📈 Analytics Engine]
+        G --> I[💬 Interactive Chat]
+        H --> J[📈 Results & Analytics]
     end
     
-    subgraph "Data & Storage"
-        G --> K[🗄️ Cosmos DB]
+    subgraph "💾 Data Layer"
+        G --> K[🗄️ Azure Cosmos DB]
         J --> K
         I --> K
         K --> L[📱 Streamlit Frontend]
     end
     
-    subgraph "Security & Monitoring"
-        M[🔒 Managed Identity] --> D
-        N[📊 Application Insights] --> D
-        O[🛡️ RBAC Permissions] --> B
-        O --> K
+    subgraph "🔐 Security & Infrastructure"
+        M[🔒 Managed Identity] -.-> D
+        N[📊 Application Insights] -.-> D
+        O[🛡️ RBAC] -.-> B
+        O -.-> K
+        P[🏗️ Container Registry] -.-> D
     end
+    
+    style A fill:#e1f5fe
+    style D fill:#f3e5f5
+    style G fill:#fff3e0
+    style K fill:#e8f5e8
 ```
 
 </div>
@@ -133,17 +139,23 @@ graph TB
 <details>
 <summary><b>🛠️ Required Tools (Click to expand)</b></summary>
 
-1. **Azure Developer CLI (azd)**
+1. **Docker**
+   ```bash
+   # Install Docker (required for containerization during deployment)
+   # Visit https://docs.docker.com/get-docker/ for installation instructions
+   ```
+
+2. **Azure Developer CLI (azd)**
    ```bash
    curl -fsSL https://aka.ms/install-azd.sh | bash
    ```
 
-2. **Azure CLI**
+3. **Azure CLI**
    ```bash
    curl -sL https://aka.ms/InstallAzureCLIDeb | sudo bash
    ```
 
-3. **Azure OpenAI Resource** 
+4. **Azure OpenAI Resource** 
    - Create an Azure OpenAI resource in a [supported region](https://docs.microsoft.com/azure/cognitive-services/openai/overview#regional-availability)
    - Deploy a vision-capable model: `gpt-4o`, `gpt-4-turbo`, or `gpt-4` (with vision)
    - Collect: endpoint URL, API key, and deployment name
@@ -277,6 +289,14 @@ ARGUS supports unlimited custom document types through configurable datasets:
 <details>
 <summary><b>🔧 Create Custom Datasets</b></summary>
 
+You can create custom datasets either manually in Cosmos DB or through the Streamlit frontend interface:
+
+**Option 1: Using the Frontend (Recommended)**
+1. Access the Streamlit frontend (deployed automatically with azd)
+2. Navigate to the Settings tab
+3. Create a new dataset with custom prompts and schema
+
+**Option 2: Manual Setup**
 1. **Create dataset structure**:
    ```bash
    mkdir demo/financial-reports
@@ -317,46 +337,15 @@ ARGUS supports unlimited custom document types through configurable datasets:
 
 </details>
 
-### ⚙️ Runtime Configuration
-
-```bash
-# Update Azure OpenAI settings
-curl -X PUT \
-  -H "Content-Type: application/json" \
-  -d '{
-    "endpoint": "https://new-endpoint.openai.azure.com/",
-    "deployment_name": "gpt-4o-latest",
-    "temperature": 0.1
-  }' \
-  "$(azd env get-value BACKEND_URL)/api/openai-settings"
-
-# Adjust processing concurrency
-curl -X PUT \
-  -H "Content-Type: application/json" \
-  -d '{"max_concurrent_processes": 10}' \
-  "$(azd env get-value BACKEND_URL)/api/concurrency"
-```
-
 ---
 
 ## 🖥️ Frontend Interface: User-Friendly Document Management
 
+The Streamlit frontend is **automatically deployed** with `azd up` and provides a user-friendly interface for document management.
+
 <div align="center">
 <img src="docs/ArchitectureOverview.png" alt="ARGUS Frontend Interface" width="800"/>
 </div>
-
-### 🚀 Launch the Frontend
-
-```bash
-# Install dependencies
-pip install -r frontend/requirements.txt
-
-# Configure environment (automatically pulls from azd)
-azd env get-values > frontend/.env
-
-# Launch the interface
-cd frontend && streamlit run app.py
-```
 
 ### 🎯 Frontend Features
 
@@ -369,44 +358,7 @@ cd frontend && streamlit run app.py
 
 ---
 
-## 📈 Performance & Evaluation
-
-### 🧪 Built-in Accuracy Assessment
-
-ARGUS includes sophisticated evaluation tools to ensure consistent, measurable performance:
-
-```bash
-# Setup evaluation environment
-cd notebooks
-pip install -r requirements.txt
-cp ../.env.template .env  # Add your credentials
-
-# Launch evaluation dashboard
-jupyter notebook evaluator.ipynb
-```
-
-### 📊 Evaluation Metrics
-
-| Evaluator | Purpose | Best For |
-|-----------|---------|----------|
-| **Fuzzy String Matching** | Handles typos and OCR errors | Names, addresses, text fields |
-| **Cosine Similarity** | Semantic understanding | Descriptions, summaries |
-| **JSON Structure** | Data completeness | Structured extractions |
-| **Custom Evaluators** | Domain-specific rules | Specialized document types |
-
-### 📈 Performance Dashboard
-
-The evaluation notebook provides:
-- **Overall Accuracy Scores**: System-wide performance metrics
-- **Field-Level Analysis**: Per-field accuracy breakdown  
-- **Confidence Distributions**: Reliability assessment
-- **Processing Time Analysis**: Performance optimization insights
-- **Error Pattern Detection**: Common failure modes
-- **Comparative Analysis**: Before/after improvements
-
----
-
-## 🛠️ Development & Customization
+## ️ Development & Customization
 
 ### 🏗️ Backend Architecture Deep Dive
 
@@ -458,282 +410,7 @@ open http://localhost:8000/docs
 
 ---
 
-## 🔍 Monitoring & Troubleshooting
-
-### 📊 Health Monitoring Dashboard
-
-```bash
-# Comprehensive health check
-curl "$(azd env get-value BACKEND_URL)/health" | jq
-
-# Expected healthy response:
-{
-  "status": "healthy",
-  "timestamp": "2024-01-15T10:30:00Z",
-  "version": "1.0.0",
-  "services": {
-    "cosmos_db": {
-      "status": "✅ connected",
-      "latency_ms": 45,
-      "last_check": "2024-01-15T10:29:55Z"
-    },
-    "blob_storage": {
-      "status": "✅ connected", 
-      "latency_ms": 23
-    },
-    "document_intelligence": {
-      "status": "✅ connected",
-      "region": "eastus2"
-    },
-    "azure_openai": {
-      "status": "✅ connected",
-      "model": "gpt-4o",
-      "quota_remaining": "85%"
-    }
-  },
-  "performance": {
-    "avg_processing_time": "2.1s",
-    "success_rate": "98.5%",
-    "active_processes": 3
-  }
-}
-```
-
-### 📈 Application Insights Integration
-
-```bash
-# Stream live application logs
-azd logs --follow
-
-# Filter for errors only
-azd logs --follow | grep ERROR
-
-# Get recent performance metrics
-azd logs --tail 200 | grep "processing_time"
-```
-
-### 🚨 Common Issues & Solutions
-
-<details>
-<summary><b>🔐 Authentication & Credentials</b></summary>
-
-**Problem**: `401 Unauthorized` errors with Azure OpenAI
-
-**Solution**:
-```bash
-# Verify current credentials
-azd env get-values | grep AZURE_OPENAI
-
-# Update credentials and redeploy
-azd env set AZURE_OPENAI_KEY "sk-new-key-here"
-azd env set AZURE_OPENAI_ENDPOINT "https://new-endpoint.openai.azure.com/"
-azd up --skip-confirm
-```
-
-</details>
-
-<details>
-<summary><b>📄 Document Processing Issues</b></summary>
-
-**Problem**: Documents failing to process
-
-**Diagnostics**:
-```bash
-# Check document format and size
-file my-document.pdf
-ls -lh my-document.pdf
-
-# Verify blob storage upload
-az storage blob list --container-name datasets --auth-mode login
-
-# Review processing logs
-azd logs | grep "process_blob" | tail -10
-```
-
-</details>
-
-<details>
-<summary><b>⚡ Performance Optimization</b></summary>
-
-**Problem**: Slow processing times
-
-**Solutions**:
-```bash
-# Check current concurrency settings
-curl "$(azd env get-value BACKEND_URL)/api/concurrency"
-
-# Increase parallel processing (carefully!)
-curl -X PUT \
-  -H "Content-Type: application/json" \
-  -d '{"max_concurrent_processes": 8}' \
-  "$(azd env get-value BACKEND_URL)/api/concurrency"
-
-# Monitor Azure OpenAI rate limits
-curl "$(azd env get-value BACKEND_URL)/api/openai-settings"
-```
-
-</details>
-
----
-
-## 🔒 Enterprise Security & Compliance
-
-ARGUS implements enterprise-grade security with a zero-trust architecture:
-
-### 🔐 Zero-Credential Architecture
-
-- **🆔 Managed Identity**: Eliminates hardcoded credentials entirely
-- **🔑 Azure RBAC**: Fine-grained permissions with least-privilege principle
-- **🔒 Private Networking**: Secure communication between all components
-- **🛡️ Container Security**: Private Azure Container Registry with vulnerability scanning
-
-### 🔐 Access Control Matrix
-
-| Service | Identity Type | Permissions | Scope |
-|---------|---------------|-------------|-------|
-| **Container App** | User-Assigned Managed Identity | Contributor | Blob Storage, Cosmos DB |
-| **Blob Storage** | Managed Identity | Storage Blob Data Contributor | Document containers only |
-| **Cosmos DB** | Managed Identity | DocumentDB Account Contributor | Results database only |
-| **Azure OpenAI** | Managed Identity | Cognitive Services User | AI services only |
-| **Document Intelligence** | Managed Identity | Cognitive Services User | OCR services only |
-
-### 🏛️ Compliance & Governance
-
-- **📋 Audit Logging**: Complete activity trails in Application Insights
-- **🔍 Data Residency**: All data stays within your Azure region
-- **📊 Privacy Controls**: Document data never leaves your tenant
-- **🔄 Retention Policies**: Configurable data lifecycle management
-
----
-
-## 🚀 Production Deployment Guide
-
-### 🏭 Enterprise Configuration
-
-<details>
-<summary><b>🔧 Production Environment Setup</b></summary>
-
-```bash
-# 1. Set production environment variables
-azd env set AZURE_LOCATION "eastus2"
-azd env set AZURE_ENV_NAME "argus-prod"
-
-# 2. Configure high-availability settings
-azd env set CONTAINER_CPU_CORES "2.0"
-azd env set CONTAINER_MEMORY "4Gi"
-azd env set MIN_REPLICAS "2"
-azd env set MAX_REPLICAS "10"
-
-# 3. Enable enhanced monitoring
-azd env set ENABLE_APPLICATION_INSIGHTS "true"
-azd env set LOG_LEVEL "INFO"
-
-# 4. Deploy production environment
-azd up --environment production
-```
-
-</details>
-
-<details>
-<summary><b>📊 Scaling Configuration</b></summary>
-
-```bash
-# Configure auto-scaling rules
-curl -X PUT \
-  -H "Content-Type: application/json" \
-  -d '{
-    "scale_rules": {
-      "cpu_threshold": 70,
-      "memory_threshold": 80,
-      "queue_length_threshold": 10,
-      "concurrent_requests_threshold": 100
-    },
-    "min_replicas": 2,
-    "max_replicas": 20
-  }' \
-  "$(azd env get-value BACKEND_URL)/api/scaling-config"
-```
-
-</details>
-
-### 💡 Performance Optimization
-
-| Scenario | Recommended Configuration | Expected Throughput |
-|----------|--------------------------|-------------------|
-| **🏢 Small Business** | 1 vCPU, 2GB RAM, 1-3 replicas | 50-100 docs/hour |
-| **🏭 Enterprise** | 2 vCPU, 4GB RAM, 3-10 replicas | 500-1000 docs/hour |
-| **🌐 High Volume** | 4 vCPU, 8GB RAM, 5-20 replicas | 2000+ docs/hour |
-
----
-
-## 🌟 Advanced Use Cases
-
-### 🏥 Healthcare Document Processing
-
-```bash
-# Configure for HIPAA compliance
-curl -X POST \
-  -H "Content-Type: application/json" \
-  -d '{
-    "dataset_name": "hipaa-compliant",
-    "retention_days": 2555,  # 7 years
-    "encryption_level": "double",
-    "audit_logging": "enhanced",
-    "anonymization": {
-      "enabled": true,
-      "fields": ["patient_name", "ssn", "dob"]
-    }
-  }' \
-  "$(azd env get-value BACKEND_URL)/api/compliance-config"
-```
-
-### 🏦 Financial Services Integration
-
-```bash
-# Configure for financial documents
-curl -X POST \
-  -H "Content-Type: application/json" \
-  -d '{
-    "dataset_name": "financial-statements",
-    "validation_rules": {
-      "currency_validation": true,
-      "date_format": "MM/DD/YYYY",
-      "decimal_precision": 2
-    },
-    "fraud_detection": {
-      "enabled": true,
-      "confidence_threshold": 0.95
-    }
-  }' \
-  "$(azd env get-value BACKEND_URL)/api/financial-config"
-```
-
-### 📋 Government & Legal Documents
-
-```bash
-# Configure for legal document processing
-curl -X POST \
-  -H "Content-Type: application/json" \
-  -d '{
-    "dataset_name": "legal-contracts",
-    "extraction_focus": [
-      "parties_involved",
-      "key_dates",
-      "financial_terms",
-      "termination_clauses",
-      "liability_provisions"
-    ],
-    "redaction": {
-      "enabled": true,
-      "pii_fields": ["ssn", "addresses", "phone_numbers"]
-    }
-  }' \
-  "$(azd env get-value BACKEND_URL)/api/legal-config"
-```
-
----
-
-## 🔌 API Reference: Complete Documentation
+##  API Reference: Complete Documentation
 
 ### 🚀 Core Processing Endpoints
 
@@ -896,37 +573,19 @@ priority: "high"
 
 ## 🧪 Testing & Quality Assurance
 
-### 🔬 Automated Testing Suite
+ARGUS includes built-in evaluation tools for accuracy assessment. Use the Jupyter notebook in the `notebooks/` directory to run comprehensive evaluations:
 
 ```bash
-# Run comprehensive test suite
-cd tests
-python -m pytest --verbose --cov=../src
+# Setup evaluation environment
+cd notebooks
+pip install -r requirements.txt
+cp ../.env.template .env  # Add your credentials
 
-# Run specific test categories
-python -m pytest tests/test_api_endpoints.py -v
-python -m pytest tests/test_document_processing.py -v
-python -m pytest tests/test_evaluation_metrics.py -v
-
-# Load testing with sample documents
-python tests/load_test.py --documents 100 --concurrent 10
+# Launch evaluation dashboard
+jupyter notebook evaluator.ipynb
 ```
 
-### 📊 Quality Metrics Dashboard
-
-```bash
-# Generate quality report
-python scripts/quality_report.py \
-  --start-date "2024-01-01" \
-  --end-date "2024-01-31" \
-  --output quality_report.html
-
-# Benchmark against ground truth
-python scripts/benchmark.py \
-  --dataset demo/default-dataset \
-  --ground-truth demo/default-dataset/ground_truth.json \
-  --output benchmark_results.json
-```
+The evaluation notebook provides performance metrics, field-level analysis, and comparative assessments using various evaluation methods including fuzzy string matching and semantic similarity.
 
 ---
 
@@ -1011,59 +670,16 @@ Contributors will be recognized in:
 
 ---
 
-## 👥 Team & Acknowledgments
+## 👥 Team
 
-### 🚀 Core Development Team
+- **Alberto Gallo** - AI Architecture & Processing Pipeline
+- **Petteri Johansson** - Cloud Infrastructure & DevOps  
+- **Christin Pohl** - Security & Compliance
+- **Konstantinos Mavrodis** - Platform Engineering & Performance
 
-<table>
-<tr>
-<td align="center">
-<a href="https://github.com/albertaga27">
-<img src="https://github.com/albertaga27.png" width="100" alt="Alberto Gallo"/>
-<br><b>Alberto Gallo</b>
-</a>
-<br>🧠 AI Architecture & Processing Pipeline
-</td>
-<td align="center">
-<a href="https://github.com/piizei">
-<img src="https://github.com/piizei.png" width="100" alt="Petteri Johansson"/>
-<br><b>Petteri Johansson</b>
-</a>
-<br>☁️ Cloud Infrastructure & DevOps
-</td>
-<td align="center">
-<a href="https://github.com/pohlchri">
-<img src="https://github.com/pohlchri.png" width="100" alt="Christin Pohl"/>
-<br><b>Christin Pohl</b>
-</a>
-<br>🔒 Security & Compliance
-</td>
-<td align="center">
-<a href="https://github.com/kmavrodis_microsoft">
-<img src="https://github.com/kmavrodis_microsoft.png" width="100" alt="Konstantinos Mavrodis"/>
-<br><b>Konstantinos Mavrodis</b>
-</a>
-<br>🚀 Platform Engineering & Performance
-</td>
-</tr>
-</table>
-
-### 🙏 Special Thanks
-
-- **Microsoft Azure AI Team** for exceptional AI service support
-- **FastAPI Community** for the amazing framework
-- **LangChain Team** for powerful LLM integration tools
-- **Open Source Community** for inspiration and continuous improvement
-
----
-
-## 📄 License & Legal
+## License
 
 This project is licensed under the **MIT License** - see the [LICENSE](LICENSE) file for details.
-
-### 📋 Third-Party Licenses
-
-ARGUS includes several open-source components. See [THIRD_PARTY_LICENSES.md](THIRD_PARTY_LICENSES.md) for complete attribution.
 
 ---
 
