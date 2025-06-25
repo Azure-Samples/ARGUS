@@ -45,8 +45,13 @@ RUN groupadd -r appuser && useradd -r -g appuser appuser
 # Set working directory
 WORKDIR /app
 
-# Copy application code
+# Copy application code - modular structure
 COPY main.py .
+COPY models.py .
+COPY dependencies.py .
+COPY logic_app_manager.py .
+COPY blob_processing.py .
+COPY api_routes.py .
 COPY requirements.txt .
 
 # Copy the original AI OCR modules from the functionapp directory
@@ -67,5 +72,5 @@ EXPOSE 8000
 HEALTHCHECK --interval=30s --timeout=30s --start-period=5s --retries=3 \
     CMD curl -f http://localhost:8000/health || exit 1
 
-# Run the application
+# Run the application using the new modular structure
 CMD ["python", "-m", "uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000"]

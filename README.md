@@ -230,6 +230,37 @@ ARGUS uses a modern container-based architecture:
 - **Network Security**: Container app with restricted ingress
 - **Secrets Management**: Secure configuration via environment variables
 
+## Backend Architecture
+
+ARGUS uses a **modular FastAPI backend** designed for maintainability and scalability:
+
+### Modular Structure
+```
+src/containerapp/
+├── main.py              # FastAPI app entry point & routing
+├── models.py            # Data models (EventGridEvent, BlobInputStream)
+├── dependencies.py      # Azure client management & global state
+├── logic_app_manager.py # Logic App concurrency management
+├── blob_processing.py   # Document processing pipeline
+├── api_routes.py        # All API endpoint handlers
+└── ai_ocr/             # Core processing modules
+```
+
+### Key Modules
+
+- **`main.py`**: FastAPI application initialization and route registration
+- **`dependencies.py`**: Centralized Azure service client management (Blob, Cosmos DB, Logic Apps)
+- **`api_routes.py`**: All REST API endpoint implementations
+- **`blob_processing.py`**: Document processing pipeline (OCR → GPT extraction → evaluation)
+- **`logic_app_manager.py`**: Dynamic Logic App concurrency management via Azure Management API
+- **`models.py`**: Shared data models and classes
+
+### Benefits
+- **Maintainable**: Each module has a single responsibility
+- **Testable**: Individual components can be tested in isolation
+- **Scalable**: Easy to add new endpoints or processing logic
+- **Debuggable**: Clear separation of concerns for troubleshooting
+
 ## Dataset Configuration
 
 ARGUS supports multiple document types through configurable datasets:
