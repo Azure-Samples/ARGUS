@@ -320,21 +320,99 @@ The Streamlit frontend is **automatically deployed** with `azd up` and provides 
 
 ## ️ Development & Customization
 
-### 🏗️ Backend Architecture Deep Dive
+### 🏗️ Project Structure Deep Dive
 
 ```
-src/containerapp/
-├── 🚀 main.py              # FastAPI app & route definitions
-├── 🔌 api_routes.py        # API endpoint implementations  
-├── 🔧 dependencies.py      # Azure service client management
-├── 📋 models.py           # Data models & validation schemas
-├── ⚙️ blob_processing.py   # Document processing pipeline
-├── 🎛️ logic_app_manager.py # Concurrency & workflow management
-└── 🧠 ai_ocr/             # Core AI processing engine
-    ├── 🔍 process.py      # Main processing orchestration
-    ├── 🔗 chains.py       # LangChain integration & workflows
-    ├── 🤖 model.py        # Azure OpenAI client & prompting
-    └── ⏱️ timeout.py      # Processing timeout & error handling
+ARGUS/
+├── 📋 azure.yaml                        # Azure Developer CLI configuration
+├── 📄 README.md                         # Project documentation & setup guide
+├── 📄 LICENSE                           # MIT license file
+├── 📄 CONTRIBUTING.md                   # Contribution guidelines
+├── 📄 sample-invoice.pdf                # Sample document for testing
+├── 🔧 .env.template                     # Environment variables template
+├── 📂 .github/                          # GitHub Actions & workflows
+├── 📂 .devcontainer/                    # Development container configuration
+├── 📂 .vscode/                          # VS Code settings & extensions
+│
+├── 📂 infra/                            # 🏗️ Azure Infrastructure as Code
+│   ├── ⚙️ main.bicep                    # Primary Bicep template for Azure resources
+│   ├── ⚙️ main.parameters.json          # Infrastructure parameters & configuration
+│   ├── ⚙️ main-containerapp.bicep       # Container App specific infrastructure
+│   ├── ⚙️ main-containerapp.parameters.json # Container App parameters
+│   └── 📋 abbreviations.json            # Azure resource naming abbreviations
+│
+├── 📂 src/                              # 🚀 Core Application Source Code
+│   ├── 📂 containerapp/                 # FastAPI Backend Service
+│   │   ├── 🚀 main.py                   # FastAPI app lifecycle & configuration
+│   │   ├── 🔌 api_routes.py             # HTTP endpoints & request handlers
+│   │   ├── 🔧 dependencies.py           # Azure client initialization & management
+│   │   ├── 📋 models.py                 # Pydantic data models & schemas
+│   │   ├── ⚙️ blob_processing.py        # Document processing pipeline orchestration
+│   │   ├── 🎛️ logic_app_manager.py     # Azure Logic Apps concurrency management
+│   │   ├── 🐳 Dockerfile                # Container image definition
+│   │   ├── 📦 requirements.txt          # Python dependencies
+│   │   ├── 📄 REFACTORING_SUMMARY.md    # Architecture documentation
+│   │   │
+│   │   ├── 📂 ai_ocr/                   # 🧠 AI Processing Engine
+│   │   │   ├── 🔍 process.py            # Main processing orchestration & workflow
+│   │   │   ├── 🔗 chains.py             # LangChain integration & AI workflows
+│   │   │   ├── 🤖 model.py              # Configuration models & data structures
+│   │   │   ├── ⏱️ timeout.py            # Processing timeout management
+│   │   │   │
+│   │   │   └── 📂 azure/                # ☁️ Azure Service Integrations
+│   │   │       ├── ⚙️ config.py         # Environment & configuration management
+│   │   │       ├── 📄 doc_intelligence.py # Azure Document Intelligence OCR
+│   │   │       ├── 🖼️ images.py         # PDF to image conversion utilities
+│   │   │       └── 🤖 openai_ops.py     # Azure OpenAI API operations
+│   │   │
+│   │   ├── 📂 example-datasets/         # 📊 Default Dataset Configurations
+│   │   ├── 📂 datasets/                 # 📁 Runtime dataset storage
+│   │   └── 📂 evaluators/               # 📈 Data quality evaluation modules
+│   │
+│   └── 📂 evaluators/                   # 🧪 Evaluation Framework
+│       ├── 📋 field_evaluator_base.py   # Abstract base class for evaluators
+│       ├── 🔤 fuzz_string_evaluator.py  # Fuzzy string matching evaluation
+│       ├── 🎯 cosine_similarity_string_evaluator.py # Semantic similarity evaluation
+│       ├── 🎛️ custom_string_evaluator.py # Custom evaluation logic
+│       ├── 📊 json_evaluator.py         # JSON structure validation
+│       └── 📂 tests/                    # Unit tests for evaluators
+│
+├── 📂 frontend/                         # 🖥️ Streamlit Web Interface
+│   ├── 📱 app.py                        # Main Streamlit application entry point
+│   ├── 🔄 backend_client.py             # API client for backend communication
+│   ├── 📤 process_files.py              # File upload & processing interface
+│   ├── 🔍 explore_data.py               # Document browsing & analysis UI
+│   ├── 💬 document_chat.py              # Interactive document Q&A interface
+│   ├── 📋 instructions.py               # Help & documentation tab
+│   ├── ⚙️ settings.py                   # Configuration management UI
+│   ├── 🎛️ concurrency_management.py    # Performance tuning interface
+│   ├── 📊 concurrency_settings.py      # Concurrency configuration utilities
+│   ├── 🐳 Dockerfile                    # Frontend container definition
+│   ├── 📦 requirements.txt              # Python dependencies for frontend
+│   └── 📂 static/                       # Static assets (logos, images)
+│       └── 🖼️ logo.png                  # ARGUS brand logo
+│
+├── 📂 demo/                             # 📋 Sample Datasets & Examples
+│   ├── 📂 default-dataset/              # General business documents dataset
+│   │   ├── 📄 system_prompt.txt         # AI extraction instructions
+│   │   ├── 📊 output_schema.json        # Expected data structure
+│   │   ├── 📄 ground_truth.json         # Validation reference data
+│   │   └── 📄 Invoice Sample.pdf        # Sample document for testing
+│   │
+│   └── 📂 medical-dataset/              # Healthcare documents dataset
+│       ├── 📄 system_prompt.txt         # Medical-specific extraction rules
+│       ├── 📊 output_schema.json        # Medical data structure
+│       └── 📄 eyes_surgery_pre_1_4.pdf  # Sample medical document
+│
+├── 📂 notebooks/                        # 📈 Analytics & Evaluation Tools
+│   ├── 🧪 evaluator.ipynb              # Comprehensive evaluation dashboard
+│   ├── 📊 output.json                  # Evaluation results & metrics
+│   ├── 📦 requirements.txt              # Jupyter notebook dependencies
+│   ├── 📄 README.md                     # Notebook usage instructions
+│   └── 📂 outputs/                      # Historical evaluation results
+│
+└── 📂 docs/                             # 📚 Documentation & Assets
+    └── 🖼️ ArchitectureOverview.png      # System architecture diagram
 ```
 
 ### 🧪 Local Development Setup
