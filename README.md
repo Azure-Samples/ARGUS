@@ -82,7 +82,7 @@ graph TB
     subgraph "🧠 AI Processing Engine"
         B --> D
         D --> E[🔍 Azure Document Intelligence]
-        D --> F[� GPT-4 Vision]
+        D --> F[🤖 GPT-4 Vision]
         E --> G[⚙️ Hybrid Processing Pipeline]
         F --> G
     end
@@ -100,18 +100,18 @@ graph TB
         K --> L[📱 Streamlit Frontend]
     end
     
-    subgraph "🔐 Security & Infrastructure"
-        M[🔒 Managed Identity] -.-> D
-        N[📊 Application Insights] -.-> D
-        O[🛡️ RBAC] -.-> B
-        O -.-> K
-        P[🏗️ Container Registry] -.-> D
-    end
-    
-    style A fill:#e1f5fe
-    style D fill:#f3e5f5
-    style G fill:#fff3e0
-    style K fill:#e8f5e8
+    style A fill:#e3f2fd,stroke:#1976d2,stroke-width:2px
+    style B fill:#f3e5f5,stroke:#7b1fa2,stroke-width:2px
+    style C fill:#e8f5e8,stroke:#388e3c,stroke-width:2px
+    style D fill:#fff3e0,stroke:#f57c00,stroke-width:2px
+    style E fill:#fce4ec,stroke:#c2185b,stroke-width:2px
+    style F fill:#e0f2f1,stroke:#00695c,stroke-width:2px
+    style G fill:#fff8e1,stroke:#ffa000,stroke-width:2px
+    style H fill:#f1f8e9,stroke:#558b2f,stroke-width:2px
+    style I fill:#e8eaf6,stroke:#3f51b5,stroke-width:2px
+    style J fill:#fdf2e9,stroke:#e65100,stroke-width:2px
+    style K fill:#e0f7fa,stroke:#0097a7,stroke-width:2px
+    style L fill:#f9fbe7,stroke:#827717,stroke-width:2px
 ```
 
 </div>
@@ -172,11 +172,7 @@ cd ARGUS
 # 2. Login to Azure
 az login
 
-# 3. Configure your Azure OpenAI credentials
-cp .env.template .env
-# Edit .env with your Azure OpenAI details
-
-# 4. Deploy everything with a single command
+# 3. Deploy everything with a single command
 azd up
 ```
 
@@ -207,10 +203,30 @@ azd logs --follow
 
 ## 🎮 Usage Examples: See ARGUS in Action
 
-### 📄 Example 1: Process an Invoice
+### 📄 Method 1: Upload via Frontend Interface (Recommended)
+
+The easiest way to process documents is through the user-friendly web interface:
+
+1. **Access the Frontend**:
+   ```bash
+   # Get the frontend URL after deployment
+   azd env get-value FRONTEND_URL
+   ```
+
+2. **Upload and Process Documents**:
+   - Navigate to the **"🧠 Process Files"** tab
+   - Select your dataset from the dropdown (e.g., "default-dataset", "medical-dataset")
+   - Use the **file uploader** to select PDF, image, or Office documents
+   - Click **"Submit"** to upload files
+   - Files are automatically processed using the selected dataset's configuration
+   - Monitor processing status in the **"🔍 Explore Data"** tab
+
+### 📤 Method 2: Direct Blob Storage Upload
+
+For automation or bulk processing, upload files directly to Azure Blob Storage:
 
 ```bash
-# Upload an invoice to process
+# Upload a document to be processed automatically
 az storage blob upload \
   --account-name "$(azd env get-value STORAGE_ACCOUNT_NAME)" \
   --container-name "datasets" \
@@ -218,32 +234,15 @@ az storage blob upload \
   --file "./my-invoice.pdf" \
   --auth-mode login
 
-# Process it with ARGUS
-curl -X POST \
-  -H "Content-Type: application/json" \
-  -d '{
-    "blob_url": "https://mystorage.blob.core.windows.net/datasets/default-dataset/invoice-2024.pdf"
-  }' \
-  "$(azd env get-value BACKEND_URL)/api/process-blob"
-
-# Response includes extracted data:
-{
-  "status": "success",
-  "extraction_results": {
-    "invoice_number": "INV-2024-001",
-    "total_amount": "$1,250.00",
-    "vendor_name": "Acme Corp",
-    "line_items": [...]
-  },
-  "confidence_score": 0.94,
-  "processing_time": "2.3s"
-}
+# Files uploaded to blob storage are automatically detected and processed
+# Results can be viewed in the frontend or retrieved via API
 ```
 
-### 💬 Example 2: Interactive Document Chat
+### 💬 Example 3: Interactive Document Chat
+
+Ask questions about any processed document through the API:
 
 ```bash
-# Ask questions about any processed document
 curl -X POST \
   -H "Content-Type: application/json" \
   -d '{
@@ -260,23 +259,18 @@ curl -X POST \
 }
 ```
 
-### 📤 Example 3: Direct File Upload
-
-```bash
-# Process a file without pre-uploading to storage
-curl -X POST \
-  -F "file=@./medical-form.pdf" \
-  -F "dataset_name=medical-dataset" \
-  "$(azd env get-value BACKEND_URL)/api/process-file"
-```
-
 ---
 
 ## 🎛️ Advanced Configuration
 
 ### 📊 Dataset Management
 
-ARGUS supports unlimited custom document types through configurable datasets:
+ARGUS uses **datasets** to define how different types of documents should be processed. A dataset contains:
+- **Model Prompt**: Instructions telling the AI how to extract data from documents
+- **Output Schema**: The target structure for extracted data (can be empty to let AI determine the structure)
+- **Processing Options**: Settings for OCR, image analysis, summarization, and evaluation
+
+**When to create custom datasets**: Create a new dataset when you have a specific document type that requires different extraction logic than the built-in datasets (e.g., contracts, medical reports, financial statements).
 
 <details>
 <summary><b>🗂️ Built-in Datasets</b></summary>
@@ -289,51 +283,17 @@ ARGUS supports unlimited custom document types through configurable datasets:
 <details>
 <summary><b>🔧 Create Custom Datasets</b></summary>
 
-You can create custom datasets either manually in Cosmos DB or through the Streamlit frontend interface:
+Datasets are managed through the Streamlit frontend interface (deployed automatically with azd):
 
-**Option 1: Using the Frontend (Recommended)**
-1. Access the Streamlit frontend (deployed automatically with azd)
-2. Navigate to the Settings tab
-3. Create a new dataset with custom prompts and schema
-
-**Option 2: Manual Setup**
-1. **Create dataset structure**:
-   ```bash
-   mkdir demo/financial-reports
-   ```
-
-2. **Define extraction instructions** (`system_prompt.txt`):
-   ```text
-   Extract financial data from quarterly reports with focus on:
-   - Revenue figures and growth percentages
-   - Key performance indicators
-   - Risk factors and forward-looking statements
-   - Executive summary highlights
-   ```
-
-3. **Specify output format** (`output_schema.json`):
-   ```json
-   {
-     "company_name": "",
-     "quarter": "",
-     "revenue": "",
-     "growth_rate": "",
-     "key_metrics": {
-       "profit_margin": "",
-       "cash_flow": "",
-       "debt_ratio": ""
-     },
-     "forward_outlook": ""
-   }
-   ```
-
-4. **Upload documents**:
-   ```bash
-   az storage blob upload \
-     --container-name "datasets" \
-     --name "financial-reports/q3-2024.pdf" \
-     --file "./report.pdf"
-   ```
+1. **Access the frontend** (URL provided after azd deployment)
+2. **Navigate to the Process Files tab**
+3. **Scroll to "Add New Dataset" section**
+4. **Configure your dataset**:
+   - Enter dataset name (e.g., "legal-contracts")
+   - Define model prompt with extraction instructions
+   - Specify output schema (JSON format) or leave empty
+   - Set processing options (OCR, images, evaluation)
+5. **Click "Add New Dataset"** - it's saved directly to Cosmos DB
 
 </details>
 
@@ -571,25 +531,7 @@ priority: "high"
 
 ---
 
-## 🧪 Testing & Quality Assurance
-
-ARGUS includes built-in evaluation tools for accuracy assessment. Use the Jupyter notebook in the `notebooks/` directory to run comprehensive evaluations:
-
-```bash
-# Setup evaluation environment
-cd notebooks
-pip install -r requirements.txt
-cp ../.env.template .env  # Add your credentials
-
-# Launch evaluation dashboard
-jupyter notebook evaluator.ipynb
-```
-
-The evaluation notebook provides performance metrics, field-level analysis, and comparative assessments using various evaluation methods including fuzzy string matching and semantic similarity.
-
----
-
-## 🤝 Contributing & Community
+##  Contributing & Community
 
 ### 🎯 How to Contribute
 
@@ -672,10 +614,10 @@ Contributors will be recognized in:
 
 ## 👥 Team
 
-- **Alberto Gallo** - AI Architecture & Processing Pipeline
-- **Petteri Johansson** - Cloud Infrastructure & DevOps  
-- **Christin Pohl** - Security & Compliance
-- **Konstantinos Mavrodis** - Platform Engineering & Performance
+- **Alberto Gallo**
+- **Petteri Johansson**
+- **Christin Pohl**
+- **Konstantinos Mavrodis**
 
 ## License
 
