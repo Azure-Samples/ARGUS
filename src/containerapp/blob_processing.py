@@ -368,7 +368,6 @@ def process_blob(blob_input_stream: BlobInputStream, data_container):
         
         # Create page range structure instead of merging
         if len(extracted_data_list) > 1:
-            from ai_ocr.process import create_page_range_structure
             structured_extraction = create_page_range_structure(
                 extracted_data_list, file_paths, max_pages_per_chunk
             )
@@ -402,7 +401,6 @@ def process_blob(blob_input_stream: BlobInputStream, data_container):
             processing_times['gpt_evaluation_time'] = total_evaluation_time
             
             if len(evaluation_results) > 1:
-                from ai_ocr.process import create_page_range_evaluations
                 structured_evaluation = create_page_range_evaluations(
                     evaluation_results, file_paths, max_pages_per_chunk
                 )
@@ -465,3 +463,64 @@ def process_blob(blob_input_stream: BlobInputStream, data_container):
         raise e
     finally:
         cleanup_temp_resources(temp_dirs, file_paths, temp_file_path)
+
+
+def create_page_range_structure(data_list, file_paths, max_pages_per_chunk):
+    """
+    Create a structured JSON with page ranges instead of merging chunks.
+    
+    Args:
+        data_list: List of extracted data from each chunk
+        file_paths: List of file paths for each chunk
+        max_pages_per_chunk: Maximum pages per chunk setting
+    
+    Returns:
+        Dict with page range keys like {"pages_1-10": {chunk_data}, "pages_11-20": {chunk_data}, ...}
+    """
+    if not data_list:
+        return {}
+    
+    # If there's only one chunk, return it with a single page range
+    if len(data_list) == 1:
+        return {"pages_1-all": data_list[0]}
+    
+    # Multiple chunks - create page range structure
+    structured_data = {}
+    
+    for i, (data, file_path) in enumerate(zip(data_list, file_paths)):
+        # Parse page range from file_path if it contains subset information
+        if "_subset_" in file_path:
+            # Format: originalfile_subset_0_9.pdf -> pages_1-10
+            parts = file_path.split("_subset_")
+            if len(parts) == 2:
+                page_part = parts[1].replace(".pdf", "")
+                start_end = page_part.split("_")
+                if len(start_end) == 2:
+                    try:
+                        start_page = int(start_end[0]) + 1  # Convert to 1-indexed
+                        end_page = int(start_end[1]) + 1    # Convert to 1-indexed
+                        page_key = f"pages_{start_page}-{end_page}"
+                        structured_data[page_key] = data
+                        continue
+                    except ValueError:
+                        pass
+        
+        # Fallback: calculate page range from chunk index and max_pages_per_chunk
+        chunk_start = i * max_pages_per_chunk + 1
+        chunk_end = (i + 1) * max_pages_per_chunk
+        page_key = f"pages_{chunk_start}-{chunk_end}"
+        structured_data[page_key] = data
+    
+    return structured_data
+
+
+def create_page_range_evaluations(evaluation_list, file_paths, max_pages_per_chunk):
+    """
+    Create a structured JSON with page ranges for evaluations.
+    Uses the same logic as create_page_range_structure but for evaluation data.
+    
+    Returns:
+        Dict with page range keys like {"pages_1-10": {evaluation_data}, ...}
+    """
+    # Use the same logic as create_page_range_structure
+    return create_page_range_structure(evaluation_list, file_paths, max_pages_per_chunk)
