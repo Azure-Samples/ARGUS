@@ -6,9 +6,6 @@ from datetime import datetime
 def settings_tab():
     """Combined settings tab for OpenAI configuration and concurrency settings"""
     
-    st.markdown("## ⚙️ Settings")
-    st.markdown("Configure OpenAI settings and processing concurrency for ARGUS.")
-    
     # Create two columns for the two settings sections
     col1, col2 = st.columns(2)
     

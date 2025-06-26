@@ -153,6 +153,9 @@ def update_configuration(config_data):
 def process_files_tab():
     col1, col2 = st.columns([0.5, 0.5])
     with col1:
+        # Information box about datasets
+        st.info("**📊 Datasets** are pre-configured profiles with custom AI prompts and schemas for different document types (invoices, contracts, etc.)")
+        
         # Fetch configuration from Cosmos DB
         config_data = fetch_configuration()
 

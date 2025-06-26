@@ -527,8 +527,6 @@ def explore_data_tab():
     extracted_df.insert(0, 'Select', False)
     extracted_df = extracted_df.sort_values(by='Request Timestamp', ascending=False)
 
-    st.header("Explore Data")
-    
     # Filters
     filter_col1, filter_col2, filter_col3 = st.columns([3, 1, 1])
 

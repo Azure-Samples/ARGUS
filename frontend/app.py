@@ -35,10 +35,14 @@ def initialize_session_state():
 initialize_session_state()
 
 # Set the page layout to wide
-st.set_page_config(layout="wide")
+st.set_page_config(
+    page_title="ARGUS - Document Intelligence Platform",
+    page_icon="🧠",
+    layout="wide"
+)
 
 # Header
-st.header("ARGUS: Automated Retrieval and GPT Understanding System")
+st.header("🧠 ARGUS: Automated Retrieval and GPT Understanding System")
 
 # Tabs navigation
 tabs = st.tabs(["🧠 Process Files", "🔎 Explore Data", "⚙️ Settings", "📋 Instructions"])
