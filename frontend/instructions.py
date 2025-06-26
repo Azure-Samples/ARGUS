@@ -1,16 +1,17 @@
 import streamlit as st
 
 def instructions_tab():
-    st.markdown("""
-    ## How to Use the ARGUS System
+    st.markdown("""    ## How to Use the ARGUS System
 
     ### Introduction
-    The ARGUS System is designed to process PDF files to extract data using Azure Document Intelligence and Azure OpenAI. Below are the steps to use the system, along with a detailed explanation of the processes happening behind the scenes.
+    The ARGUS System is a comprehensive document processing platform that uses Azure AI services to extract structured data from PDF files. The system uses direct cloud service integration for fast and efficient processing.
 
+    ### System Architecture
+    - **Frontend**: Streamlit-based web interface for user interactions
+    - **Azure Services**: Document Intelligence, OpenAI, Storage, and Cosmos DB for data processing and storage
+    - **Direct Integration**: Frontend connects directly to Azure services for optimal performance
 
-    ### Step-by-Step Instructions
-
-    #### 1. Uploading Files
+    ### Step-by-Step Instructions    #### 1. Uploading Files
     1. **Navigate to the "🧠 Process Files" tab**.
     2. **Select a Dataset**:
        - Choose a dataset from the dropdown menu.
@@ -20,25 +21,34 @@ def instructions_tab():
        - Click 'Save' to update the configuration.
     4. **Upload Files**:
        - Use the file uploader to select PDF files for processing.
-       - Click 'Submit' to upload the files to Azure Blob Storage.
-       - The uploaded files enter a queue for processing and the selected dataset's configuration will be used for extraction.
+       - Click 'Submit' to upload the files directly to cloud storage.
+       - The uploaded files are processed automatically using the selected dataset's configuration.
     5. **What is a Dataset?** 
-       - The GPT model processes documents based on the model prompt (which acts as instructions) and the example schema (which is the target data model to be extracted).
-       - The example schema can be empty; in this case, the GPT model will create a schema based on the document being processed.
+       - A dataset defines how documents should be processed, including:
+         - **Model Prompt**: Instructions for the AI model on how to extract data
+         - **Example Schema**: The target data structure to be extracted
+       - The example schema can be empty; in this case, the AI model will create a schema based on the document content.
 
     ---
 
     #### 2. Exploring Data
     1. **Navigate to the "🔎 Explore Data" tab**.
-    2. **Fetch Data**:
-       - The system will automatically fetch data from CosmosDB.
-       - Data will be displayed in a table, showing the status of each file.
-    3. **Interact with Data**:
-       - Use the checkboxes to select files for further actions.
-       - Use the buttons to refresh the table, delete selected files, or reprocess selected files.
-    4. **View Details**:
-       - Select exactly one file to view its raw PDF and extracted JSON data.
-       - Use the expander to show/hide the detailed view.
+    2. **View Document Statistics**:
+       - See overview metrics including total documents, processed count, errors, and datasets
+    3. **Filter and Search**:
+       - Use the dataset filter to view documents from specific datasets
+       - Browse the document list with processing status indicators
+    4. **Analyze Processing Status**:
+       - View charts showing processing status distribution
+       - See dataset distribution across your documents
+    5. **View Document Details**:
+       - Select individual documents to view detailed information
+       - Review extracted content and processing metadata
+    6. **Status Indicators**:
+       - ✅ Successfully processed
+       - ❌ Processing error
+       - ➖ Still processing
+
     ---
 
     #### 3. Adding New Dataset
@@ -47,7 +57,7 @@ def instructions_tab():
        - Scroll down to the "Add New Dataset" section.
        - Enter a new dataset name, model prompt, and example schema.
        - Click 'Add New Dataset' to create the dataset.
-       - The new dataset will be added to the configuration and available for selection.
+       - The new dataset will be saved directly to the database and available for selection.
        
     ---
        
@@ -61,7 +71,7 @@ def instructions_tab():
 
     ---- 
     
-    ### Backend Processes
+    ### Processing Pipeline
 
     1. **File Upload and Storage**:
        - Uploaded files are sent to Azure Blob Storage.

@@ -5,6 +5,7 @@ from dotenv import load_dotenv
 from process_files import process_files_tab
 from explore_data import explore_data_tab
 from instructions import instructions_tab
+from settings import settings_tab
 
 ## IMPORTANT: Instructions on how to run the Streamlit app locally can be found in the README.md file.
 
@@ -23,7 +24,8 @@ def initialize_session_state():
         'cosmos_url': "COSMOS_URL",
         'cosmos_db_name': "COSMOS_DB_NAME",
         'cosmos_documents_container_name': "COSMOS_DOCUMENTS_CONTAINER_NAME",
-        'cosmos_config_container_name': "COSMOS_CONFIG_CONTAINER_NAME"
+        'cosmos_config_container_name': "COSMOS_CONFIG_CONTAINER_NAME",
+        'backend_url': "BACKEND_URL"
     }
     for var, env in env_vars.items():
         if var not in st.session_state:
@@ -33,11 +35,17 @@ def initialize_session_state():
 initialize_session_state()
 
 # Set the page layout to wide
-st.set_page_config(layout="wide")
+st.set_page_config(
+    page_title="ARGUS - Document Intelligence Platform",
+    page_icon="🧠",
+    layout="wide"
+)
+
+# Header
+st.header("🧠 ARGUS: Automated Retrieval and GPT Understanding System")
 
 # Tabs navigation
-title = st.header("ARGUS: Automated Retrieval and GPT Understanding System")
-tabs = st.tabs(["🧠 Process Files", "🔎 Explore Data", "🖥️ Instructions"])
+tabs = st.tabs(["🧠 Process Files", "🔎 Explore Data", "⚙️ Settings", "📋 Instructions"])
 
 # Render the tabs
 with tabs[0]:
@@ -45,4 +53,6 @@ with tabs[0]:
 with tabs[1]:
     explore_data_tab()
 with tabs[2]:
+    settings_tab()
+with tabs[3]:
     instructions_tab()

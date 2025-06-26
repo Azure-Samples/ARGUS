@@ -136,3 +136,18 @@ __blobstorage__
 __queuestorage__
 __azurite_db*__.json
 .python_packages
+# Azure deployment artifacts
+.azure/
+.env
+.env.local
+
+# Test outputs
+*.log
+test-output/
+
+# IDE
+.vscode/
+.idea/
+
+# Mac
+.DS_Store

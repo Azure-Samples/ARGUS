@@ -1,150 +1,725 @@
-# ARGUS: Automated Retrieval and GPT Understanding System
-### 
+# 👁️ ARGUS: The All-Seeing Document Intelligence Platform
 
-> Argus Panoptes, in ancient Greek mythology, was a giant with a hundred eyes and a servant of the goddess Hera. His many eyes made him an excellent watchman, as some of his eyes would always remain open while the others slept, allowing him to be ever-vigilant.
+<div align="center">
 
+[![Azure](https://img.shields.io/badge/Azure-0078D4?style=for-the-badge&logo=microsoft-azure&logoColor=white)](https://azure.microsoft.com)
+[![OpenAI](https://img.shields.io/badge/GPT--4-412991?style=for-the-badge&logo=openai&logoColor=white)](https://openai.com)
+[![FastAPI](https://img.shields.io/badge/FastAPI-009688?style=for-the-badge&logo=fastapi&logoColor=white)](https://fastapi.tiangolo.com)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg?style=for-the-badge)](https://opensource.org/licenses/MIT)
 
-## This solution demonstrates Azure Document Intelligence + GPT4 Vision
+*Named after Argus Panoptes, the mythological giant with a hundred eyes—ARGUS never misses a detail in your documents.*
 
-Classic OCR (Object Character Recognition) models lack reasoning ability based on context when extracting information from documents. In this project we demonstrate how to use a hybrid approach with OCR and LLM (multimodal Large Language Model) to get better results without any pre-training.
+</div>
 
-This solution uses Azure Document Intelligence combined with GPT4-Vision. Each of the tools have their strong points and the hybrid approach is better than any of them alone.
+## 🚀 Transform Document Processing with AI Intelligence
 
-> Notes:
-> - The Azure OpenAI model needs to be vision capable i.e. GPT-4T-0125, 0409 or Omni
+**ARGUS** revolutionizes how organizations extract, understand, and act on document data. By combining the precision of **Azure Document Intelligence** with the contextual reasoning of **GPT-4 Vision**, ARGUS doesn't just read documents—it *understands* them.
 
+### 💡 Why ARGUS?
 
-## Solution Overview
+Traditional OCR solutions extract text but miss the context. AI-only approaches struggle with complex layouts. **ARGUS bridges this gap**, delivering enterprise-grade document intelligence that:
 
-- **Backend**: An Azure Function for core logic, Cosmos DB for auditing, logging, and storing output schemas, Azure Document Intelligence, GPT-4 Vision and a Logic App for integrating with Outlook Inbox.
-- **Frontend**: A Streamlit Python web-app for user interaction (**not deployed automatically**).
-- **Demo**: Sample documents, system prompts, and output schemas.
-
-![architecture](docs/ArchitectureOverview.png)
-
-## Prerequisites
-### Azure OpenAI Resource
-
-Before deploying the solution, you need to create an OpenAI resource and deploy a model that is vision capable.
-
-1. **Create an OpenAI Resource**:
-   - Follow the instructions [here](https://learn.microsoft.com/en-us/azure/cognitive-services/openai/how-to/create-resource) to create an OpenAI resource in Azure.
-
-2. **Deploy a Vision-Capable Model**:
-   - Ensure the deployed model supports vision, such as GPT-4T-0125, GPT-4T-0409 or GPT-4-Omni.
-
-
-## Deployment
-
-### Deployment with `azd up`
-
-1. **Prerequisites**:
-   - Install [Azure Developer CLI](https://learn.microsoft.com/en-us/azure/developer/azure-developer-cli/install-azd).
-   - Ensure you have access to an Azure subscription.
-   - Create an OpenAI resource and deploy a vision-capable model.
-
-2. **Deployment Steps**:
-   - Run the following commands to login (if needed):
-     ```sh
-     az login
-     ```
-   - Run the following commands to deploy all resources:
-     ```sh
-     azd up
-     ```
-After deployment the frontend will load automatically on your browser.
+- **🎯 Extracts with Purpose**: Understands document context, not just text
+- **⚡ Scales Effortlessly**: Process thousands of documents with cloud-native architecture
+- **🔒 Secures by Design**: Enterprise security with managed identities and RBAC
+- **🧠 Learns Continuously**: Configurable datasets adapt to your specific document types
+- **📊 Measures Success**: Built-in evaluation tools ensure consistent accuracy
 
 ---
-> **NOTE:** After deployment wait for about 10 minutes for the docker images to be pulled. You can check the progress in your `Azure Portal` > `Resource Group` > `FunctionApp` > `Deployment Center` > `Logs`.
+
+## 🌟 Key Capabilities
+
+<table>
+<tr>
+<td width="50%">
+
+### 🔍 **Intelligent Document Understanding**
+- **Hybrid AI Pipeline**: Combines OCR precision with LLM reasoning
+- **Context-Aware Extraction**: Understands relationships between data points
+- **Multi-Format Support**: PDFs, images, forms, invoices, medical records
+- **Zero-Shot Learning**: Works on new document types without training
+
+### ⚡ **Enterprise-Ready Performance**
+- **Cloud-Native Architecture**: Built on Azure Container Apps
+- **Scalable Processing**: Handle document floods with confidence
+- **Real-Time Processing**: API-driven workflows for immediate results
+- **Event-Driven Automation**: Automatic processing on document upload
+
+</td>
+<td width="50%">
+
+### 🎛️ **Advanced Control & Customization**
+- **Dynamic Configuration**: Runtime settings without redeployment
+- **Custom Datasets**: Tailor extraction for your specific needs
+- **Interactive Chat**: Ask questions about processed documents
+- **Concurrency Management**: Fine-tune performance for your workload
+
+### 📈 **Comprehensive Analytics**
+- **Built-in Evaluation**: Multiple accuracy metrics and comparisons
+- **Performance Monitoring**: Application Insights integration
+- **Custom Evaluators**: Fuzzy matching, semantic similarity, and more
+- **Visual Analytics**: Jupyter notebooks for deep analysis
+
+</td>
+</tr>
+</table>
+
 ---
-> **KNOWN ISSUE:** Occasionally, the FunctionApp encounters a runtime issue, preventing the solution from processing files. To resolve this, restart the FunctionApp by follow these steps: `Azure Portal` > `Resource Group` > `FunctionApp` > `Monitoring` > `Health Check` > `Instances` > `Click Restart`.
----
-## Running the Streamlit Frontend (recommended)
 
-To run the Streamlit app `app.py` located in the `frontend` folder, follow these steps:
+## 🏗️ Architecture: Built for Scale and Security
 
-1. Install the required dependencies by running the following command in your terminal:
-   ```sh
-   pip install -r frontend/requirements.txt
-   ```
+ARGUS employs a modern, cloud-native architecture designed for enterprise workloads:
 
-2. Execute the following command:
-    ```sh
-   azd env get-values > frontend/.env
-    ```
-   Alternatively, **if you did not use AZD to provision the resources**: Rename the `.env.temp` file to `.env`:
-   ```sh
-   mv frontend/.env.temp frontend/.env
-   ```
-   then populate the `.env` file with the necessary environment variables. Open the `.env` file in a text editor and provide the required values for each variable.
+<div align="center">
 
-3. Start the Streamlit app by running the following command in your terminal:
-   ```sh
-   streamlit run frontend/app.py
-   ```
-
-## Running the Outlook integration with Logic App
-
-You can connect a Outlook inbox to send incoming attachments directly to the blob storage to trigger the extraction process. For that a Logic App was already built for you. The only thing you need to do is to open the resource "LogicAppName" add a trigger and connect it to your Outlook inbox. Open this [Microsoft Learn page](https://learn.microsoft.com/en-us/azure/logic-apps/tutorial-process-email-attachments-workflow) and search for "Add a trigger to check incoming email" follow the described steps then activate it with the "Run" button. 
-
-
-## How to Use
-
-### Upload and Process Documents (without using the Frontend)
-
-1. **Upload PDF Files**:
-   - Navigate to the `sa-uniqueID` storage account and the `datasets` container
-   - Create a new folder called `default-dataset` and upload your PDF files.
-
-2. **View Results**:
-   - Processed results will be available in your Cosmos DB database under the `doc-extracts` collection and the `documents` container.
-
-
-## Model Input Instructions
-
-The input to the model consists of two main components: a `model prompt` and a `JSON template` with the schema of the data to be extracted.
-
-### `Model Prompt`
-
-The prompt is a textual instruction explaining what the model should do, including the type of data to extract and how to extract it. Here are a couple of example prompts:
-
-1. **Default Prompt**:
-Extract all data from the document. 
-
-2. **Example Prompt**:
-Extract all financial data, including transaction amounts, dates, and descriptions from the document. For date extraction use american formatting. 
-
-
-### `JSON Template`
-
-The JSON template defines the schema of the data to be extracted. This can be an empty JSON object `{}` if the model is supposed to create its own schema. Alternatively, it can be more specific to guide the model on what data to extract or for further processing in a structured database. Here are some examples:
-
-1. Empty JSON Template (default):
-```json
-{}
+```mermaid
+graph TB
+    subgraph "📥 Document Input"
+        A[📄 Documents] --> B[📁 Azure Blob Storage]
+        C[🌐 Direct Upload API] --> D[🚀 FastAPI Backend]
+    end
+    
+    subgraph "🧠 AI Processing Engine"
+        B --> D
+        D --> E[🔍 Azure Document Intelligence]
+        D --> F[🤖 GPT-4 Vision]
+        E --> G[⚙️ Hybrid Processing Pipeline]
+        F --> G
+    end
+    
+    subgraph "💡 Intelligence & Analytics"
+        G --> H[📊 Custom Evaluators]
+        G --> I[💬 Interactive Chat]
+        H --> J[📈 Results & Analytics]
+    end
+    
+    subgraph "💾 Data Layer"
+        G --> K[🗄️ Azure Cosmos DB]
+        J --> K
+        I --> K
+        K --> L[📱 Streamlit Frontend]
+    end
+    
+    style A fill:#e3f2fd,stroke:#1976d2,stroke-width:2px
+    style B fill:#f3e5f5,stroke:#7b1fa2,stroke-width:2px
+    style C fill:#e8f5e8,stroke:#388e3c,stroke-width:2px
+    style D fill:#fff3e0,stroke:#f57c00,stroke-width:2px
+    style E fill:#fce4ec,stroke:#c2185b,stroke-width:2px
+    style F fill:#e0f2f1,stroke:#00695c,stroke-width:2px
+    style G fill:#fff8e1,stroke:#ffa000,stroke-width:2px
+    style H fill:#f1f8e9,stroke:#558b2f,stroke-width:2px
+    style I fill:#e8eaf6,stroke:#3f51b5,stroke-width:2px
+    style J fill:#fdf2e9,stroke:#e65100,stroke-width:2px
+    style K fill:#e0f7fa,stroke:#0097a7,stroke-width:2px
+    style L fill:#f9fbe7,stroke:#827717,stroke-width:2px
 ```
-2. Specific JSON Template Example:
+
+</div>
+
+### 🔧 Infrastructure Components
+
+| Component | Technology | Purpose |
+|-----------|------------|---------|
+| **🚀 Backend API** | Azure Container Apps + FastAPI | High-performance document processing engine |
+| **📱 Frontend UI** | Streamlit (Optional) | Interactive document management interface |
+| **📁 Document Storage** | Azure Blob Storage | Secure, scalable document repository |
+| **🗄️ Metadata Database** | Azure Cosmos DB | Results, configurations, and analytics |
+| **🔍 OCR Engine** | Azure Document Intelligence | Structured text and layout extraction |
+| **🧠 AI Reasoning** | Azure OpenAI (GPT-4 Vision) | Contextual understanding and extraction |
+| **🏗️ Container Registry** | Azure Container Registry | Private, secure container images |
+| **🔒 Security** | Managed Identity + RBAC | Zero-credential architecture |
+| **📊 Monitoring** | Application Insights | Performance and health monitoring |
+
+---
+
+## ⚡ Quick Start: Deploy in Minutes
+
+### 📋 Prerequisites
+
+<details>
+<summary><b>🛠️ Required Tools (Click to expand)</b></summary>
+
+1. **Docker**
+   ```bash
+   # Install Docker (required for containerization during deployment)
+   # Visit https://docs.docker.com/get-docker/ for installation instructions
+   ```
+
+2. **Azure Developer CLI (azd)**
+   ```bash
+   curl -fsSL https://aka.ms/install-azd.sh | bash
+   ```
+
+3. **Azure CLI**
+   ```bash
+   curl -sL https://aka.ms/InstallAzureCLIDeb | sudo bash
+   ```
+
+4. **Azure OpenAI Resource** 
+   - Create an Azure OpenAI resource in a [supported region](https://docs.microsoft.com/azure/cognitive-services/openai/overview#regional-availability)
+   - Deploy a vision-capable model: `gpt-4o`, `gpt-4-turbo`, or `gpt-4` (with vision)
+   - Collect: endpoint URL, API key, and deployment name
+
+</details>
+
+### 🚀 One-Command Deployment
+
+```bash
+# 1. Clone the repository
+git clone https://github.com/Azure-Samples/ARGUS.git
+cd ARGUS
+
+# 2. Login to Azure
+az login
+
+# 3. Deploy everything with a single command
+azd up
 ```
+
+**That's it!** 🎉 Your ARGUS instance is now running in the cloud.
+
+### ✅ Verify Your Deployment
+
+```bash
+# Check system health
+curl "$(azd env get-value BACKEND_URL)/health"
+
+# Expected response:
 {
-    "transactionDate": "",
-    "transactionAmount": "",
-    "transactionDescription": ""
+  "status": "healthy",
+  "services": {
+    "cosmos_db": "✅ connected",
+    "blob_storage": "✅ connected", 
+    "document_intelligence": "✅ connected",
+    "azure_openai": "✅ connected"
+  }
+}
+
+# View live application logs
+azd logs --follow
+```
+
+---
+
+## 🎮 Usage Examples: See ARGUS in Action
+
+### 📄 Method 1: Upload via Frontend Interface (Recommended)
+
+The easiest way to process documents is through the user-friendly web interface:
+
+1. **Access the Frontend**:
+   ```bash
+   # Get the frontend URL after deployment
+   azd env get-value FRONTEND_URL
+   ```
+
+2. **Upload and Process Documents**:
+   - Navigate to the **"🧠 Process Files"** tab
+   - Select your dataset from the dropdown (e.g., "default-dataset", "medical-dataset")
+   - Use the **file uploader** to select PDF, image, or Office documents
+   - Click **"Submit"** to upload files
+   - Files are automatically processed using the selected dataset's configuration
+   - Monitor processing status in the **"🔍 Explore Data"** tab
+
+### 📤 Method 2: Direct Blob Storage Upload
+
+For automation or bulk processing, upload files directly to Azure Blob Storage:
+
+```bash
+# Upload a document to be processed automatically
+az storage blob upload \
+  --account-name "$(azd env get-value STORAGE_ACCOUNT_NAME)" \
+  --container-name "datasets" \
+  --name "default-dataset/invoice-2024.pdf" \
+  --file "./my-invoice.pdf" \
+  --auth-mode login
+
+# Files uploaded to blob storage are automatically detected and processed
+# Results can be viewed in the frontend or retrieved via API
+```
+
+### 💬 Example 3: Interactive Document Chat
+
+Ask questions about any processed document through the API:
+
+```bash
+curl -X POST \
+  -H "Content-Type: application/json" \
+  -d '{
+    "blob_url": "https://mystorage.blob.core.windows.net/datasets/default-dataset/contract.pdf",
+    "question": "What are the key terms and conditions in this contract?"
+  }' \
+  "$(azd env get-value BACKEND_URL)/api/chat"
+
+# Get intelligent answers:
+{
+  "answer": "The key terms include: 1) 12-month service agreement, 2) $5000/month fee, 3) 30-day termination clause...",
+  "confidence": 0.91,
+  "sources": ["page 1, paragraph 3", "page 2, section 2.1"]
 }
 ```
-By providing a prompt and a JSON template, users can control the behavior of the model to extract specific data from their documents in a structured manner.
-
-- JSON Schemas created using [JSON Schema Builder](https://bjdash.github.io/JSON-Schema-Builder/).
-
-
-
-## Team behind ARGUS
-
-- [Alberto Gallo](https://github.com/albertaga27)
-- [Petteri Johansson](https://github.com/piizei)
-- [Christin Pohl](https://github.com/pohlchri)
-- [Konstantinos Mavrodis](https://github.com/kmavrodis_microsoft)
-
 
 ---
 
-This README file provides an overview and quickstart guide for deploying and using Project ARGUS. For detailed instructions, consult the documentation and code comments in the respective files.
+## 🎛️ Advanced Configuration
+
+### 📊 Dataset Management
+
+ARGUS uses **datasets** to define how different types of documents should be processed. A dataset contains:
+- **Model Prompt**: Instructions telling the AI how to extract data from documents
+- **Output Schema**: The target structure for extracted data (can be empty to let AI determine the structure)
+- **Processing Options**: Settings for OCR, image analysis, summarization, and evaluation
+
+**When to create custom datasets**: Create a new dataset when you have a specific document type that requires different extraction logic than the built-in datasets (e.g., contracts, medical reports, financial statements).
+
+<details>
+<summary><b>🗂️ Built-in Datasets</b></summary>
+
+- **`default-dataset/`**: Invoices, receipts, general business documents
+- **`medical-dataset/`**: Medical forms, prescriptions, healthcare documents
+
+</details>
+
+<details>
+<summary><b>🔧 Create Custom Datasets</b></summary>
+
+Datasets are managed through the Streamlit frontend interface (deployed automatically with azd):
+
+1. **Access the frontend** (URL provided after azd deployment)
+2. **Navigate to the Process Files tab**
+3. **Scroll to "Add New Dataset" section**
+4. **Configure your dataset**:
+   - Enter dataset name (e.g., "legal-contracts")
+   - Define model prompt with extraction instructions
+   - Specify output schema (JSON format) or leave empty
+   - Set processing options (OCR, images, evaluation)
+5. **Click "Add New Dataset"** - it's saved directly to Cosmos DB
+
+</details>
+
+---
+
+## 🖥️ Frontend Interface: User-Friendly Document Management
+
+The Streamlit frontend is **automatically deployed** with `azd up` and provides a user-friendly interface for document management.
+
+<div align="center">
+<img src="docs/ArchitectureOverview.png" alt="ARGUS Frontend Interface" width="800"/>
+</div>
+
+### 🎯 Frontend Features
+
+| Tab | Functionality |
+|-----|---------------|
+| **🧠 Process Files** | Drag-and-drop document upload with real-time processing status |
+| **🔍 Explore Data** | Browse processed documents, search results, view extraction details |
+| **⚙️ Settings** | Configure datasets, adjust processing parameters, manage connections |
+| **📋 Instructions** | Interactive help, API documentation, and usage examples |
+
+---
+
+## ️ Development & Customization
+
+### 🏗️ Project Structure Deep Dive
+
+```
+ARGUS/
+├── 📋 azure.yaml                        # Azure Developer CLI configuration
+├── 📄 README.md                         # Project documentation & setup guide
+├── 📄 LICENSE                           # MIT license file
+├── 📄 CONTRIBUTING.md                   # Contribution guidelines
+├── 📄 sample-invoice.pdf                # Sample document for testing
+├── 🔧 .env.template                     # Environment variables template
+├── 📂 .github/                          # GitHub Actions & workflows
+├── 📂 .devcontainer/                    # Development container configuration
+├── 📂 .vscode/                          # VS Code settings & extensions
+│
+├── 📂 infra/                            # 🏗️ Azure Infrastructure as Code
+│   ├── ⚙️ main.bicep                    # Primary Bicep template for Azure resources
+│   ├── ⚙️ main.parameters.json          # Infrastructure parameters & configuration
+│   ├── ⚙️ main-containerapp.bicep       # Container App specific infrastructure
+│   ├── ⚙️ main-containerapp.parameters.json # Container App parameters
+│   └── 📋 abbreviations.json            # Azure resource naming abbreviations
+│
+├── 📂 src/                              # 🚀 Core Application Source Code
+│   ├── 📂 containerapp/                 # FastAPI Backend Service
+│   │   ├── 🚀 main.py                   # FastAPI app lifecycle & configuration
+│   │   ├── 🔌 api_routes.py             # HTTP endpoints & request handlers
+│   │   ├── 🔧 dependencies.py           # Azure client initialization & management
+│   │   ├── 📋 models.py                 # Pydantic data models & schemas
+│   │   ├── ⚙️ blob_processing.py        # Document processing pipeline orchestration
+│   │   ├── 🎛️ logic_app_manager.py     # Azure Logic Apps concurrency management
+│   │   ├── 🐳 Dockerfile                # Container image definition
+│   │   ├── 📦 requirements.txt          # Python dependencies
+│   │   ├── 📄 REFACTORING_SUMMARY.md    # Architecture documentation
+│   │   │
+│   │   ├── 📂 ai_ocr/                   # 🧠 AI Processing Engine
+│   │   │   ├── 🔍 process.py            # Main processing orchestration & workflow
+│   │   │   ├── 🔗 chains.py             # LangChain integration & AI workflows
+│   │   │   ├── 🤖 model.py              # Configuration models & data structures
+│   │   │   ├── ⏱️ timeout.py            # Processing timeout management
+│   │   │   │
+│   │   │   └── 📂 azure/                # ☁️ Azure Service Integrations
+│   │   │       ├── ⚙️ config.py         # Environment & configuration management
+│   │   │       ├── 📄 doc_intelligence.py # Azure Document Intelligence OCR
+│   │   │       ├── 🖼️ images.py         # PDF to image conversion utilities
+│   │   │       └── 🤖 openai_ops.py     # Azure OpenAI API operations
+│   │   │
+│   │   ├── 📂 example-datasets/         # 📊 Default Dataset Configurations
+│   │   ├── 📂 datasets/                 # 📁 Runtime dataset storage
+│   │   └── 📂 evaluators/               # 📈 Data quality evaluation modules
+│   │
+│   └── 📂 evaluators/                   # 🧪 Evaluation Framework
+│       ├── 📋 field_evaluator_base.py   # Abstract base class for evaluators
+│       ├── 🔤 fuzz_string_evaluator.py  # Fuzzy string matching evaluation
+│       ├── 🎯 cosine_similarity_string_evaluator.py # Semantic similarity evaluation
+│       ├── 🎛️ custom_string_evaluator.py # Custom evaluation logic
+│       ├── 📊 json_evaluator.py         # JSON structure validation
+│       └── 📂 tests/                    # Unit tests for evaluators
+│
+├── 📂 frontend/                         # 🖥️ Streamlit Web Interface
+│   ├── 📱 app.py                        # Main Streamlit application entry point
+│   ├── 🔄 backend_client.py             # API client for backend communication
+│   ├── 📤 process_files.py              # File upload & processing interface
+│   ├── 🔍 explore_data.py               # Document browsing & analysis UI
+│   ├── 💬 document_chat.py              # Interactive document Q&A interface
+│   ├── 📋 instructions.py               # Help & documentation tab
+│   ├── ⚙️ settings.py                   # Configuration management UI
+│   ├── 🎛️ concurrency_management.py    # Performance tuning interface
+│   ├── 📊 concurrency_settings.py      # Concurrency configuration utilities
+│   ├── 🐳 Dockerfile                    # Frontend container definition
+│   ├── 📦 requirements.txt              # Python dependencies for frontend
+│   └── 📂 static/                       # Static assets (logos, images)
+│       └── 🖼️ logo.png                  # ARGUS brand logo
+│
+├── 📂 demo/                             # 📋 Sample Datasets & Examples
+│   ├── 📂 default-dataset/              # General business documents dataset
+│   │   ├── 📄 system_prompt.txt         # AI extraction instructions
+│   │   ├── 📊 output_schema.json        # Expected data structure
+│   │   ├── 📄 ground_truth.json         # Validation reference data
+│   │   └── 📄 Invoice Sample.pdf        # Sample document for testing
+│   │
+│   └── 📂 medical-dataset/              # Healthcare documents dataset
+│       ├── 📄 system_prompt.txt         # Medical-specific extraction rules
+│       ├── 📊 output_schema.json        # Medical data structure
+│       └── 📄 eyes_surgery_pre_1_4.pdf  # Sample medical document
+│
+├── 📂 notebooks/                        # 📈 Analytics & Evaluation Tools
+│   ├── 🧪 evaluator.ipynb              # Comprehensive evaluation dashboard
+│   ├── 📊 output.json                  # Evaluation results & metrics
+│   ├── 📦 requirements.txt              # Jupyter notebook dependencies
+│   ├── 📄 README.md                     # Notebook usage instructions
+│   └── 📂 outputs/                      # Historical evaluation results
+│
+└── 📂 docs/                             # 📚 Documentation & Assets
+    └── 🖼️ ArchitectureOverview.png      # System architecture diagram
+```
+
+### 🧪 Local Development Setup
+
+```bash
+# Setup development environment
+cd src/containerapp
+python -m venv venv
+source venv/bin/activate  # or `venv\Scripts\activate` on Windows
+pip install -r requirements.txt
+
+# Configure local environment
+cp ../../.env.template .env
+# Edit .env with your development credentials
+
+# Run with hot reload
+uvicorn main:app --reload --host 0.0.0.0 --port 8000
+
+# Access API documentation
+open http://localhost:8000/docs
+```
+
+### 🔧 Key Technologies & Libraries
+
+| Category | Technologies |
+|----------|-------------|
+| **🚀 API Framework** | FastAPI, Uvicorn, Pydantic |
+| **🧠 AI/ML** | LangChain, OpenAI SDK, Azure AI SDK |
+| **☁️ Azure Services** | Azure SDK (Blob, Cosmos, Document Intelligence) |
+| **📄 Document Processing** | PyMuPDF, Pillow, PyPDF2 |
+| **📊 Data & Analytics** | Pandas, NumPy, Matplotlib |
+| **🔒 Security** | Azure Identity, managed identities |
+
+---
+
+##  API Reference: Complete Documentation
+
+### 🚀 Core Processing Endpoints
+
+<details>
+<summary><b>📄 POST /api/process-blob - Process Document from Storage</b></summary>
+
+**Request**:
+```json
+{
+  "blob_url": "https://storage.blob.core.windows.net/datasets/default-dataset/invoice.pdf",
+  "dataset_name": "default-dataset",
+  "priority": "normal",
+  "webhook_url": "https://your-app.com/webhooks/argus",
+  "metadata": {
+    "source": "email_attachment",
+    "user_id": "user123"
+  }
+}
+```
+
+**Response**:
+```json
+{
+  "status": "success",
+  "job_id": "job_12345",
+  "extraction_results": {
+    "invoice_number": "INV-2024-001",
+    "total_amount": "$1,250.00",
+    "confidence_score": 0.94
+  },
+  "processing_time": "2.3s",
+  "timestamp": "2024-01-15T10:30:00Z"
+}
+```
+
+</details>
+
+<details>
+<summary><b>📤 POST /api/process-file - Direct File Upload</b></summary>
+
+**Request** (multipart/form-data):
+```
+file: [PDF/Image file]
+dataset_name: "default-dataset"
+priority: "high"
+```
+
+**Response**:
+```json
+{
+  "status": "success",
+  "job_id": "job_12346",
+  "blob_url": "https://storage.blob.core.windows.net/temp/uploaded_file.pdf",
+  "extraction_results": {...},
+  "processing_time": "1.8s"
+}
+```
+
+</details>
+
+<details>
+<summary><b>💬 POST /api/chat - Interactive Document Q&A</b></summary>
+
+**Request**:
+```json
+{
+  "blob_url": "https://storage.blob.core.windows.net/datasets/contract.pdf",
+  "question": "What are the payment terms and penalties for late payment?",
+  "context": "focus on financial obligations",
+  "temperature": 0.1
+}
+```
+
+**Response**:
+```json
+{
+  "answer": "Payment terms are Net 30 days. Late payment penalty is 1.5% per month on outstanding balance...",
+  "confidence": 0.91,
+  "sources": [
+    {"page": 2, "section": "Payment Terms"},
+    {"page": 5, "section": "Default Provisions"}
+  ],
+  "processing_time": "1.2s"
+}
+```
+
+</details>
+
+### ⚙️ Configuration Management
+
+<details>
+<summary><b>🔧 GET/POST /api/configuration - System Configuration</b></summary>
+
+**GET Response**:
+```json
+{
+  "openai_settings": {
+    "endpoint": "https://your-openai.openai.azure.com/",
+    "model": "gpt-4o",
+    "temperature": 0.1,
+    "max_tokens": 4000
+  },
+  "processing_settings": {
+    "max_concurrent_jobs": 5,
+    "timeout_seconds": 300,
+    "retry_attempts": 3
+  },
+  "datasets": ["default-dataset", "medical-dataset", "financial-reports"]
+}
+```
+
+**POST Request**:
+```json
+{
+  "openai_settings": {
+    "temperature": 0.05,
+    "max_tokens": 6000
+  },
+  "processing_settings": {
+    "max_concurrent_jobs": 8
+  }
+}
+```
+
+</details>
+
+### 📊 Monitoring & Analytics
+
+<details>
+<summary><b>📈 GET /api/metrics - Performance Metrics</b></summary>
+
+**Response**:
+```json
+{
+  "period": "last_24h",
+  "summary": {
+    "total_documents": 1247,
+    "successful_extractions": 1198,
+    "failed_extractions": 49,
+    "success_rate": 96.1,
+    "avg_processing_time": "2.3s"
+  },
+  "performance": {
+    "p50_processing_time": "1.8s",
+    "p95_processing_time": "4.2s",
+    "p99_processing_time": "8.1s"
+  },
+  "errors": {
+    "ocr_failures": 12,
+    "ai_timeouts": 8,
+    "storage_issues": 3,
+    "other": 26
+  }
+}
+```
+
+</details>
+
+---
+
+##  Contributing & Community
+
+### 🎯 How to Contribute
+
+We welcome contributions! Here's how to get started:
+
+1. **🍴 Fork & Clone**:
+   ```bash
+   git clone https://github.com/your-username/ARGUS.git
+   cd ARGUS
+   ```
+
+2. **🌿 Create Feature Branch**:
+   ```bash
+   git checkout -b feature/amazing-improvement
+   ```
+
+3. **🧪 Develop & Test**:
+   ```bash
+   # Setup development environment
+   ./scripts/setup-dev.sh
+   
+   # Run tests
+   pytest tests/ -v
+   
+   # Lint code
+   black src/ && flake8 src/
+   ```
+
+4. **📝 Document Changes**:
+   ```bash
+   # Update documentation
+   # Add examples to README
+   # Update API documentation
+   ```
+
+5. **🚀 Submit PR**:
+   ```bash
+   git commit -m "feat: add amazing improvement"
+   git push origin feature/amazing-improvement
+   # Create pull request on GitHub
+   ```
+
+### 📋 Contribution Guidelines
+
+| Type | Guidelines |
+|------|------------|
+| **🐛 Bug Fixes** | Include reproduction steps, expected vs actual behavior |
+| **✨ New Features** | Discuss in issues first, include tests and documentation |
+| **📚 Documentation** | Clear examples, practical use cases, proper formatting |
+| **🔧 Performance** | Benchmark results, before/after comparisons |
+
+### 🏆 Recognition
+
+Contributors will be recognized in:
+- 📝 Release notes for significant contributions
+- 🌟 Contributors section (with permission)
+- 💬 Community showcase for innovative use cases
+
+---
+
+## 📞 Support & Resources
+
+### 💬 Getting Help
+
+| Resource | Description | Link |
+|----------|-------------|------|
+| **📚 Documentation** | Complete setup and usage guides | [docs/](docs/) |
+| **🐛 Issue Tracker** | Bug reports and feature requests | [GitHub Issues](https://github.com/Azure-Samples/ARGUS/issues) |
+| **💡 Discussions** | Community Q&A and ideas | [GitHub Discussions](https://github.com/Azure-Samples/ARGUS/discussions) |
+| **📧 Team Contact** | Direct contact for enterprise needs | See team section below |
+
+### 🔗 Additional Resources
+
+- **📖 Azure Document Intelligence**: [Official Documentation](https://docs.microsoft.com/azure/applied-ai-services/form-recognizer/)
+- **🤖 Azure OpenAI**: [Service Documentation](https://docs.microsoft.com/azure/cognitive-services/openai/)
+- **⚡ FastAPI**: [Framework Documentation](https://fastapi.tiangolo.com/)
+- **🐍 LangChain**: [Integration Guides](https://python.langchain.com/)
+
+---
+
+## 👥 Team
+
+- **Alberto Gallo**
+- **Petteri Johansson**
+- **Christin Pohl**
+- **Konstantinos Mavrodis**
+
+## License
+
+This project is licensed under the **MIT License** - see the [LICENSE](LICENSE) file for details.
+
+---
+
+<div align="center">
+
+## 🚀 Ready to Transform Your Document Processing?
+
+**Deploy ARGUS in minutes and start extracting intelligence from your documents today!**
+
+```bash
+git clone https://github.com/Azure-Samples/ARGUS.git && cd ARGUS && azd up
+```
+
+<br>
+
+[![Deploy to Azure](https://aka.ms/deploytoazurebutton)](https://portal.azure.com/#create/Microsoft.Template)
+[![Open in Dev Container](https://img.shields.io/static/v1?label=Dev%20Containers&message=Open&color=blue&logo=visualstudiocode)](https://vscode.dev/redirect?url=vscode://ms-vscode-remote.remote-containers/cloneInVolume?url=https://github.com/Azure-Samples/ARGUS)
+
+<br>
+
+**⭐ Star this repo if ARGUS helps your document processing needs!**
+
+</div>
