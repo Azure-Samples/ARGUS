@@ -40,10 +40,10 @@ async def initialize_azure_clients():
         global_executor = ThreadPoolExecutor(max_workers=10)
         logger.info("Initialized global ThreadPoolExecutor with 10 workers")
         
-        # Initialize processing semaphore with default concurrency of 1
+        # Initialize processing semaphore with default concurrency of 5
         # This will be updated when Logic App concurrency settings are retrieved
-        global_processing_semaphore = asyncio.Semaphore(1)
-        logger.info("Initialized global processing semaphore with 1 permit")
+        global_processing_semaphore = asyncio.Semaphore(5)
+        logger.info("Initialized global processing semaphore with 5 permits")
         
         # Initialize Logic App Manager
         from logic_app_manager import LogicAppManager

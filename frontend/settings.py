@@ -231,7 +231,7 @@ def concurrency_settings_section():
     
     if current_settings and current_settings.get('enabled', False):
         # Get current value to prepopulate the input
-        current_max_runs = current_settings.get('current_max_runs', 1)
+        current_max_runs = current_settings.get('current_max_runs', 5)
         
         # Status indicator
         st.success("✅ Logic App Manager is enabled")

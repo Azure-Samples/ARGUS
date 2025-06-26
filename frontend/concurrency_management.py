@@ -87,7 +87,7 @@ def render_concurrency_management():
                             st.write(f"**Resource Group:** {settings.get('resource_group', 'Unknown')}")
                         
                         # Store current settings in session state for updates
-                        st.session_state.current_max_runs = settings.get("current_max_runs", 1)
+                        st.session_state.current_max_runs = settings.get("current_max_runs", 5)
                         st.session_state.logic_app_active = True
                         
                     else:
@@ -113,7 +113,7 @@ def render_concurrency_management():
         
         # Only show update form if Logic App is active
         if st.session_state.get("logic_app_active", False):
-            current_max_runs = st.session_state.get("current_max_runs", 1)
+            current_max_runs = st.session_state.get("current_max_runs", 5)
             
             # Input for new max runs
             new_max_runs = st.number_input(

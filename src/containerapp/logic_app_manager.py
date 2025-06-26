@@ -52,13 +52,13 @@ class LogicAppManager:
             triggers = definition.get('triggers', {})
             
             # Get concurrency from the first trigger (most common case)
-            runs_on = 1  # Default value
+            runs_on = 5  # Default value
             trigger_name = None
             for name, trigger_config in triggers.items():
                 trigger_name = name
                 runtime_config = trigger_config.get('runtimeConfiguration', {})
                 concurrency = runtime_config.get('concurrency', {})
-                runs_on = concurrency.get('runs', 1)
+                runs_on = concurrency.get('runs', 5)
                 break  # Use the first trigger found
             
             return {
