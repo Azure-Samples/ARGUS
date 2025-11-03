@@ -403,6 +403,10 @@ async def get_openai_settings():
             "openai_endpoint": os.getenv("AZURE_OPENAI_ENDPOINT", ""),
             "openai_key": "***HIDDEN***" if os.getenv("AZURE_OPENAI_KEY") else "",
             "deployment_name": os.getenv("AZURE_OPENAI_MODEL_DEPLOYMENT_NAME", ""),
+            "ocr_provider": os.getenv("OCR_PROVIDER", "azure"),
+            "mistral_endpoint": os.getenv("MISTRAL_DOC_AI_ENDPOINT", ""),
+            "mistral_key": "***HIDDEN***" if os.getenv("MISTRAL_DOC_AI_KEY") else "",
+            "mistral_model": os.getenv("MISTRAL_DOC_AI_MODEL", "mistral-document-ai-2505"),
             "note": "Configuration is read from environment variables only. Update via deployment/infrastructure."
         }
         
@@ -423,12 +427,24 @@ async def update_openai_settings(request: Request):
             os.environ["AZURE_OPENAI_KEY"] = data["openai_key"]
         if "openai_deployment_name" in data:
             os.environ["AZURE_OPENAI_MODEL_DEPLOYMENT_NAME"] = data["openai_deployment_name"]
+        if "ocr_provider" in data:
+            os.environ["OCR_PROVIDER"] = data["ocr_provider"]
+        if "mistral_endpoint" in data:
+            os.environ["MISTRAL_DOC_AI_ENDPOINT"] = data["mistral_endpoint"]
+        if "mistral_key" in data:
+            os.environ["MISTRAL_DOC_AI_KEY"] = data["mistral_key"]
+        if "mistral_model" in data:
+            os.environ["MISTRAL_DOC_AI_MODEL"] = data["mistral_model"]
         
-        # Return success response with updated config (hide key)
+        # Return success response with updated config (hide keys)
         updated_config = {
             "openai_endpoint": os.environ.get("AZURE_OPENAI_ENDPOINT", ""),
             "openai_key": "***hidden***" if os.environ.get("AZURE_OPENAI_KEY") else "",
             "openai_deployment_name": os.environ.get("AZURE_OPENAI_MODEL_DEPLOYMENT_NAME", ""),
+            "ocr_provider": os.environ.get("OCR_PROVIDER", "azure"),
+            "mistral_endpoint": os.environ.get("MISTRAL_DOC_AI_ENDPOINT", ""),
+            "mistral_key": "***hidden***" if os.environ.get("MISTRAL_DOC_AI_KEY") else "",
+            "mistral_model": os.environ.get("MISTRAL_DOC_AI_MODEL", "mistral-document-ai-2505"),
             "env_var_only": True
         }
         

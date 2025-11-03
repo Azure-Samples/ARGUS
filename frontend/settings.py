@@ -6,18 +6,33 @@ from datetime import datetime
 def settings_tab():
     """Combined settings tab for OpenAI configuration and concurrency settings"""
     
-    # Create two columns for the two settings sections
+    # Create columns for the settings sections
+    st.markdown("### ⚙️ System Configuration")
+    
+    # OpenAI and OCR settings together
+    openai_and_ocr_settings_section()
+    
+    st.markdown("---")
+    
+    # Concurrency settings
+    concurrency_settings_section()
+
+def openai_and_ocr_settings_section():
+    """OpenAI configuration and OCR provider settings section"""
+    
+    # Create two columns for OpenAI and OCR settings
     col1, col2 = st.columns(2)
     
     with col1:
-        openai_settings_section()
+        st.markdown("### 🤖 OpenAI Configuration")
+        openai_settings_form()
     
     with col2:
-        concurrency_settings_section()
+        st.markdown("### 🔍 OCR Provider Configuration")
+        ocr_provider_settings_form()
 
-def openai_settings_section():
-    """OpenAI configuration settings section"""
-    st.markdown("### 🤖 OpenAI Configuration")
+def openai_settings_form():
+    """OpenAI configuration settings form"""
     
     # Get backend URL from session state
     backend_url = st.session_state.get('backend_url', 'http://localhost:8000')
@@ -214,6 +229,200 @@ def openai_settings_section():
         **Model Deployment Name**: The name you gave to your model deployment.
         - This is the name you specified when deploying a model in Azure OpenAI Studio
         - Common examples: `gpt-4o`, `gpt-35-turbo`, `gpt-4-vision-preview`
+        """)
+
+def ocr_provider_settings_form():
+    """OCR provider configuration settings form"""
+    
+    # Get backend URL from session state
+    backend_url = st.session_state.get('backend_url', 'http://localhost:8000')
+    
+    # Load current settings
+    current_settings = load_current_openai_settings(backend_url)
+    
+    # Check if configuration is environment-variable based
+    is_env_based = current_settings.get('note', '').startswith('Configuration is read from environment variables')
+    
+    if is_env_based:
+        st.info("ℹ️ **OCR provider configured via environment variables**")
+        
+        # Create tabs for runtime updates vs persistent instructions
+        tab1, tab2 = st.tabs(["🔄 Runtime Updates", "📋 Persistent Updates"])
+        
+        with tab1:
+            st.markdown("**Select OCR provider for document processing:**")
+            
+            with st.form("ocr_provider_form"):
+                # Get current OCR provider
+                current_provider = current_settings.get('ocr_provider', 'azure')
+                
+                # OCR Provider Selection
+                ocr_provider = st.radio(
+                    "OCR Provider",
+                    options=["azure", "mistral"],
+                    index=0 if current_provider == "azure" else 1,
+                    help="Choose which OCR service to use for text extraction from documents",
+                    horizontal=True
+                )
+                
+                st.markdown("---")
+                
+                # Initialize variables for Mistral settings
+                mistral_endpoint = ""
+                mistral_key = ""
+                mistral_model = ""
+                
+                # Show provider-specific settings
+                if ocr_provider == "azure":
+                    st.markdown("**Azure Document Intelligence** is selected")
+                    st.info("✅ Uses your Azure Document Intelligence endpoint configured in deployment")
+                    
+                elif ocr_provider == "mistral":
+                    st.markdown("**Mistral Document AI** is selected")
+                    
+                    # Get current Mistral settings
+                    current_mistral_endpoint = current_settings.get('mistral_endpoint', '')
+                    current_mistral_key_display = current_settings.get('mistral_key', '')
+                    current_mistral_model = current_settings.get('mistral_model', 'mistral-document-ai-2505')
+                    
+                    # Mistral Endpoint
+                    mistral_endpoint = st.text_input(
+                        "Mistral Document AI Endpoint",
+                        value=current_mistral_endpoint,
+                        help="Your Mistral Document AI API endpoint URL",
+                        placeholder="https://your-endpoint.services.ai.azure.com/providers/mistral/azure/ocr"
+                    )
+                    
+                    # Mistral API Key
+                    mistral_key = st.text_input(
+                        "Mistral API Key",
+                        value="" if current_mistral_key_display == "***HIDDEN***" else current_mistral_key_display,
+                        type="password",
+                        help="Your Mistral API key (leave blank to keep current key)",
+                        placeholder="Enter new key or leave blank to keep current"
+                    )
+                    
+                    # Mistral Model Name
+                    mistral_model = st.text_input(
+                        "Mistral Model Name",
+                        value=current_mistral_model,
+                        help="The Mistral Document AI model to use (default: mistral-document-ai-2505)",
+                        placeholder="mistral-document-ai-2505"
+                    )
+                
+                # Submit button
+                submit_ocr = st.form_submit_button("🔄 Update OCR Provider", type="primary")
+                
+                if submit_ocr:
+                    # Prepare update data
+                    update_data = {
+                        "ocr_provider": ocr_provider
+                    }
+                    
+                    # Validate Mistral-specific inputs
+                    if ocr_provider == "mistral":
+                        if not mistral_endpoint:
+                            st.error("❌ Mistral endpoint is required when using Mistral provider!")
+                            return
+                        if not mistral_key and current_mistral_key_display in ["", "***HIDDEN***"]:
+                            st.error("❌ Mistral API key is required!")
+                            return
+                        if not mistral_model:
+                            st.error("❌ Mistral model name is required!")
+                            return
+                        
+                        update_data["mistral_endpoint"] = mistral_endpoint
+                        if mistral_key:
+                            update_data["mistral_key"] = mistral_key
+                        update_data["mistral_model"] = mistral_model
+                    
+                    # Update settings
+                    success = update_openai_env_vars(backend_url, update_data)
+                    if success:
+                        st.success(f"✅ OCR provider updated to **{ocr_provider.upper()}**!")
+                        st.info("🔄 Changes are active immediately for new document processing.")
+                        st.rerun()
+                    else:
+                        st.error("❌ Failed to update OCR provider. Please try again.")
+            
+            st.warning("⚠️ **Note**: Runtime updates are temporary and will be lost when the container restarts.")
+        
+        with tab2:
+            st.markdown("**For persistent OCR provider changes**, update environment variables:")
+            
+            st.markdown("""
+            **Option 1: Azure Portal**
+            1. Go to Azure Portal → Container Apps → Your Backend App
+            2. Navigate to **Settings** → **Environment variables**
+            3. Update these variables:
+               - `OCR_PROVIDER` → `azure` or `mistral`
+               - `MISTRAL_DOC_AI_ENDPOINT` (if using Mistral)
+               - `MISTRAL_DOC_AI_KEY` (if using Mistral)
+               - `MISTRAL_DOC_AI_MODEL` (if using Mistral, default: mistral-document-ai-2505)
+            4. **Restart** the container app
+            
+            **Option 2: Azure CLI**
+            ```bash
+            # For Azure Document Intelligence
+            az containerapp update \\
+              --name <app-name> \\
+              --resource-group <rg-name> \\
+              --set-env-vars OCR_PROVIDER="azure"
+            
+            # For Mistral Document AI
+            az containerapp update \\
+              --name <app-name> \\
+              --resource-group <rg-name> \\
+              --set-env-vars \\
+                OCR_PROVIDER="mistral" \\
+                MISTRAL_DOC_AI_ENDPOINT="https://your-endpoint.../ocr" \\
+                MISTRAL_DOC_AI_KEY="your-api-key" \\
+                MISTRAL_DOC_AI_MODEL="mistral-document-ai-2505"
+            ```
+            """)
+        
+        # Current configuration display
+        with st.expander("👀 View Current OCR Configuration", expanded=False):
+            col1, col2 = st.columns([1, 2])
+            with col1:
+                st.markdown("**Provider:**")
+                if current_provider == "mistral":
+                    st.markdown("**Mistral Endpoint:**")
+                    st.markdown("**Mistral Key:**")
+                    st.markdown("**Mistral Model:**")
+            
+            with col2:
+                provider_display = f"🔍 {current_provider.upper()}"
+                st.code(provider_display)
+                
+                if current_provider == "mistral":
+                    endpoint = current_settings.get('mistral_endpoint', 'Not configured')
+                    key_status = '✅ Configured' if current_settings.get('mistral_key', '') != '' else '❌ Missing'
+                    model = current_settings.get('mistral_model', 'mistral-document-ai-2505')
+                    st.code(endpoint)
+                    st.markdown(f"`{key_status}`")
+                    st.code(model)
+    
+    # Help section for OCR provider
+    with st.expander("💡 OCR Provider Help"):
+        st.markdown("""
+        **Azure Document Intelligence** (Recommended for most use cases)
+        - Microsoft's enterprise-grade OCR service
+        - Excellent for complex layouts, forms, and tables
+        - Requires Azure Document Intelligence resource
+        - Configured via `DOCUMENT_INTELLIGENCE_ENDPOINT`
+        
+        **Mistral Document AI** (Alternative provider)
+        - Mistral's document understanding API
+        - Good for general text extraction
+        - Requires Mistral API endpoint and key
+        - Uses base64 encoding for document transmission
+        
+        **When to use each:**
+        - **Azure**: Complex documents, forms, tables, production workloads
+        - **Mistral**: Alternative provider, simple documents, testing
+        
+        **Note**: Changing the OCR provider affects all new document processing across all datasets.
         """)
 
 def concurrency_settings_section():

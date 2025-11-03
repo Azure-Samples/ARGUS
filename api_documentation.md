@@ -154,11 +154,21 @@ Retrieve current system configuration from Cosmos DB including datasets, prompts
           "invoice_number": {"type": "string"},
           "total_amount": {"type": "number"}
         }
+      },
+      "processing_options": {
+        "include_ocr": true,
+        "include_images": true,
+        "enable_summary": true,
+        "enable_evaluation": true,
+        "ocr_provider": "azure"
       }
     },
     "medical-dataset": {
       "system_prompt": "Extract medical information...",
-      "output_schema": {...}
+      "output_schema": {...},
+      "processing_options": {
+        "ocr_provider": "mistral"
+      }
     }
   }
 }
@@ -769,10 +779,59 @@ For production file uploads, you need to:
       "system_prompt": "string",
       "output_schema": "object",
       "max_pages": "number",
-      "options": "object"
+      "processing_options": {
+        "include_ocr": "boolean",
+        "include_images": "boolean",
+        "enable_summary": "boolean",
+        "enable_evaluation": "boolean",
+        "ocr_provider": "string (azure|mistral)"
+      }
     }
   }
 }
+```
+
+### OCR Provider Configuration
+
+ARGUS supports two OCR providers for document text extraction:
+
+1. **Azure Document Intelligence** (default)
+   - Uses Azure's Document Intelligence service
+   - Requires `DOCUMENT_INTELLIGENCE_ENDPOINT` environment variable
+   - Configured with `"ocr_provider": "azure"`
+
+2. **Mistral Document AI** (alternative)
+   - Uses Mistral's Document AI API
+   - Requires `MISTRAL_DOC_AI_ENDPOINT` and `MISTRAL_DOC_AI_KEY` environment variables
+   - Configured with `"ocr_provider": "mistral"`
+   - Supports base64-encoded PDFs and images
+   - Can use structured extraction with bbox annotation
+
+**Example Configuration with Mistral:**
+```json
+{
+  "id": "configuration",
+  "partitionKey": "configuration",
+  "datasets": {
+    "medical-dataset": {
+      "system_prompt": "Extract medical information...",
+      "output_schema": {...},
+      "processing_options": {
+        "include_ocr": true,
+        "include_images": true,
+        "enable_summary": true,
+        "enable_evaluation": true,
+        "ocr_provider": "mistral"
+      }
+    }
+  }
+}
+```
+
+**Environment Variables Required for Mistral:**
+```bash
+MISTRAL_DOC_AI_ENDPOINT=https://your-endpoint.services.ai.azure.com/providers/mistral/azure/ocr
+MISTRAL_DOC_AI_KEY=your-mistral-api-key
 ```
 
 ### Event Grid Event Model

@@ -35,6 +35,7 @@ Traditional OCR solutions extract text but miss the context. AI-only approaches 
 
 ### 🔍 **Intelligent Document Understanding**
 - **Hybrid AI Pipeline**: Combines OCR precision with LLM reasoning
+- **Multiple OCR Providers**: Azure Document Intelligence or Mistral Document AI
 - **Context-Aware Extraction**: Understands relationships between data points
 - **Multi-Format Support**: PDFs, images, forms, invoices, medical records
 - **Zero-Shot Learning**: Works on new document types without training
@@ -81,9 +82,12 @@ graph TB
     
     subgraph "🧠 AI Processing Engine"
         B --> D
-        D --> E[🔍 Azure Document Intelligence]
+        D --> E{🔍 OCR Provider}
+        E -->|Azure| E1[Azure Document Intelligence]
+        E -->|Mistral| E2[Mistral Document AI]
         D --> F[🤖 GPT-4 Vision]
-        E --> G[⚙️ Hybrid Processing Pipeline]
+        E1 --> G[⚙️ Hybrid Processing Pipeline]
+        E2 --> G
         F --> G
     end
     
@@ -105,6 +109,8 @@ graph TB
     style C fill:#e8f5e8,stroke:#388e3c,stroke-width:2px
     style D fill:#fff3e0,stroke:#f57c00,stroke-width:2px
     style E fill:#fce4ec,stroke:#c2185b,stroke-width:2px
+    style E1 fill:#fce4ec,stroke:#c2185b,stroke-width:2px
+    style E2 fill:#fce4ec,stroke:#c2185b,stroke-width:2px
     style F fill:#e0f2f1,stroke:#00695c,stroke-width:2px
     style G fill:#fff8e1,stroke:#ffa000,stroke-width:2px
     style H fill:#f1f8e9,stroke:#558b2f,stroke-width:2px
@@ -124,7 +130,7 @@ graph TB
 | **📱 Frontend UI** | Streamlit (Optional) | Interactive document management interface |
 | **📁 Document Storage** | Azure Blob Storage | Secure, scalable document repository |
 | **🗄️ Metadata Database** | Azure Cosmos DB | Results, configurations, and analytics |
-| **🔍 OCR Engine** | Azure Document Intelligence | Structured text and layout extraction |
+| **🔍 OCR Engine** | Azure Document Intelligence or Mistral Document AI | Structured text and layout extraction |
 | **🧠 AI Reasoning** | Azure OpenAI (GPT-4 Vision) | Contextual understanding and extraction |
 | **🏗️ Container Registry** | Azure Container Registry | Private, secure container images |
 | **🔒 Security** | Managed Identity + RBAC | Zero-credential architecture |
@@ -299,7 +305,71 @@ Datasets are managed through the Streamlit frontend interface (deployed automati
 
 ---
 
-## 🖥️ Frontend Interface: User-Friendly Document Management
+### � OCR Provider Configuration
+
+ARGUS supports **two OCR providers** for document text extraction:
+
+- **Azure Document Intelligence** (Default): Microsoft's enterprise OCR service with advanced layout understanding
+- **Mistral Document AI**: Mistral's document processing service with markdown-optimized output
+
+<details>
+<summary><b>🔧 Configure OCR Provider</b></summary>
+
+**Via Frontend (Recommended)**:
+1. Navigate to **Settings** tab in the web interface
+2. Select **OCR Provider** section
+3. Choose your provider:
+   - **Azure**: Uses Azure Document Intelligence (automatically configured during deployment)
+   - **Mistral**: Requires additional configuration (endpoint, API key, model name)
+4. For Mistral, enter:
+   - **Mistral Endpoint**: Your Mistral Document AI API endpoint URL
+   - **Mistral API Key**: Your Mistral API authentication key
+   - **Mistral Model**: Model name (default: `mistral-document-ai-2505`)
+5. Click **"Update OCR Provider"** to apply changes
+
+**Via Environment Variables**:
+Set the following environment variables in your deployment:
+
+```bash
+# Choose OCR provider
+OCR_PROVIDER=mistral  # or "azure" (default)
+
+# Mistral-specific configuration (only needed if OCR_PROVIDER=mistral)
+MISTRAL_DOC_AI_ENDPOINT=https://your-endpoint.services.ai.azure.com/providers/mistral/azure/ocr
+MISTRAL_DOC_AI_KEY=your-mistral-api-key
+MISTRAL_DOC_AI_MODEL=mistral-document-ai-2505
+```
+
+**Update via Azure Portal**:
+1. Navigate to Azure Portal → Container Apps → Your Backend App
+2. Go to **Settings** → **Environment variables**
+3. Add/update the variables listed above
+4. **Restart** the container app
+
+**Update via Azure CLI**:
+```bash
+# Switch to Mistral
+az containerapp update \
+  --name <your-backend-app-name> \
+  --resource-group <your-resource-group> \
+  --set-env-vars \
+    OCR_PROVIDER="mistral" \
+    MISTRAL_DOC_AI_ENDPOINT="https://your-endpoint.../ocr" \
+    MISTRAL_DOC_AI_KEY="your-api-key" \
+    MISTRAL_DOC_AI_MODEL="mistral-document-ai-2505"
+
+# Switch back to Azure
+az containerapp update \
+  --name <your-backend-app-name> \
+  --resource-group <your-resource-group> \
+  --set-env-vars OCR_PROVIDER="azure"
+```
+
+**Note**: OCR provider selection is configured at the solution level and applies to all document processing operations.
+
+</details>
+
+---
 
 The Streamlit frontend is **automatically deployed** with `azd up` and provides a user-friendly interface for document management.
 
@@ -677,7 +747,7 @@ Contributors will be recognized in:
 | Resource | Description | Link |
 |----------|-------------|------|
 | **📚 Documentation** | Complete setup and usage guides | [docs/](docs/) |
-| **🐛 Issue Tracker** | Bug reports and feature requests | [GitHub Issues](https://github.com/Azure-Samples/ARGUS/issues) |
+| **�🐛 Issue Tracker** | Bug reports and feature requests | [GitHub Issues](https://github.com/Azure-Samples/ARGUS/issues) |
 | **💡 Discussions** | Community Q&A and ideas | [GitHub Discussions](https://github.com/Azure-Samples/ARGUS/discussions) |
 | **📧 Team Contact** | Direct contact for enterprise needs | See team section below |
 

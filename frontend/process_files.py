@@ -196,20 +196,20 @@ def process_files_tab():
             
             with col_a:
                 include_ocr = st.checkbox(
-                    "📄 Run OCR and use it in GPT Extraction", 
+                    "📄 Run OCR Processing", 
                     value=processing_options.get("include_ocr", True),
                     help="Extract and analyze the text content from your documents using Optical Character Recognition (OCR). This captures all written information including tables, forms, and structured data. Essential for text-heavy documents like contracts, invoices, and reports. When enabled, the AI can understand and extract information from the document's text content."
                 )
                 
                 include_images = st.checkbox(
-                    "🖼️ Split in Images and use them in GPT Extraction", 
+                    "🖼️ Run GPT Vision", 
                     value=processing_options.get("include_images", True),
                     help="Process document pages as images so the AI can visually understand layouts, charts, diagrams, handwritten notes, and visual elements that OCR might miss. This is particularly valuable for forms with checkboxes, complex layouts, signatures, charts, or documents where visual context matters. Combines with OCR for the most comprehensive analysis."
                 )
             
             # Validation: Ensure at least one of OCR or Images is enabled
             if not include_ocr and not include_images:
-                st.error("⚠️ **Validation Error**: You must enable at least one of 'Include OCR Text' or 'Include Images' for GPT extraction to work properly.")
+                st.error("⚠️ **Validation Error**: You must enable at least one of 'OCR' or 'GPT Vision' for GPT extraction to work properly.")
                 # Force at least one to be true
                 include_ocr = True
                 st.warning("🔧 **Auto-correction**: Automatically re-enabled 'Include OCR Text' to ensure proper functionality.")

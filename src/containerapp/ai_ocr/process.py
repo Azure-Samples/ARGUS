@@ -152,7 +152,8 @@ def safe_parse_json(content: str) -> dict:
             ]
         }
 
-from ai_ocr.azure.doc_intelligence import get_ocr_results
+from ai_ocr.azure.doc_intelligence import get_ocr_results as get_azure_ocr_results
+from ai_ocr.azure.mistral_doc_intelligence import get_ocr_results as get_mistral_ocr_results
 from ai_ocr.azure.openai_ops import load_image, get_size_of_base64_images
 from ai_ocr.chains import get_structured_data, get_summary_with_gpt, perform_gpt_evaluation_and_enrichment
 from ai_ocr.model import Config
@@ -444,16 +445,29 @@ def convert_pdf_into_image(pdf_path):
 
 def run_ocr_processing(file_to_ocr: str, document: dict, container: any, conf_container: any = None, update_state: bool = True) -> tuple[str, float]:
     """
-    Run OCR processing on the input file.
+    Run OCR processing on the input file using the configured OCR provider.
     Returns OCR result and processing time.
     """
     ocr_start_time = datetime.now()
     try:
-        ocr_result = get_ocr_results(file_to_ocr, None)
+        # Get the OCR provider from environment variable (solution-level setting)
+        ocr_provider = os.getenv('OCR_PROVIDER', 'azure').lower()
+        
+        logging.info(f"Using OCR provider: {ocr_provider}")
+        
+        # Select the appropriate OCR function
+        if ocr_provider == 'mistral':
+            ocr_result = get_mistral_ocr_results(file_to_ocr, None)
+        elif ocr_provider == 'azure':
+            ocr_result = get_azure_ocr_results(file_to_ocr, None)
+        else:
+            raise ValueError(f"Unknown OCR provider: {ocr_provider}. Supported providers: 'azure', 'mistral'")
+        
         # Don't update document's ocr_output here for chunks - let caller handle merging
         ocr_processing_time = (datetime.now() - ocr_start_time).total_seconds()
         if update_state:
             document['extracted_data']['ocr_output'] = ocr_result
+            document['properties']['ocr_provider_used'] = ocr_provider
             update_state(document, container, 'ocr_completed', True, ocr_processing_time)
         return ocr_result, ocr_processing_time
     except Exception as e:

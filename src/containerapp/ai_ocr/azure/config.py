@@ -17,6 +17,9 @@ def get_config(cosmos_config_container=None):
     # Configuration from environment variables only
     config = {
         "doc_intelligence_endpoint": os.getenv("DOCUMENT_INTELLIGENCE_ENDPOINT", None),
+        "mistral_doc_ai_endpoint": os.getenv("MISTRAL_DOC_AI_ENDPOINT", None),
+        "mistral_doc_ai_key": os.getenv("MISTRAL_DOC_AI_KEY", None),
+        "mistral_doc_ai_model": os.getenv("MISTRAL_DOC_AI_MODEL", "mistral-document-ai-2505"),
         "openai_api_key": os.getenv("AZURE_OPENAI_KEY", None),
         "openai_api_endpoint": os.getenv("AZURE_OPENAI_ENDPOINT", None),
         "openai_api_version": "2024-12-01-preview",
