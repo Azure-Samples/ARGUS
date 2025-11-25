@@ -569,7 +569,6 @@ Please answer the user's question based on this document context."""
             model=config["openai_model_deployment"],
             messages=messages,
             max_tokens=1000,
-            temperature=0.3,
             top_p=0.9
         )
         
