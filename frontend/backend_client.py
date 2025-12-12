@@ -116,6 +116,30 @@ class BackendClient:
         response = self._make_request('POST', '/chat', json=data)
         return response.json()
     
+    def submit_correction(self, document_id: str, corrected_data: Dict[str, Any], 
+                          notes: str = "", corrector_id: str = "anonymous") -> Optional[Dict[str, Any]]:
+        """Submit a human correction for a document's extraction"""
+        try:
+            data = {
+                'corrected_data': corrected_data,
+                'notes': notes,
+                'corrector_id': corrector_id
+            }
+            response = self._make_request('PATCH', f'/documents/{document_id}/corrections', json=data)
+            return response.json()
+        except requests.exceptions.RequestException as e:
+            st.error(f"Failed to submit correction: {e}")
+            return None
+    
+    def get_correction_history(self, document_id: str) -> Optional[Dict[str, Any]]:
+        """Get the correction history for a document"""
+        try:
+            response = self._make_request('GET', f'/documents/{document_id}/corrections')
+            return response.json()
+        except requests.exceptions.RequestException as e:
+            st.error(f"Failed to get correction history: {e}")
+            return None
+    
 
 # Global backend client instance
 backend_client = BackendClient()

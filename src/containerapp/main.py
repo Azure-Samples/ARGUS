@@ -132,6 +132,17 @@ async def chat_with_document(request: Request):
     return await api_routes.chat_with_document(request)
 
 
+# Human-in-the-loop correction endpoints
+@app.patch("/api/documents/{document_id}/corrections")
+async def submit_correction(document_id: str, request: Request):
+    return await api_routes.submit_correction(document_id, request)
+
+
+@app.get("/api/documents/{document_id}/corrections")
+async def get_correction_history(document_id: str):
+    return await api_routes.get_correction_history(document_id)
+
+
 # Optional: If you want to run this directly
 if __name__ == "__main__":
     import uvicorn

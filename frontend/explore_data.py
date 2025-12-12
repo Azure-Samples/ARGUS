@@ -411,6 +411,100 @@ def get_existing_feedback(item_id):
     else:
         return None
 
+
+def submit_correction_to_cosmosdb(item_id, corrected_data, original_data, notes="", corrector_id="anonymous"):
+    """
+    Submit a human correction to CosmosDB.
+    Stores both the corrected data and keeps the original for audit trail.
+    """
+    if not COSMOS_AVAILABLE:
+        st.error("❌ Cosmos DB not available. Cannot submit correction.")
+        return False
+    
+    try:
+        # Fetch the current document
+        query = f"SELECT * FROM c WHERE c.id = '{item_id}'"
+        items = list(cosmos_container.query_items(
+            query=query,
+            enable_cross_partition_query=True
+        ))
+        
+        if not items:
+            st.error(f"❌ Document {item_id} not found")
+            return False
+        
+        document = items[0]
+        
+        # Initialize corrections history if not present
+        if 'corrections' not in document:
+            document['corrections'] = []
+        
+        # Create correction record
+        import copy
+        correction_record = {
+            "timestamp": datetime.utcnow().isoformat(),
+            "corrector_id": corrector_id,
+            "notes": notes,
+            "original_data": copy.deepcopy(original_data) if original_data else None,
+            "corrected_data": corrected_data,
+            "correction_number": len(document['corrections']) + 1
+        }
+        
+        # Append to corrections history
+        document['corrections'].append(correction_record)
+        
+        # Update the current extraction with the corrected data
+        if 'extracted_data' not in document:
+            document['extracted_data'] = {}
+        document['extracted_data']['gpt_extraction_output'] = corrected_data
+        
+        # Mark that this document has been human-corrected
+        document['human_corrected'] = True
+        document['last_correction_timestamp'] = datetime.utcnow().isoformat()
+        
+        # Upsert the document back to Cosmos DB
+        cosmos_container.upsert_item(document)
+        
+        return True
+        
+    except Exception as e:
+        st.error(f"❌ Failed to submit correction: {e}")
+        return False
+
+
+def get_correction_history_from_cosmosdb(item_id):
+    """
+    Get the correction history for a document from CosmosDB.
+    Returns the corrections list and metadata.
+    """
+    if not COSMOS_AVAILABLE:
+        return None
+    
+    try:
+        # Fetch the document
+        query = f"SELECT * FROM c WHERE c.id = '{item_id}'"
+        items = list(cosmos_container.query_items(
+            query=query,
+            enable_cross_partition_query=True
+        ))
+        
+        if not items:
+            return None
+        
+        document = items[0]
+        
+        return {
+            "human_corrected": document.get('human_corrected', False),
+            "last_correction_timestamp": document.get('last_correction_timestamp'),
+            "corrections": document.get('corrections', []),
+            "corrections_count": len(document.get('corrections', []))
+        }
+        
+    except Exception as e:
+        st.error(f"❌ Failed to get correction history: {e}")
+        return None
+
+
 def explore_data_tab():
     """Main explore data tab with full functionality"""
     
@@ -707,24 +801,109 @@ def explore_data_tab():
                 # Document data column
                 with json_col:
                     if json_data:
-                        tabs = st.tabs(["GPT Extraction", "OCR Extraction", "GPT Evaluation", "GPT Summary", "Processing Details", "Chat with Document"])
+                        tabs = st.tabs(["GPT Extraction", "OCR Extraction", "GPT Evaluation", "GPT Summary", "Processing Details", "Correction History", "Chat with Document"])
                         
-                        # GPT Extraction Tab
+                        # GPT Extraction Tab - with Human-in-the-Loop Correction
                         with tabs[0]:
                             try:
                                 gpt_extraction = json_data.get('extracted_data', {}).get('gpt_extraction_output')
+                                human_corrected = json_data.get('human_corrected', False)
+                                
+                                # Show correction status
+                                if human_corrected:
+                                    st.success("✅ This extraction has been human-corrected")
+                                    last_correction = json_data.get('last_correction_timestamp', 'Unknown')
+                                    st.caption(f"Last corrected: {last_correction}")
+                                
                                 if gpt_extraction:
-                                    # Download button for GPT extraction
+                                    # Initialize edit mode state
+                                    edit_mode_key = f"edit_mode_{json_item_id}"
+                                    if edit_mode_key not in st.session_state:
+                                        st.session_state[edit_mode_key] = False
+                                    
+                                    # Action buttons row
                                     st.download_button(
-                                        label="Download GPT Extraction",
+                                        label="📥 Download",
                                         data=json.dumps(gpt_extraction, indent=2) if isinstance(gpt_extraction, dict) else str(gpt_extraction),
                                         file_name="gpt_extraction.json",
-                                        mime="application/json"
+                                        mime="application/json",
+                                        key=f"download_gpt_{json_item_id}"
                                     )
-                                    if isinstance(gpt_extraction, dict):
-                                        st.json(gpt_extraction)
+                                    
+                                    # Toggle edit mode button
+                                    if not st.session_state[edit_mode_key]:
+                                        if st.button("✏️ Edit Extraction", key=f"toggle_edit_{json_item_id}"):
+                                            st.session_state[edit_mode_key] = True
+                                            st.rerun()
+                                    
+                                    # Display mode vs Edit mode
+                                    if not st.session_state[edit_mode_key]:
+                                        # Read-only display
+                                        if isinstance(gpt_extraction, dict):
+                                            st.json(gpt_extraction)
+                                        else:
+                                            st.text(gpt_extraction)
                                     else:
-                                        st.text(gpt_extraction)
+                                        # Edit mode
+                                        st.info("🔧 **Edit Mode** - Make your corrections below")
+                                        
+                                        # Initialize session state for the edited JSON
+                                        edit_key = f"edit_json_{json_item_id}"
+                                        if edit_key not in st.session_state:
+                                            st.session_state[edit_key] = json.dumps(gpt_extraction, indent=2) if isinstance(gpt_extraction, dict) else str(gpt_extraction)
+                                        
+                                        # Editable text area for JSON
+                                        edited_json = st.text_area(
+                                            "Edit Extraction (JSON format)",
+                                            value=st.session_state[edit_key],
+                                            height=400,
+                                            key=f"text_area_{json_item_id}"
+                                        )
+                                        
+                                        # Correction notes
+                                        correction_notes = st.text_input(
+                                            "Correction Notes (optional)",
+                                            placeholder="Describe what was corrected...",
+                                            key=f"notes_{json_item_id}"
+                                        )
+                                        
+                                        # Action buttons
+                                        submit_clicked = st.button("💾 Save Correction", key=f"submit_correction_{json_item_id}", type="primary")
+                                        cancel_clicked = st.button("❌ Cancel", key=f"cancel_edit_{json_item_id}")
+                                        
+                                        if submit_clicked:
+                                            try:
+                                                # Parse the edited JSON
+                                                corrected_data = json.loads(edited_json)
+                                                
+                                                # Submit via direct Cosmos DB access
+                                                if COSMOS_AVAILABLE:
+                                                    success = submit_correction_to_cosmosdb(
+                                                        json_item_id, 
+                                                        corrected_data, 
+                                                        gpt_extraction,
+                                                        correction_notes
+                                                    )
+                                                    if success:
+                                                        st.success("✅ Correction saved successfully!")
+                                                        # Clear edit mode and caches
+                                                        st.session_state[edit_mode_key] = False
+                                                        if edit_key in st.session_state:
+                                                            del st.session_state[edit_key]
+                                                        get_documents_cached.clear()
+                                                        fetch_json_from_cosmosdb_cached.clear()
+                                                        st.rerun()
+                                                else:
+                                                    st.error("❌ Cosmos DB not available. Cannot save correction.")
+                                                    
+                                            except json.JSONDecodeError as e:
+                                                st.error(f"❌ Invalid JSON format: {e}")
+                                        
+                                        if cancel_clicked:
+                                            st.session_state[edit_mode_key] = False
+                                            if edit_key in st.session_state:
+                                                del st.session_state[edit_key]
+                                            st.rerun()
                                 else:
                                     st.warning("GPT extraction data not available")
                             except Exception as e:
@@ -822,8 +1001,64 @@ def explore_data_tab():
                             except Exception as e:
                                 st.warning(f"Some details are not available: {str(e)}")
                         
-                        # Chat with Document Tab
+                        # Correction History Tab
                         with tabs[5]:
+                            try:
+                                correction_history = get_correction_history_from_cosmosdb(json_item_id)
+                                
+                                if correction_history:
+                                    corrections = correction_history.get('corrections', [])
+                                    
+                                    if corrections:
+                                        st.success(f"📝 This document has {len(corrections)} correction(s)")
+                                        st.caption(f"Last corrected: {correction_history.get('last_correction_timestamp', 'Unknown')}")
+                                        
+                                        st.markdown("---")
+                                        
+                                        # Display each correction in reverse chronological order
+                                        for i, correction in enumerate(reversed(corrections)):
+                                            correction_num = len(corrections) - i
+                                            with st.expander(f"Correction #{correction_num} - {correction.get('timestamp', 'Unknown')}", expanded=(i == 0)):
+                                                # Correction metadata
+                                                st.caption(f"**Corrector:** {correction.get('corrector_id', 'anonymous')} | **Timestamp:** {correction.get('timestamp', 'Unknown')}")
+                                                
+                                                # Notes
+                                                notes = correction.get('notes', '')
+                                                if notes:
+                                                    st.info(f"📝 **Notes:** {notes}")
+                                                
+                                                # Show original and corrected data vertically (to avoid nested columns)
+                                                st.markdown("**Original Data (before this correction):**")
+                                                original_data = correction.get('original_data')
+                                                if original_data:
+                                                    if isinstance(original_data, dict):
+                                                        st.json(original_data)
+                                                    else:
+                                                        st.text(str(original_data))
+                                                else:
+                                                    st.caption("No original data recorded")
+                                                
+                                                st.markdown("**Corrected Data:**")
+                                                corrected_data = correction.get('corrected_data')
+                                                if corrected_data:
+                                                    if isinstance(corrected_data, dict):
+                                                        st.json(corrected_data)
+                                                    else:
+                                                        st.text(str(corrected_data))
+                                                else:
+                                                    st.caption("No corrected data recorded")
+                                    else:
+                                        st.info("ℹ️ No corrections have been made to this document yet.")
+                                        st.caption("Use the 'GPT Extraction' tab to make corrections.")
+                                else:
+                                    st.info("ℹ️ No correction history available for this document.")
+                                    st.caption("Use the 'GPT Extraction' tab to make corrections.")
+                                    
+                            except Exception as e:
+                                st.warning(f"Error loading correction history: {str(e)}")
+                        
+                        # Chat with Document Tab
+                        with tabs[6]:
                             try:
                                 # Import the chat component
                                 from document_chat import render_document_chat_tab

@@ -598,6 +598,144 @@ Please answer the user's question based on this document context."""
         raise HTTPException(status_code=500, detail=f"Chat processing failed: {str(e)}")
 
 
+async def submit_correction(document_id: str, request: Request):
+    """
+    Submit a human correction for a document's extraction.
+    Stores the correction alongside the original extraction for audit trail.
+    """
+    try:
+        data = await request.json()
+        corrected_data = data.get("corrected_data")
+        correction_notes = data.get("notes", "")
+        corrector_id = data.get("corrector_id", "anonymous")
+        
+        if corrected_data is None:
+            raise HTTPException(status_code=400, detail="corrected_data is required")
+        
+        # Get the document from Cosmos DB
+        data_container = get_data_container()
+        if not data_container:
+            raise HTTPException(status_code=503, detail="Data container not available")
+        
+        try:
+            # Fetch the document using a query
+            query = f"SELECT * FROM c WHERE c.id = '{document_id}'"
+            items = list(data_container.query_items(
+                query=query,
+                enable_cross_partition_query=True
+            ))
+            
+            if not items:
+                raise HTTPException(status_code=404, detail="Document not found")
+            
+            document = items[0]
+        except HTTPException:
+            raise
+        except Exception as e:
+            logger.error(f"Error fetching document {document_id}: {e}")
+            raise HTTPException(status_code=404, detail="Document not found")
+        
+        # Get the original GPT extraction
+        extracted_data = document.get('extracted_data', {})
+        original_extraction = extracted_data.get('gpt_extraction_output')
+        
+        # Initialize corrections history if not present
+        if 'corrections' not in document:
+            document['corrections'] = []
+        
+        # Create correction record
+        correction_record = {
+            "timestamp": datetime.utcnow().isoformat(),
+            "corrector_id": corrector_id,
+            "notes": correction_notes,
+            "original_data": copy.deepcopy(original_extraction) if original_extraction else None,
+            "corrected_data": corrected_data,
+            "correction_number": len(document['corrections']) + 1
+        }
+        
+        # Append to corrections history
+        document['corrections'].append(correction_record)
+        
+        # Update the current extraction with the corrected data
+        if 'extracted_data' not in document:
+            document['extracted_data'] = {}
+        document['extracted_data']['gpt_extraction_output'] = corrected_data
+        
+        # Mark that this document has been human-corrected
+        document['human_corrected'] = True
+        document['last_correction_timestamp'] = datetime.utcnow().isoformat()
+        
+        # Upsert the document back to Cosmos DB
+        data_container.upsert_item(document)
+        
+        logger.info(f"Correction submitted for document {document_id} by {corrector_id}")
+        
+        return {
+            "status": "success",
+            "message": "Correction submitted successfully",
+            "document_id": document_id,
+            "correction_number": correction_record["correction_number"],
+            "timestamp": correction_record["timestamp"]
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error submitting correction for document {document_id}: {e}")
+        logger.error(traceback.format_exc())
+        raise HTTPException(status_code=500, detail=f"Failed to submit correction: {str(e)}")
+
+
+async def get_correction_history(document_id: str):
+    """
+    Get the correction history for a document.
+    Returns all corrections made to the document along with the original extraction.
+    """
+    try:
+        # Get the document from Cosmos DB
+        data_container = get_data_container()
+        if not data_container:
+            raise HTTPException(status_code=503, detail="Data container not available")
+        
+        try:
+            # Fetch the document using a query
+            query = f"SELECT * FROM c WHERE c.id = '{document_id}'"
+            items = list(data_container.query_items(
+                query=query,
+                enable_cross_partition_query=True
+            ))
+            
+            if not items:
+                raise HTTPException(status_code=404, detail="Document not found")
+            
+            document = items[0]
+        except HTTPException:
+            raise
+        except Exception as e:
+            logger.error(f"Error fetching document {document_id}: {e}")
+            raise HTTPException(status_code=404, detail="Document not found")
+        
+        # Get current extraction and corrections
+        extracted_data = document.get('extracted_data', {})
+        current_extraction = extracted_data.get('gpt_extraction_output')
+        corrections = document.get('corrections', [])
+        
+        return {
+            "document_id": document_id,
+            "human_corrected": document.get('human_corrected', False),
+            "last_correction_timestamp": document.get('last_correction_timestamp'),
+            "current_extraction": current_extraction,
+            "corrections_count": len(corrections),
+            "corrections": corrections
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error getting correction history for document {document_id}: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to get correction history: {str(e)}")
+
+
 async def get_concurrency_diagnostics():
     """Get diagnostic information about Logic App Manager setup"""
     try:
