@@ -10,6 +10,6 @@ services:
     language: python
     host: containerapp
   frontend:
-    project: frontend
-    language: python
+    project: frontend-next
+    language: js
     host: containerapp

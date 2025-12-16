@@ -785,3 +785,453 @@ async def get_concurrency_diagnostics():
             "timestamp": datetime.utcnow().isoformat(),
             "logic_app_manager_initialized": False
         }
+
+
+# ============================================================================
+# Document Management Endpoints
+# ============================================================================
+
+async def list_documents(dataset: str = None):
+    """List all documents, optionally filtered by dataset"""
+    try:
+        data_container = get_data_container()
+        if not data_container:
+            raise HTTPException(status_code=503, detail="Data container not available")
+        
+        if dataset:
+            query = f"SELECT * FROM c WHERE c.dataset = '{dataset}'"
+        else:
+            query = "SELECT * FROM c"
+        
+        items = list(data_container.query_items(
+            query=query,
+            enable_cross_partition_query=True
+        ))
+        
+        # Transform documents to expected format
+        documents = []
+        for item in items:
+            doc = {
+                "id": item.get("id"),
+                "filename": item.get("file_name") or item.get("filename") or item.get("id", "").split("/")[-1],
+                "dataset": item.get("dataset", "default-dataset"),
+                "status": _get_document_status(item),
+                "created_at": item.get("request_timestamp") or item.get("created_at"),
+                "updated_at": item.get("updated_at") or item.get("request_timestamp"),
+                "processing_time": item.get("processing_time") or item.get("processing_times", {}).get("total"),
+                "model": item.get("model"),
+                "ocr_text": item.get("ocr_response") or item.get("ocr_text"),
+                "gpt_extraction": item.get("extracted_data", {}).get("gpt_extraction_output"),
+                "evaluation": item.get("evaluation_results") or item.get("evaluation"),
+                "summary": item.get("summary"),
+                "errors": item.get("errors"),
+                "num_pages": item.get("num_pages"),
+                "properties": item.get("properties", {}),
+                "state": item.get("state", {}),
+                "extracted_data": item.get("extracted_data", {})
+            }
+            documents.append(doc)
+        
+        return {"documents": documents, "count": len(documents)}
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error listing documents: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to list documents: {str(e)}")
+
+
+def _get_document_status(item: dict) -> str:
+    """Determine document status from state"""
+    state = item.get("state", {})
+    if state.get("error") or item.get("errors"):
+        return "failed"
+    if state.get("finished") or state.get("gpt_summary") or state.get("gpt_evaluation"):
+        return "completed"
+    if state.get("file_landed") or state.get("ocr_completed") or state.get("gpt_extraction"):
+        return "processing"
+    return "pending"
+
+
+async def get_document(document_id: str):
+    """Get a specific document by ID"""
+    try:
+        data_container = get_data_container()
+        if not data_container:
+            raise HTTPException(status_code=503, detail="Data container not available")
+        
+        # Query for the document
+        query = f"SELECT * FROM c WHERE c.id = '{document_id}'"
+        items = list(data_container.query_items(
+            query=query,
+            enable_cross_partition_query=True
+        ))
+        
+        if not items:
+            raise HTTPException(status_code=404, detail="Document not found")
+        
+        item = items[0]
+        
+        # Transform to expected format
+        doc = {
+            "id": item.get("id"),
+            "filename": item.get("file_name") or item.get("filename") or item.get("id", "").split("/")[-1],
+            "dataset": item.get("dataset", "default-dataset"),
+            "status": _get_document_status(item),
+            "created_at": item.get("request_timestamp") or item.get("created_at"),
+            "updated_at": item.get("updated_at") or item.get("request_timestamp"),
+            "processing_time": item.get("processing_time") or item.get("processing_times", {}).get("total"),
+            "model": item.get("model"),
+            "ocr_text": item.get("ocr_response") or item.get("ocr_text"),
+            "gpt_extraction": item.get("extracted_data", {}).get("gpt_extraction_output"),
+            "evaluation": item.get("evaluation_results") or item.get("evaluation"),
+            "summary": item.get("summary"),
+            "errors": item.get("errors"),
+            "num_pages": item.get("num_pages"),
+            "properties": item.get("properties", {}),
+            "state": item.get("state", {}),
+            "extracted_data": item.get("extracted_data", {}),
+            "blob_url": item.get("blob_url"),
+            "human_corrected": item.get("human_corrected", False),
+            "corrections": item.get("corrections", [])
+        }
+        
+        return doc
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error getting document {document_id}: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to get document: {str(e)}")
+
+
+async def delete_document(document_id: str):
+    """Delete a document by ID"""
+    try:
+        data_container = get_data_container()
+        if not data_container:
+            raise HTTPException(status_code=503, detail="Data container not available")
+        
+        # First find the document to get its info
+        query = f"SELECT * FROM c WHERE c.id = '{document_id}'"
+        items = list(data_container.query_items(
+            query=query,
+            enable_cross_partition_query=True
+        ))
+        
+        if not items:
+            raise HTTPException(status_code=404, detail="Document not found")
+        
+        # Delete the document using empty partition key (matches container config)
+        data_container.delete_item(item=document_id, partition_key={})
+        
+        # Also try to delete from blob storage
+        item = items[0]
+        blob_name = item.get("properties", {}).get("blob_name") or item.get("file_name")
+        if blob_name:
+            try:
+                blob_service_client = get_blob_service_client()
+                if blob_service_client:
+                    container_name = os.getenv('STORAGE_CONTAINER_NAME', 'datasets')
+                    container_client = blob_service_client.get_container_client(container_name)
+                    blob_client = container_client.get_blob_client(blob_name)
+                    if blob_client.exists():
+                        blob_client.delete_blob()
+                        logger.info(f"Deleted blob: {blob_name}")
+            except Exception as blob_error:
+                logger.warning(f"Could not delete blob {blob_name}: {blob_error}")
+        
+        return {"status": "success", "message": f"Document {document_id} deleted"}
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error deleting document {document_id}: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to delete document: {str(e)}")
+
+
+async def reprocess_document(document_id: str, background_tasks: BackgroundTasks):
+    """Reprocess a document by ID"""
+    try:
+        data_container = get_data_container()
+        blob_service_client = get_blob_service_client()
+        
+        if not data_container:
+            raise HTTPException(status_code=503, detail="Data container not available")
+        
+        # Find the document
+        query = f"SELECT * FROM c WHERE c.id = '{document_id}'"
+        items = list(data_container.query_items(
+            query=query,
+            enable_cross_partition_query=True
+        ))
+        
+        if not items:
+            raise HTTPException(status_code=404, detail="Document not found")
+        
+        item = items[0]
+        
+        # Get blob name from document properties
+        blob_name = item.get("properties", {}).get("blob_name") or item.get("file_name")
+        
+        if not blob_name:
+            raise HTTPException(status_code=400, detail="Document does not have a blob reference for reprocessing")
+        
+        # Construct the blob URL
+        if blob_service_client:
+            storage_account = os.getenv('STORAGE_ACCOUNT_NAME', '')
+            container_name = os.getenv('STORAGE_CONTAINER_NAME', 'datasets')
+            blob_url = f"https://{storage_account}.blob.core.windows.net/{container_name}/{blob_name}"
+        else:
+            raise HTTPException(status_code=503, detail="Blob storage not available for reprocessing")
+        
+        # Reset document state
+        item["state"] = {
+            "file_landed": True,
+            "ocr_completed": False,
+            "gpt_extraction": False,
+            "gpt_extraction_completed": False,
+            "gpt_evaluation": False,
+            "gpt_evaluation_completed": False,
+            "gpt_summary": False,
+            "gpt_summary_completed": False,
+            "processing_completed": False,
+            "finished": False,
+            "error": False
+        }
+        item["errors"] = []
+        data_container.upsert_item(item)
+        
+        # Queue for reprocessing
+        background_tasks.add_task(
+            process_blob_event,
+            blob_url,
+            {"url": blob_url}
+        )
+        
+        return {"status": "success", "message": f"Document {document_id} queued for reprocessing"}
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error reprocessing document {document_id}: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to reprocess document: {str(e)}")
+
+
+# ============================================================================
+# Dataset Management Endpoints
+# ============================================================================
+
+async def list_datasets():
+    """List all available datasets"""
+    try:
+        conf_container = get_conf_container()
+        blob_service_client = get_blob_service_client()
+        
+        datasets = []
+        
+        # Get datasets from configuration
+        if conf_container:
+            try:
+                config_item = conf_container.read_item(item='configuration', partition_key='configuration')
+                config_datasets = config_item.get('datasets', {})
+                for name, config in config_datasets.items():
+                    datasets.append({
+                        "name": name,
+                        "has_system_prompt": bool(config.get('system_prompt')),
+                        "has_output_schema": bool(config.get('output_schema')),
+                        "has_ground_truth": bool(config.get('ground_truth')),
+                        "description": config.get('description', '')
+                    })
+            except Exception as e:
+                logger.warning(f"Could not read configuration: {e}")
+        
+        # Also check blob storage for dataset folders
+        if blob_service_client:
+            try:
+                storage_account = os.getenv('STORAGE_ACCOUNT_NAME', '')
+                container_name = os.getenv('STORAGE_CONTAINER_NAME', 'datasets')
+                container_client = blob_service_client.get_container_client(container_name)
+                
+                # List blobs to find dataset folders - the structure is {dataset-name}/{file.pdf}
+                blob_list = container_client.list_blobs()
+                seen_datasets = set()
+                for blob in blob_list:
+                    # Extract dataset name from path like "dataset-name/file.pdf"
+                    parts = blob.name.split('/')
+                    if len(parts) >= 2:
+                        dataset_name = parts[0]
+                        if dataset_name and dataset_name not in seen_datasets:
+                            seen_datasets.add(dataset_name)
+                            # Add if not already in list from config
+                            if not any(d['name'] == dataset_name for d in datasets):
+                                datasets.append({
+                                    "name": dataset_name,
+                                    "has_system_prompt": False,
+                                    "has_output_schema": False,
+                                    "has_ground_truth": False,
+                                    "description": ""
+                                })
+            except Exception as e:
+                logger.warning(f"Could not list blob datasets: {e}")
+        
+        # Add default dataset if no datasets found
+        if not datasets:
+            datasets.append({
+                "name": "default-dataset",
+                "has_system_prompt": False,
+                "has_output_schema": False,
+                "has_ground_truth": False,
+                "description": "Default dataset"
+            })
+        
+        return {"datasets": datasets}
+        
+    except Exception as e:
+        logger.error(f"Error listing datasets: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to list datasets: {str(e)}")
+
+
+async def get_dataset_documents(dataset_name: str):
+    """Get all documents for a specific dataset"""
+    return await list_documents(dataset=dataset_name)
+
+
+async def upload_file(dataset_name: str, request: Request, background_tasks: BackgroundTasks):
+    """Upload a file to a dataset"""
+    try:
+        blob_service_client = get_blob_service_client()
+        if not blob_service_client:
+            raise HTTPException(status_code=503, detail="Blob storage not available")
+        
+        # Get form data
+        form = await request.form()
+        file = form.get('file')
+        
+        if not file:
+            raise HTTPException(status_code=400, detail="No file provided")
+        
+        # Get processing options from query params
+        run_ocr = request.query_params.get('run_ocr', 'true').lower() == 'true'
+        run_gpt_vision = request.query_params.get('run_gpt_vision', 'true').lower() == 'true'
+        run_summary = request.query_params.get('run_summary', 'true').lower() == 'true'
+        run_evaluation = request.query_params.get('run_evaluation', 'true').lower() == 'true'
+        
+        # Read file content
+        content = await file.read()
+        filename = file.filename
+        
+        # Upload to blob storage - use 'datasets' container which is the actual container name
+        container_name = os.getenv('STORAGE_CONTAINER_NAME', 'datasets')
+        blob_path = f"{dataset_name}/{filename}"
+        
+        container_client = blob_service_client.get_container_client(container_name)
+        blob_client = container_client.get_blob_client(blob_path)
+        
+        blob_client.upload_blob(content, overwrite=True)
+        
+        # Get the blob URL
+        blob_url = blob_client.url
+        
+        # Queue for processing if any processing options are enabled
+        if run_ocr or run_gpt_vision or run_summary or run_evaluation:
+            background_tasks.add_task(
+                process_blob_event,
+                blob_url,
+                {
+                    "url": blob_url,
+                    "processing_options": {
+                        "run_ocr": run_ocr,
+                        "run_gpt_vision": run_gpt_vision,
+                        "run_summary": run_summary,
+                        "run_evaluation": run_evaluation
+                    }
+                }
+            )
+        
+        return {"message": "File uploaded successfully", "filename": filename, "blob_url": blob_url}
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error uploading file: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to upload file: {str(e)}")
+
+
+async def get_document_file(document_id: str):
+    """Get the file/blob for a document to serve as preview"""
+    from fastapi.responses import StreamingResponse
+    import io
+    
+    try:
+        data_container = get_data_container()
+        blob_service_client = get_blob_service_client()
+        
+        if not data_container:
+            raise HTTPException(status_code=503, detail="Data container not available")
+        
+        # Find the document
+        query = f"SELECT * FROM c WHERE c.id = '{document_id}'"
+        items = list(data_container.query_items(
+            query=query,
+            enable_cross_partition_query=True
+        ))
+        
+        if not items:
+            raise HTTPException(status_code=404, detail="Document not found")
+        
+        item = items[0]
+        
+        # Get blob name from document properties
+        blob_name = item.get("properties", {}).get("blob_name") or item.get("file_name")
+        
+        if not blob_name:
+            raise HTTPException(status_code=404, detail="Document does not have a blob reference")
+        
+        if not blob_service_client:
+            raise HTTPException(status_code=503, detail="Blob storage not available")
+        
+        # Get the blob content - use 'datasets' container
+        container_name = os.getenv('STORAGE_CONTAINER_NAME', 'datasets')
+        container_client = blob_service_client.get_container_client(container_name)
+        blob_client = container_client.get_blob_client(blob_name)
+        
+        if not blob_client.exists():
+            raise HTTPException(status_code=404, detail="File not found in storage")
+        
+        # Download blob content
+        blob_data = blob_client.download_blob().readall()
+        
+        # Determine content type
+        filename = blob_name.split('/')[-1].lower()
+        if filename.endswith('.pdf'):
+            content_type = "application/pdf"
+        elif filename.endswith('.png'):
+            content_type = "image/png"
+        elif filename.endswith(('.jpg', '.jpeg')):
+            content_type = "image/jpeg"
+        elif filename.endswith('.tiff'):
+            content_type = "image/tiff"
+        elif filename.endswith('.docx'):
+            content_type = "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+        elif filename.endswith('.xlsx'):
+            content_type = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+        elif filename.endswith('.pptx'):
+            content_type = "application/vnd.openxmlformats-officedocument.presentationml.presentation"
+        else:
+            content_type = "application/octet-stream"
+        
+        return StreamingResponse(
+            io.BytesIO(blob_data),
+            media_type=content_type,
+            headers={
+                "Content-Disposition": f"inline; filename=\"{filename}\"",
+                "Cache-Control": "public, max-age=3600"
+            }
+        )
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error getting document file {document_id}: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to get document file: {str(e)}")

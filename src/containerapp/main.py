@@ -3,9 +3,11 @@ ARGUS Container App - Main FastAPI Application
 Reorganized modular structure for better maintainability
 """
 import logging
+import os
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, Request, BackgroundTasks
+from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
 from dependencies import initialize_azure_clients, cleanup_azure_clients
@@ -43,6 +45,29 @@ app = FastAPI(
     description="Document processing backend using Azure AI services",
     version="1.0.0",
     lifespan=lifespan
+)
+
+# CORS middleware - Allow frontend origins
+# Get allowed origins from environment or use defaults
+cors_origins = os.getenv("CORS_ORIGINS", "").split(",")
+cors_origins = [origin.strip() for origin in cors_origins if origin.strip()]
+
+# Default allowed origins for production
+default_origins = [
+    "http://localhost:3000",
+    "http://127.0.0.1:3000",
+    "https://ca-frontend-js23nrf4s4ha2.nicesand-0a67ac7b.eastus2.azurecontainerapps.io",
+]
+
+# Add any dynamically configured origins
+all_origins = list(set(default_origins + cors_origins))
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],  # Allow all origins for now
+    allow_credentials=True,
+    allow_methods=["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"],
+    allow_headers=["*"],
 )
 
 
@@ -143,7 +168,50 @@ async def get_correction_history(document_id: str):
     return await api_routes.get_correction_history(document_id)
 
 
+@app.get("/api/documents/{document_id}/file")
+async def get_document_file(document_id: str):
+    return await api_routes.get_document_file(document_id)
+
+
+# Document management endpoints
+@app.get("/api/documents")
+async def list_documents(dataset: str = None):
+    return await api_routes.list_documents(dataset)
+
+
+@app.get("/api/documents/{document_id}")
+async def get_document(document_id: str):
+    return await api_routes.get_document(document_id)
+
+
+@app.delete("/api/documents/{document_id}")
+async def delete_document(document_id: str):
+    return await api_routes.delete_document(document_id)
+
+
+@app.post("/api/documents/{document_id}/reprocess")
+async def reprocess_document(document_id: str, background_tasks: BackgroundTasks):
+    return await api_routes.reprocess_document(document_id, background_tasks)
+
+
+# Dataset management endpoints
+@app.get("/api/datasets")
+async def list_datasets():
+    return await api_routes.list_datasets()
+
+
+@app.get("/api/datasets/{dataset_name}/documents")
+async def get_dataset_documents(dataset_name: str):
+    return await api_routes.get_dataset_documents(dataset_name)
+
+
+@app.post("/api/datasets/{dataset_name}/upload")
+async def upload_file(dataset_name: str, request: Request, background_tasks: BackgroundTasks):
+    return await api_routes.upload_file(dataset_name, request, background_tasks)
+
+
 # Optional: If you want to run this directly
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run(app, host="0.0.0.0", port=8000)
+

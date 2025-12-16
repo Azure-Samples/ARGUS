@@ -231,7 +231,7 @@ resource containerApp 'Microsoft.App/containerApps@2024-03-01' = {
         targetPort: 8000
         corsPolicy: {
           allowedOrigins: ['*']
-          allowedMethods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS']
+          allowedMethods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS']
           allowedHeaders: ['*']
           allowCredentials: false
         }
