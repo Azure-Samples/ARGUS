@@ -2,6 +2,8 @@
 
 import * as React from "react"
 import { motion, AnimatePresence } from "framer-motion"
+import ReactMarkdown from "react-markdown"
+import remarkGfm from "remark-gfm"
 import {
   X,
   Download,
@@ -674,20 +676,52 @@ export function DocumentDetailSheet({
                           <CardHeader className="pb-3 flex-shrink-0">
                             <div className="flex items-center justify-between">
                               <CardTitle className="text-lg">OCR Output</CardTitle>
-                              <Button
-                                variant="outline"
-                                size="sm"
-                                onClick={() => copyToClipboard(ocrText || "")}
-                              >
-                                <Copy className="h-4 w-4 mr-2" />
-                                Copy
-                              </Button>
+                              <div className="flex items-center gap-2">
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  onClick={() => {
+                                    if (ocrText) {
+                                      const blob = new Blob([ocrText], { type: 'text/markdown' })
+                                      const url = URL.createObjectURL(blob)
+                                      const a = window.document.createElement('a')
+                                      a.href = url
+                                      a.download = `${document.fileName.replace(/\.[^/.]+$/, '')}_ocr.md`
+                                      window.document.body.appendChild(a)
+                                      a.click()
+                                      window.document.body.removeChild(a)
+                                      URL.revokeObjectURL(url)
+                                      toast.success('OCR markdown downloaded')
+                                    }
+                                  }}
+                                  disabled={!ocrText}
+                                >
+                                  <Download className="h-4 w-4 mr-2" />
+                                  Download MD
+                                </Button>
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  onClick={() => copyToClipboard(ocrText || "")}
+                                >
+                                  <Copy className="h-4 w-4 mr-2" />
+                                  Copy
+                                </Button>
+                              </div>
                             </div>
                           </CardHeader>
                           <CardContent className="flex-1 overflow-auto p-4">
-                            <pre className="text-sm bg-muted p-4 rounded-lg whitespace-pre-wrap">
-                              {ocrText || "No OCR data available"}
-                            </pre>
+                            {ocrText ? (
+                              <div className="prose prose-sm dark:prose-invert max-w-none prose-headings:font-semibold prose-p:my-2 prose-table:text-sm">
+                                <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                                  {ocrText}
+                                </ReactMarkdown>
+                              </div>
+                            ) : (
+                              <div className="text-center py-12 text-muted-foreground">
+                                No OCR data available
+                              </div>
+                            )}
                           </CardContent>
                         </Card>
                       </TabsContent>
