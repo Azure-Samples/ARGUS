@@ -1,9 +1,7 @@
 "use client"
 
 import * as React from "react"
-import { motion } from "framer-motion"
 import {
-  Settings2,
   Key,
   Server,
   Zap,
@@ -14,6 +12,7 @@ import {
   EyeOff,
   CheckCircle,
   AlertCircle,
+  Info,
 } from "lucide-react"
 import { toast } from "sonner"
 
@@ -30,54 +29,53 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 import { Slider } from "@/components/ui/slider"
-import { Separator } from "@/components/ui/separator"
 import { Badge } from "@/components/ui/badge"
+import {
+  Alert,
+  AlertDescription,
+  AlertTitle,
+} from "@/components/ui/alert"
 import { backendClient } from "@/lib/api-client"
 
-interface OpenAISettings {
-  endpoint: string
-  api_key: string
-  deployment_name: string
+interface OpenAISettingsResponse {
+  openai_endpoint?: string
+  openai_key?: string
+  deployment_name?: string
+  ocr_provider?: string
+  mistral_endpoint?: string
+  mistral_key?: string
+  mistral_model?: string
+  note?: string
 }
 
-interface MistralSettings {
-  endpoint: string
-  api_key: string
-  model: string
-}
-
-interface ConcurrencySettings {
-  max_concurrent_uploads: number
-  max_concurrent_api_calls: number
+interface ConcurrencySettingsResponse {
+  enabled?: boolean
+  current_max_runs?: number
+  error?: string
 }
 
 export default function SettingsPage() {
-  // OpenAI Settings
-  const [openaiSettings, setOpenaiSettings] = React.useState<OpenAISettings>({
-    endpoint: "",
-    api_key: "",
-    deployment_name: "",
-  })
+  // OpenAI Settings state
+  const [openaiEndpoint, setOpenaiEndpoint] = React.useState("")
+  const [openaiKey, setOpenaiKey] = React.useState("")
+  const [deploymentName, setDeploymentName] = React.useState("")
   const [showApiKey, setShowApiKey] = React.useState(false)
+  const [isEnvBased, setIsEnvBased] = React.useState(false)
   const [isLoadingOpenai, setIsLoadingOpenai] = React.useState(true)
   const [isSavingOpenai, setIsSavingOpenai] = React.useState(false)
 
-  // OCR Provider
+  // OCR Provider state
   const [ocrProvider, setOcrProvider] = React.useState<string>("azure")
-  const [mistralSettings, setMistralSettings] = React.useState<MistralSettings>({
-    endpoint: "",
-    api_key: "",
-    model: "mistral-document-ai-2505",
-  })
+  const [mistralEndpoint, setMistralEndpoint] = React.useState("")
+  const [mistralKey, setMistralKey] = React.useState("")
+  const [mistralModel, setMistralModel] = React.useState("mistral-document-ai-2505")
   const [showMistralKey, setShowMistralKey] = React.useState(false)
-  const [isLoadingOcr, setIsLoadingOcr] = React.useState(true)
   const [isSavingOcr, setIsSavingOcr] = React.useState(false)
 
-  // Concurrency Settings
-  const [concurrencySettings, setConcurrencySettings] = React.useState<ConcurrencySettings>({
-    max_concurrent_uploads: 5,
-    max_concurrent_api_calls: 10,
-  })
+  // Concurrency Settings state (Logic App Manager)
+  const [concurrencyEnabled, setConcurrencyEnabled] = React.useState(false)
+  const [maxRuns, setMaxRuns] = React.useState(5)
+  const [concurrencyError, setConcurrencyError] = React.useState<string | null>(null)
   const [isLoadingConcurrency, setIsLoadingConcurrency] = React.useState(true)
   const [isSavingConcurrency, setIsSavingConcurrency] = React.useState(false)
 
@@ -110,25 +108,52 @@ export default function SettingsPage() {
   async function loadOpenAISettings() {
     setIsLoadingOpenai(true)
     try {
-      const settings = await backendClient.getOpenAISettings() as { endpoint?: string; api_key?: string; deployment_name?: string }
-      setOpenaiSettings({
-        endpoint: settings.endpoint || "",
-        api_key: settings.api_key || "",
-        deployment_name: settings.deployment_name || "",
-      })
+      const settings = await backendClient.getOpenAISettings() as OpenAISettingsResponse
+      
+      // Check if env-based
+      const isEnv = settings.note?.startsWith('Configuration is read from environment variables') || false
+      setIsEnvBased(isEnv)
+      
+      // Set OpenAI settings
+      setOpenaiEndpoint(settings.openai_endpoint || "")
+      setOpenaiKey(settings.openai_key === "***hidden***" ? "" : settings.openai_key || "")
+      setDeploymentName(settings.deployment_name || "")
+      
+      // Set OCR settings
+      setOcrProvider(settings.ocr_provider || "azure")
+      setMistralEndpoint(settings.mistral_endpoint || "")
+      setMistralKey(settings.mistral_key === "***HIDDEN***" ? "" : settings.mistral_key || "")
+      setMistralModel(settings.mistral_model || "mistral-document-ai-2505")
     } catch (error) {
       console.error("Failed to load OpenAI settings:", error)
-      toast.error("Failed to load OpenAI settings")
+      toast.error("Failed to load settings")
     } finally {
       setIsLoadingOpenai(false)
     }
   }
 
   async function saveOpenAISettings() {
+    if (!openaiEndpoint || !deploymentName) {
+      toast.error("Endpoint and Deployment Name are required")
+      return
+    }
+    
     setIsSavingOpenai(true)
     try {
-      await backendClient.updateOpenAISettings(openaiSettings as unknown as Record<string, unknown>)
-      toast.success("OpenAI settings saved successfully")
+      const updateData: Record<string, unknown> = {
+        openai_endpoint: openaiEndpoint,
+        openai_deployment_name: deploymentName,
+      }
+      // Only include key if provided
+      if (openaiKey) {
+        updateData.openai_key = openaiKey
+      }
+      
+      await backendClient.updateOpenAISettings(updateData)
+      toast.success("OpenAI settings updated", {
+        description: isEnvBased ? "Changes are active immediately for new requests" : undefined
+      })
+      loadOpenAISettings()
     } catch (error) {
       console.error("Failed to save OpenAI settings:", error)
       toast.error("Failed to save OpenAI settings")
@@ -137,17 +162,52 @@ export default function SettingsPage() {
     }
   }
 
+  async function saveOcrSettings() {
+    if (ocrProvider === "mistral") {
+      if (!mistralEndpoint) {
+        toast.error("Mistral endpoint is required")
+        return
+      }
+    }
+    
+    setIsSavingOcr(true)
+    try {
+      const updateData: Record<string, unknown> = {
+        ocr_provider: ocrProvider,
+      }
+      
+      if (ocrProvider === "mistral") {
+        updateData.mistral_endpoint = mistralEndpoint
+        if (mistralKey) {
+          updateData.mistral_key = mistralKey
+        }
+        updateData.mistral_model = mistralModel
+      }
+      
+      await backendClient.updateOpenAISettings(updateData)
+      toast.success(`OCR provider updated to ${ocrProvider === "azure" ? "Azure Document Intelligence" : "Mistral OCR"}`, {
+        description: "Changes are active immediately for new document processing"
+      })
+      loadOpenAISettings()
+    } catch (error) {
+      console.error("Failed to save OCR settings:", error)
+      toast.error("Failed to save OCR settings")
+    } finally {
+      setIsSavingOcr(false)
+    }
+  }
+
   async function loadConcurrencySettings() {
     setIsLoadingConcurrency(true)
     try {
-      const settings = await backendClient.getConcurrencySettings() as { max_concurrent_uploads?: number; max_concurrent_api_calls?: number }
-      setConcurrencySettings({
-        max_concurrent_uploads: settings.max_concurrent_uploads || 5,
-        max_concurrent_api_calls: settings.max_concurrent_api_calls || 10,
-      })
+      const settings = await backendClient.getConcurrencySettings() as ConcurrencySettingsResponse
+      setConcurrencyEnabled(settings.enabled || false)
+      setMaxRuns(settings.current_max_runs || 5)
+      setConcurrencyError(settings.error || null)
     } catch (error) {
       console.error("Failed to load concurrency settings:", error)
-      toast.error("Failed to load concurrency settings")
+      setConcurrencyEnabled(false)
+      setConcurrencyError("Failed to connect to Logic App Manager")
     } finally {
       setIsLoadingConcurrency(false)
     }
@@ -156,11 +216,12 @@ export default function SettingsPage() {
   async function saveConcurrencySettings() {
     setIsSavingConcurrency(true)
     try {
-      await backendClient.updateConcurrencySettings(concurrencySettings as unknown as Record<string, unknown>)
-      toast.success("Concurrency settings saved successfully")
+      await backendClient.updateConcurrencySettings({ max_runs: maxRuns })
+      toast.success(`Concurrency updated to ${maxRuns} concurrent runs`)
+      loadConcurrencySettings()
     } catch (error) {
       console.error("Failed to save concurrency settings:", error)
-      toast.error("Failed to save concurrency settings")
+      toast.error("Failed to update concurrency settings")
     } finally {
       setIsSavingConcurrency(false)
     }
@@ -196,7 +257,7 @@ export default function SettingsPage() {
                 </Badge>
               )}
             </div>
-            <Button variant="outline" size="sm" onClick={checkHealth}>
+            <Button variant="outline" size="sm" onClick={() => { checkHealth(); loadAllSettings(); }}>
               <RefreshCw className={`h-4 w-4 mr-2 ${healthStatus === "checking" ? "animate-spin" : ""}`} />
               Refresh
             </Button>
@@ -225,15 +286,23 @@ export default function SettingsPage() {
               </div>
             ) : (
               <>
+                {isEnvBased && (
+                  <Alert>
+                    <Info className="h-4 w-4" />
+                    <AlertTitle>Environment Variable Configuration</AlertTitle>
+                    <AlertDescription>
+                      Configuration is managed via environment variables. Runtime updates are temporary and will be lost when the container restarts.
+                    </AlertDescription>
+                  </Alert>
+                )}
+                
                 <div className="space-y-2">
-                  <Label htmlFor="endpoint">Endpoint URL</Label>
+                  <Label htmlFor="endpoint">Azure OpenAI Endpoint</Label>
                   <Input
                     id="endpoint"
                     placeholder="https://your-resource.openai.azure.com/"
-                    value={openaiSettings.endpoint}
-                    onChange={(e) =>
-                      setOpenaiSettings((prev) => ({ ...prev, endpoint: e.target.value }))
-                    }
+                    value={openaiEndpoint}
+                    onChange={(e) => setOpenaiEndpoint(e.target.value)}
                   />
                 </div>
                 <div className="space-y-2">
@@ -242,11 +311,9 @@ export default function SettingsPage() {
                     <Input
                       id="api-key"
                       type={showApiKey ? "text" : "password"}
-                      placeholder="Enter your API key"
-                      value={openaiSettings.api_key}
-                      onChange={(e) =>
-                        setOpenaiSettings((prev) => ({ ...prev, api_key: e.target.value }))
-                      }
+                      placeholder={isEnvBased ? "Enter new key or leave blank to keep current" : "Enter your API key"}
+                      value={openaiKey}
+                      onChange={(e) => setOpenaiKey(e.target.value)}
                     />
                     <Button
                       variant="ghost"
@@ -263,14 +330,12 @@ export default function SettingsPage() {
                   </div>
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="deployment">Deployment Name</Label>
+                  <Label htmlFor="deployment">Model Deployment Name</Label>
                   <Input
                     id="deployment"
                     placeholder="gpt-4o"
-                    value={openaiSettings.deployment_name}
-                    onChange={(e) =>
-                      setOpenaiSettings((prev) => ({ ...prev, deployment_name: e.target.value }))
-                    }
+                    value={deploymentName}
+                    onChange={(e) => setDeploymentName(e.target.value)}
                   />
                 </div>
                 <Button
@@ -283,7 +348,7 @@ export default function SettingsPage() {
                   ) : (
                     <Save className="h-4 w-4 mr-2" />
                   )}
-                  Save OpenAI Settings
+                  {isEnvBased ? "Update Runtime Settings" : "Save OpenAI Settings"}
                 </Button>
               </>
             )}
@@ -302,141 +367,117 @@ export default function SettingsPage() {
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
-            <div className="space-y-2">
-              <Label>Provider</Label>
-              <Select value={ocrProvider} onValueChange={setOcrProvider}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Select OCR provider" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="azure">
-                    <div className="flex items-center gap-2">
-                      <span>Azure Document Intelligence</span>
-                      <Badge variant="secondary" className="text-xs">Recommended</Badge>
-                    </div>
-                  </SelectItem>
-                  <SelectItem value="mistral">Mistral OCR</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-
-            <div className="rounded-lg bg-muted p-4 text-sm">
-              {ocrProvider === "azure" ? (
-                <div className="space-y-2">
-                  <p className="font-medium">Azure Document Intelligence</p>
-                  <p className="text-muted-foreground">
-                    Uses Azure AI Document Intelligence for high-quality OCR with
-                    layout analysis, table extraction, and form recognition.
-                  </p>
-                </div>
-              ) : (
-                <div className="space-y-2">
-                  <p className="font-medium">Mistral OCR</p>
-                  <p className="text-muted-foreground">
-                    Uses Mistral&apos;s vision capabilities for OCR. Good for
-                    general document processing with lower costs.
-                  </p>
-                </div>
-              )}
-            </div>
-
-            {/* Mistral Settings - show only when Mistral is selected */}
-            {ocrProvider === "mistral" && (
-              <div className="space-y-4 pt-4 border-t">
-                <div className="space-y-2">
-                  <Label htmlFor="mistral-endpoint">Mistral Endpoint</Label>
-                  <Input
-                    id="mistral-endpoint"
-                    placeholder="https://your-endpoint.services.ai.azure.com/providers/mistral/azure/ocr"
-                    value={mistralSettings.endpoint}
-                    onChange={(e) =>
-                      setMistralSettings((prev) => ({ ...prev, endpoint: e.target.value }))
-                    }
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="mistral-key">Mistral API Key</Label>
-                  <div className="relative">
-                    <Input
-                      id="mistral-key"
-                      type={showMistralKey ? "text" : "password"}
-                      placeholder="Enter your Mistral API key"
-                      value={mistralSettings.api_key}
-                      onChange={(e) =>
-                        setMistralSettings((prev) => ({ ...prev, api_key: e.target.value }))
-                      }
-                    />
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      className="absolute right-0 top-0 h-full px-3"
-                      onClick={() => setShowMistralKey(!showMistralKey)}
-                    >
-                      {showMistralKey ? (
-                        <EyeOff className="h-4 w-4" />
-                      ) : (
-                        <Eye className="h-4 w-4" />
-                      )}
-                    </Button>
-                  </div>
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="mistral-model">Mistral Model</Label>
-                  <Input
-                    id="mistral-model"
-                    placeholder="mistral-document-ai-2505"
-                    value={mistralSettings.model}
-                    onChange={(e) =>
-                      setMistralSettings((prev) => ({ ...prev, model: e.target.value }))
-                    }
-                  />
-                </div>
+            {isLoadingOpenai ? (
+              <div className="space-y-4">
+                <div className="h-10 bg-muted animate-pulse rounded" />
+                <div className="h-20 bg-muted animate-pulse rounded" />
               </div>
-            )}
+            ) : (
+              <>
+                <div className="space-y-2">
+                  <Label>Provider</Label>
+                  <Select value={ocrProvider} onValueChange={setOcrProvider}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select OCR provider" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="azure">
+                        <div className="flex items-center gap-2">
+                          <span>Azure Document Intelligence</span>
+                          <Badge variant="secondary" className="text-xs">Recommended</Badge>
+                        </div>
+                      </SelectItem>
+                      <SelectItem value="mistral">Mistral Document AI</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
 
-            <Button
-              onClick={async () => {
-                setIsSavingOcr(true)
-                try {
-                  const updateData: Record<string, unknown> = {
-                    ocr_provider: ocrProvider,
-                  }
-                  if (ocrProvider === "mistral") {
-                    if (!mistralSettings.endpoint) {
-                      toast.error("Mistral endpoint is required")
-                      return
-                    }
-                    updateData.mistral_endpoint = mistralSettings.endpoint
-                    if (mistralSettings.api_key) {
-                      updateData.mistral_key = mistralSettings.api_key
-                    }
-                    updateData.mistral_model = mistralSettings.model
-                  }
-                  await backendClient.updateOpenAISettings(updateData)
-                  toast.success("OCR provider saved", {
-                    description: `Using ${ocrProvider === "azure" ? "Azure Document Intelligence" : "Mistral OCR"}`,
-                  })
-                } catch (error) {
-                  console.error("Failed to save OCR settings:", error)
-                  toast.error("Failed to save OCR settings")
-                } finally {
-                  setIsSavingOcr(false)
-                }
-              }}
-              disabled={isSavingOcr}
-              className="w-full"
-            >
-              {isSavingOcr ? (
-                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-              ) : (
-                <Save className="h-4 w-4 mr-2" />
-              )}
-              Save OCR Settings
-            </Button>
+                <div className="rounded-lg bg-muted p-4 text-sm">
+                  {ocrProvider === "azure" ? (
+                    <div className="space-y-2">
+                      <p className="font-medium">Azure Document Intelligence</p>
+                      <p className="text-muted-foreground">
+                        Microsoft&apos;s enterprise-grade OCR service with layout analysis, 
+                        table extraction, and form recognition.
+                      </p>
+                    </div>
+                  ) : (
+                    <div className="space-y-2">
+                      <p className="font-medium">Mistral Document AI</p>
+                      <p className="text-muted-foreground">
+                        Mistral&apos;s document understanding API. Good for general text 
+                        extraction with lower costs.
+                      </p>
+                    </div>
+                  )}
+                </div>
+
+                {/* Mistral Settings - show only when Mistral is selected */}
+                {ocrProvider === "mistral" && (
+                  <div className="space-y-4 pt-4 border-t">
+                    <div className="space-y-2">
+                      <Label htmlFor="mistral-endpoint">Mistral Endpoint</Label>
+                      <Input
+                        id="mistral-endpoint"
+                        placeholder="https://your-endpoint.services.ai.azure.com/providers/mistral/azure/ocr"
+                        value={mistralEndpoint}
+                        onChange={(e) => setMistralEndpoint(e.target.value)}
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="mistral-key">Mistral API Key</Label>
+                      <div className="relative">
+                        <Input
+                          id="mistral-key"
+                          type={showMistralKey ? "text" : "password"}
+                          placeholder="Enter your Mistral API key"
+                          value={mistralKey}
+                          onChange={(e) => setMistralKey(e.target.value)}
+                        />
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="absolute right-0 top-0 h-full px-3"
+                          onClick={() => setShowMistralKey(!showMistralKey)}
+                        >
+                          {showMistralKey ? (
+                            <EyeOff className="h-4 w-4" />
+                          ) : (
+                            <Eye className="h-4 w-4" />
+                          )}
+                        </Button>
+                      </div>
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="mistral-model">Mistral Model</Label>
+                      <Input
+                        id="mistral-model"
+                        placeholder="mistral-document-ai-2505"
+                        value={mistralModel}
+                        onChange={(e) => setMistralModel(e.target.value)}
+                      />
+                    </div>
+                  </div>
+                )}
+
+                <Button
+                  onClick={saveOcrSettings}
+                  disabled={isSavingOcr}
+                  className="w-full"
+                >
+                  {isSavingOcr ? (
+                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  ) : (
+                    <Save className="h-4 w-4 mr-2" />
+                  )}
+                  Update OCR Provider
+                </Button>
+              </>
+            )}
           </CardContent>
         </Card>
 
-        {/* Concurrency Settings */}
+        {/* Concurrency Settings - Logic App Manager */}
         <Card className="md:col-span-2">
           <CardHeader>
             <div className="flex items-center gap-2">
@@ -444,67 +485,63 @@ export default function SettingsPage() {
               <CardTitle>Concurrency Settings</CardTitle>
             </div>
             <CardDescription>
-              Control parallel processing limits for optimal performance
+              Control how many files can be processed simultaneously via Logic App Manager
             </CardDescription>
           </CardHeader>
           <CardContent>
             {isLoadingConcurrency ? (
-              <div className="space-y-8">
-                <div className="h-20 bg-muted animate-pulse rounded" />
+              <div className="space-y-4">
                 <div className="h-20 bg-muted animate-pulse rounded" />
               </div>
+            ) : !concurrencyEnabled ? (
+              <Alert variant="destructive">
+                <AlertCircle className="h-4 w-4" />
+                <AlertTitle>Logic App Manager Unavailable</AlertTitle>
+                <AlertDescription>
+                  {concurrencyError || "Logic App Manager is not configured or not available. Please check your deployment configuration."}
+                </AlertDescription>
+              </Alert>
             ) : (
-              <div className="space-y-8">
-                <div className="space-y-4">
-                  <div className="flex items-center justify-between">
-                    <Label>Max Concurrent Uploads</Label>
-                    <Badge variant="outline" className="text-lg font-mono">
-                      {concurrencySettings.max_concurrent_uploads}
-                    </Badge>
-                  </div>
-                  <Slider
-                    value={[concurrencySettings.max_concurrent_uploads]}
-                    onValueChange={([value]) =>
-                      setConcurrencySettings((prev) => ({
-                        ...prev,
-                        max_concurrent_uploads: value,
-                      }))
-                    }
-                    min={1}
-                    max={20}
-                    step={1}
-                  />
-                  <p className="text-sm text-muted-foreground">
-                    Number of files that can be uploaded simultaneously. Higher values
-                    speed up batch uploads but may impact browser performance.
-                  </p>
-                </div>
-
-                <Separator />
+              <div className="space-y-6">
+                <Alert>
+                  <CheckCircle className="h-4 w-4" />
+                  <AlertTitle>Logic App Manager Connected</AlertTitle>
+                  <AlertDescription>
+                    Concurrency control is active. Adjust the slider to change how many files can be processed in parallel.
+                  </AlertDescription>
+                </Alert>
 
                 <div className="space-y-4">
                   <div className="flex items-center justify-between">
-                    <Label>Max Concurrent API Calls</Label>
+                    <Label>Maximum Concurrent Runs</Label>
                     <Badge variant="outline" className="text-lg font-mono">
-                      {concurrencySettings.max_concurrent_api_calls}
+                      {maxRuns}
                     </Badge>
                   </div>
                   <Slider
-                    value={[concurrencySettings.max_concurrent_api_calls]}
-                    onValueChange={([value]) =>
-                      setConcurrencySettings((prev) => ({
-                        ...prev,
-                        max_concurrent_api_calls: value,
-                      }))
-                    }
+                    value={[maxRuns]}
+                    onValueChange={([value]) => setMaxRuns(value)}
                     min={1}
-                    max={50}
+                    max={100}
                     step={1}
                   />
-                  <p className="text-sm text-muted-foreground">
-                    Number of parallel API calls for document processing. Higher values
-                    increase throughput but may hit rate limits.
-                  </p>
+                  <div className="text-sm text-muted-foreground space-y-2">
+                    {maxRuns <= 5 && (
+                      <p className="text-blue-600 dark:text-blue-400">
+                        💡 <strong>Conservative:</strong> Lower values provide more controlled processing with lower resource usage
+                      </p>
+                    )}
+                    {maxRuns > 5 && maxRuns <= 20 && (
+                      <p className="text-green-600 dark:text-green-400">
+                        💡 <strong>Balanced:</strong> Good for most scenarios with mixed file sizes
+                      </p>
+                    )}
+                    {maxRuns > 20 && (
+                      <p className="text-amber-600 dark:text-amber-400">
+                        💡 <strong>Aggressive:</strong> Faster processing, requires sufficient Azure resources (Document Intelligence, OpenAI, Cosmos DB)
+                      </p>
+                    )}
+                  </div>
                 </div>
 
                 <Button
@@ -517,7 +554,7 @@ export default function SettingsPage() {
                   ) : (
                     <Save className="h-4 w-4 mr-2" />
                   )}
-                  Save Concurrency Settings
+                  Update Concurrency
                 </Button>
               </div>
             )}

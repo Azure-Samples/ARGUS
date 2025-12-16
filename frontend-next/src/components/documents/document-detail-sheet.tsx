@@ -24,7 +24,9 @@ import {
   ExternalLink,
   Copy,
   Pencil,
-  Save
+  Save,
+  RefreshCw,
+  Settings
 } from "lucide-react"
 import { toast } from "sonner"
 
@@ -89,6 +91,7 @@ export function DocumentDetailSheet({
 }: DocumentDetailSheetProps) {
   const [fullDocument, setFullDocument] = React.useState<Document | null>(null)
   const [isLoading, setIsLoading] = React.useState(false)
+  const [isRefreshing, setIsRefreshing] = React.useState(false)
   const [activeTab, setActiveTab] = React.useState("extracted")
   
   // Chat state
@@ -327,6 +330,21 @@ export function DocumentDetailSheet({
                 </div>
               </div>
               <div className="flex items-center gap-2">
+                <Button 
+                  variant="outline" 
+                  size="sm" 
+                  onClick={async () => {
+                    setIsRefreshing(true)
+                    await loadFullDocument()
+                    await loadCorrections()
+                    setIsRefreshing(false)
+                    toast.success("Document refreshed")
+                  }}
+                  disabled={isRefreshing}
+                >
+                  <RefreshCw className={`h-4 w-4 mr-2 ${isRefreshing ? "animate-spin" : ""}`} />
+                  Refresh
+                </Button>
                 <Button variant="outline" size="sm" onClick={() => onReprocess(document)}>
                   <RotateCcw className="h-4 w-4 mr-2" />
                   Reprocess
@@ -767,22 +785,50 @@ export function DocumentDetailSheet({
                                 } 
                               />
                             </div>
+                          </CardContent>
+                        </Card>
                             
-                            {/* Model Input Info */}
-                            {fullDocument?.model_input && (
-                              <div className="mt-6">
-                                <h4 className="font-medium mb-3">Model Configuration</h4>
-                                <div className="space-y-3">
-                                  <PropertyRow 
-                                    label="Model" 
-                                    value={(fullDocument.model_input as Record<string, unknown>)?.model_deployment as string || "N/A"} 
-                                  />
-                                  <PropertyRow 
-                                    label="Prompt" 
-                                    value={(fullDocument.model_input as Record<string, unknown>)?.model_prompt as string || "N/A"} 
-                                  />
-                                </div>
+                        {/* Model Configuration */}
+                        <Card>
+                          <CardHeader className="pb-3">
+                            <CardTitle className="text-lg flex items-center gap-2">
+                              <Settings className="h-5 w-5" />
+                              Model Configuration
+                            </CardTitle>
+                          </CardHeader>
+                          <CardContent>
+                            {fullDocument?.model_input ? (
+                              <div className="space-y-3">
+                                <PropertyRow 
+                                  label="Model Deployment" 
+                                  value={(fullDocument.model_input as Record<string, unknown>)?.model_deployment as string || "N/A"} 
+                                />
+                                <PropertyRow 
+                                  label="System Prompt" 
+                                  value={(fullDocument.model_input as Record<string, unknown>)?.model_prompt as string || "N/A"} 
+                                />
+                                <PropertyRow 
+                                  label="Max Pages Per Chunk" 
+                                  value={String((fullDocument.model_input as Record<string, unknown>)?.max_pages_per_chunk ?? "N/A")} 
+                                />
+                                {(() => {
+                                  const modelInput = fullDocument.model_input as Record<string, unknown>
+                                  const exampleSchema = modelInput?.example_schema
+                                  if (exampleSchema && typeof exampleSchema === 'object' && Object.keys(exampleSchema).length > 0) {
+                                    return (
+                                      <div className="pt-2">
+                                        <span className="text-sm text-muted-foreground">Output Schema</span>
+                                        <pre className="mt-1 text-xs bg-muted p-2 rounded overflow-auto max-h-32">
+                                          {JSON.stringify(exampleSchema, null, 2)}
+                                        </pre>
+                                      </div>
+                                    )
+                                  }
+                                  return null
+                                })()}
                               </div>
+                            ) : (
+                              <div className="text-sm text-muted-foreground">No model configuration available</div>
                             )}
                             
                             {/* Processing Options */}
@@ -796,7 +842,7 @@ export function DocumentDetailSheet({
                                       variant={value ? "default" : "outline"}
                                       className={!value ? "opacity-50" : ""}
                                     >
-                                      {key.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase())}
+                                      {key.replace(/_/g, ' ').replace(/\w/g, l => l.toUpperCase())}
                                       {value ? " ✓" : " ✗"}
                                     </Badge>
                                   ))}
