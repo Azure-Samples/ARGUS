@@ -13,6 +13,9 @@ import {
   CheckCircle,
   AlertCircle,
   Info,
+  Terminal,
+  Cloud,
+  FileCode,
 } from "lucide-react"
 import { toast } from "sonner"
 
@@ -35,6 +38,12 @@ import {
   AlertDescription,
   AlertTitle,
 } from "@/components/ui/alert"
+import {
+  Accordion,
+  AccordionContent,
+  AccordionItem,
+  AccordionTrigger,
+} from "@/components/ui/accordion"
 import { backendClient } from "@/lib/api-client"
 
 interface OpenAISettingsResponse {
@@ -558,6 +567,120 @@ export default function SettingsPage() {
                 </Button>
               </div>
             )}
+          </CardContent>
+        </Card>
+
+        {/* Persistent Changes Instructions */}
+        <Card className="md:col-span-2">
+          <CardHeader>
+            <div className="flex items-center gap-2">
+              <Info className="h-5 w-5 text-muted-foreground" />
+              <CardTitle>Making Changes Permanent</CardTitle>
+            </div>
+            <CardDescription>
+              Runtime changes above are temporary. For persistent changes that survive container restarts, update your deployment configuration.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <Alert className="mb-6">
+              <AlertCircle className="h-4 w-4" />
+              <AlertTitle>Important</AlertTitle>
+              <AlertDescription>
+                Settings configured above are stored in memory and will be reset when the container restarts. 
+                For production deployments, update the environment variables using one of the methods below.
+              </AlertDescription>
+            </Alert>
+
+            <Accordion type="single" collapsible className="w-full">
+              <AccordionItem value="azure-portal">
+                <AccordionTrigger>
+                  <div className="flex items-center gap-2">
+                    <Cloud className="h-4 w-4" />
+                    Option 1: Update via Azure Portal (Recommended)
+                  </div>
+                </AccordionTrigger>
+                <AccordionContent className="space-y-3 text-sm">
+                  <ol className="list-decimal list-inside space-y-2 text-muted-foreground">
+                    <li>Go to <strong>Azure Portal</strong> → <strong>Container Apps</strong> → <strong>Your Backend App</strong></li>
+                    <li>Navigate to <strong>Settings</strong> → <strong>Environment variables</strong></li>
+                    <li>Update OpenAI variables:
+                      <ul className="list-disc list-inside ml-4 mt-1">
+                        <li><code className="bg-muted px-1 rounded">AZURE_OPENAI_ENDPOINT</code></li>
+                        <li><code className="bg-muted px-1 rounded">AZURE_OPENAI_API_KEY</code></li>
+                        <li><code className="bg-muted px-1 rounded">AZURE_OPENAI_DEPLOYMENT_NAME</code></li>
+                      </ul>
+                    </li>
+                    <li>For OCR provider (optional):
+                      <ul className="list-disc list-inside ml-4 mt-1">
+                        <li><code className="bg-muted px-1 rounded">OCR_PROVIDER</code> - Set to <code className="bg-muted px-1 rounded">azure</code> or <code className="bg-muted px-1 rounded">mistral</code></li>
+                        <li><code className="bg-muted px-1 rounded">MISTRAL_ENDPOINT</code> - Mistral API endpoint (if using Mistral)</li>
+                        <li><code className="bg-muted px-1 rounded">MISTRAL_API_KEY</code> - Mistral API key (if using Mistral)</li>
+                        <li><code className="bg-muted px-1 rounded">MISTRAL_DOC_AI_MODEL</code> - Model name (default: mistral-document-ai-2505)</li>
+                      </ul>
+                    </li>
+                    <li><strong>Restart</strong> the container app for changes to take effect</li>
+                  </ol>
+                </AccordionContent>
+              </AccordionItem>
+
+              <AccordionItem value="azure-cli">
+                <AccordionTrigger>
+                  <div className="flex items-center gap-2">
+                    <Terminal className="h-4 w-4" />
+                    Option 2: Update via Azure CLI
+                  </div>
+                </AccordionTrigger>
+                <AccordionContent className="space-y-4">
+                  <div>
+                    <p className="text-sm text-muted-foreground mb-2">Update OpenAI settings:</p>
+                    <div className="bg-muted rounded-lg p-4 font-mono text-sm overflow-x-auto">
+                      <pre className="whitespace-pre-wrap">{`az containerapp update \\
+  --name <your-backend-app-name> \\
+  --resource-group <your-resource-group> \\
+  --set-env-vars \\
+    AZURE_OPENAI_ENDPOINT="https://your-resource.openai.azure.com/" \\
+    AZURE_OPENAI_API_KEY="your-api-key" \\
+    AZURE_OPENAI_DEPLOYMENT_NAME="your-deployment-name"`}</pre>
+                    </div>
+                  </div>
+                  <div>
+                    <p className="text-sm text-muted-foreground mb-2">Update OCR provider (optional - for Mistral):</p>
+                    <div className="bg-muted rounded-lg p-4 font-mono text-sm overflow-x-auto">
+                      <pre className="whitespace-pre-wrap">{`az containerapp update \\
+  --name <your-backend-app-name> \\
+  --resource-group <your-resource-group> \\
+  --set-env-vars \\
+    OCR_PROVIDER="mistral" \\
+    MISTRAL_ENDPOINT="https://your-endpoint.services.ai.azure.com/..." \\
+    MISTRAL_API_KEY="your-mistral-key" \\
+    MISTRAL_DOC_AI_MODEL="mistral-document-ai-2505"`}</pre>
+                    </div>
+                  </div>
+                </AccordionContent>
+              </AccordionItem>
+
+              <AccordionItem value="azd">
+                <AccordionTrigger>
+                  <div className="flex items-center gap-2">
+                    <FileCode className="h-4 w-4" />
+                    Option 3: Update via Infrastructure (azd)
+                  </div>
+                </AccordionTrigger>
+                <AccordionContent className="space-y-3 text-sm">
+                  <p className="text-muted-foreground">If you&apos;re using Azure Developer CLI (azd):</p>
+                  <ol className="list-decimal list-inside space-y-2 text-muted-foreground">
+                    <li>Update the environment variables in your <code className="bg-muted px-1 rounded">infra/main.parameters.json</code> file</li>
+                    <li>Available environment variables:
+                      <ul className="list-disc list-inside ml-4 mt-1">
+                        <li><code className="bg-muted px-1 rounded">AZURE_OPENAI_ENDPOINT</code>, <code className="bg-muted px-1 rounded">AZURE_OPENAI_API_KEY</code>, <code className="bg-muted px-1 rounded">AZURE_OPENAI_DEPLOYMENT_NAME</code></li>
+                        <li><code className="bg-muted px-1 rounded">OCR_PROVIDER</code>, <code className="bg-muted px-1 rounded">MISTRAL_ENDPOINT</code>, <code className="bg-muted px-1 rounded">MISTRAL_API_KEY</code>, <code className="bg-muted px-1 rounded">MISTRAL_DOC_AI_MODEL</code></li>
+                      </ul>
+                    </li>
+                    <li>Run <code className="bg-muted px-1 rounded">azd up</code> to redeploy with new settings</li>
+                  </ol>
+                </AccordionContent>
+              </AccordionItem>
+            </Accordion>
           </CardContent>
         </Card>
       </div>

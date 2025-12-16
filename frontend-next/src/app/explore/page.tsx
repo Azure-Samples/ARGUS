@@ -121,14 +121,14 @@ function parseDocuments(documents: Document[]): ProcessedDocument[] {
       errorsStr = JSON.stringify(doc.errors)
     }
     
-    // Check for actual errors - state.error boolean OR non-empty errors
+    // Check for actual errors - state.error boolean OR non-empty errors array
     const hasError = state.error === true || (errorsStr.length > 0 && errorsStr !== '[]')
     const errorMessage = hasError ? errorsStr : ""
 
-    // Determine status - only failed if there's an actual error
+    // Determine status - failed takes priority if there are any errors
     let status: "completed" | "processing" | "failed" = "processing"
-    if (finished) status = "completed"
-    else if (hasError) status = "failed"
+    if (hasError) status = "failed"
+    else if (finished) status = "completed"
 
     return {
       id: doc.id,
@@ -651,6 +651,24 @@ export default function ExplorePage() {
         onDelete={(doc) => {
           setDocumentsToDelete([doc])
           setDeleteDialogOpen(true)
+        }}
+        onRefresh={async () => {
+          // Refresh the selected document from the API to get latest state
+          if (selectedDocument) {
+            try {
+              const doc = await backendClient.getDocument(selectedDocument.id)
+              const [refreshedDoc] = parseDocuments([doc])
+              if (refreshedDoc) {
+                setSelectedDocument(refreshedDoc)
+                // Also update in the documents list
+                setDocuments(prev => prev.map(d => 
+                  d.id === refreshedDoc.id ? refreshedDoc : d
+                ))
+              }
+            } catch (error) {
+              console.error("Failed to refresh document:", error)
+            }
+          }
         }}
       />
 

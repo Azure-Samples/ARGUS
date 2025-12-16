@@ -67,6 +67,7 @@ interface DocumentDetailSheetProps {
   onClose: () => void
   onReprocess: (doc: ProcessedDocument) => void
   onDelete: (doc: ProcessedDocument) => void
+  onRefresh?: () => void
 }
 
 interface ChatMessage {
@@ -88,6 +89,7 @@ export function DocumentDetailSheet({
   onClose,
   onReprocess,
   onDelete,
+  onRefresh,
 }: DocumentDetailSheetProps) {
   const [fullDocument, setFullDocument] = React.useState<Document | null>(null)
   const [isLoading, setIsLoading] = React.useState(false)
@@ -325,6 +327,25 @@ export function DocumentDetailSheet({
                   <div className="flex items-center gap-2 text-sm text-muted-foreground">
                     <Badge variant="secondary">{document.dataset}</Badge>
                     <span>•</span>
+                    {document.status === "completed" && (
+                      <Badge variant="default" className="bg-green-500 hover:bg-green-500">
+                        <CheckCircle className="h-3 w-3 mr-1" />
+                        Completed
+                      </Badge>
+                    )}
+                    {document.status === "processing" && (
+                      <Badge variant="secondary" className="bg-yellow-500/20 text-yellow-600 hover:bg-yellow-500/20">
+                        <Clock className="h-3 w-3 mr-1" />
+                        Processing
+                      </Badge>
+                    )}
+                    {document.status === "failed" && (
+                      <Badge variant="destructive">
+                        <XCircle className="h-3 w-3 mr-1" />
+                        Failed
+                      </Badge>
+                    )}
+                    <span>•</span>
                     <span>{formatDate(document.timestamp)}</span>
                   </div>
                 </div>
@@ -337,8 +358,9 @@ export function DocumentDetailSheet({
                     setIsRefreshing(true)
                     await loadFullDocument()
                     await loadCorrections()
+                    // Notify parent to refresh document list for status updates
+                    onRefresh?.()
                     setIsRefreshing(false)
-                    toast.success("Document refreshed")
                   }}
                   disabled={isRefreshing}
                 >
@@ -361,31 +383,31 @@ export function DocumentDetailSheet({
               <div className="flex items-center justify-between gap-6">
                 <ProcessingStep 
                   label="File Landed" 
-                  completed={document.fileLanded} 
+                  completed={processingState?.file_landed as boolean ?? document.fileLanded} 
                   hasError={hasActualErrors && !document.fileLanded}
                 />
                 <div className="h-[2px] flex-1 bg-border" />
                 <ProcessingStep 
                   label="OCR" 
-                  completed={document.ocrCompleted}
+                  completed={processingState?.ocr_completed as boolean ?? document.ocrCompleted}
                   hasError={hasActualErrors && document.fileLanded && !document.ocrCompleted}
                 />
                 <div className="h-[2px] flex-1 bg-border" />
                 <ProcessingStep 
                   label="Extraction" 
-                  completed={document.gptExtraction}
+                  completed={processingState?.gpt_extraction_completed as boolean ?? document.gptExtraction}
                   hasError={hasActualErrors && document.ocrCompleted && !document.gptExtraction}
                 />
                 <div className="h-[2px] flex-1 bg-border" />
                 <ProcessingStep 
                   label="Evaluation" 
-                  completed={document.gptEvaluation}
+                  completed={processingState?.gpt_evaluation_completed as boolean ?? document.gptEvaluation}
                   hasError={hasActualErrors && document.gptExtraction && !document.gptEvaluation}
                 />
                 <div className="h-[2px] flex-1 bg-border" />
                 <ProcessingStep 
                   label="Summary" 
-                  completed={document.gptSummary}
+                  completed={processingState?.gpt_summary_completed as boolean ?? document.gptSummary}
                   hasError={hasActualErrors && document.gptEvaluation && !document.gptSummary}
                 />
               </div>
