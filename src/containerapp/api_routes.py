@@ -891,6 +891,8 @@ async def get_document(document_id: str):
             "properties": item.get("properties", {}),
             "state": item.get("state", {}),
             "extracted_data": item.get("extracted_data", {}),
+            "model_input": item.get("model_input", {}),
+            "processing_options": item.get("processing_options", {}),
             "blob_url": item.get("blob_url"),
             "human_corrected": item.get("human_corrected", False),
             "corrections": item.get("corrections", [])
