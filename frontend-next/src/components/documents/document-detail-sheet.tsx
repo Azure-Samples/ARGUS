@@ -98,10 +98,6 @@ export function DocumentDetailSheet({
   
   // Corrections state
   const [corrections, setCorrections] = React.useState<Correction[]>([])
-  const [correctionField, setCorrectionField] = React.useState("")
-  const [correctionValue, setCorrectionValue] = React.useState("")
-  const [correctionNotes, setCorrectionNotes] = React.useState("")
-  const [isSubmittingCorrection, setIsSubmittingCorrection] = React.useState(false)
   
   // Edit mode state for extraction
   const [isEditMode, setIsEditMode] = React.useState(false)
@@ -202,37 +198,6 @@ export function DocumentDetailSheet({
       ])
     } finally {
       setIsSending(false)
-    }
-  }
-
-  // Correction functions
-  async function submitCorrection() {
-    if (!correctionField.trim() || !correctionValue.trim() || !document) return
-    
-    setIsSubmittingCorrection(true)
-    try {
-      // Get the current extracted data and update the specific field
-      const currentData = fullDocument?.extracted_data || fullDocument?.gpt_extraction || {}
-      const gptOutput = (currentData as Record<string, unknown>).gpt_extraction_output || currentData
-      const correctedData = { ...(gptOutput as Record<string, unknown>), [correctionField]: correctionValue }
-      
-      await backendClient.submitCorrection(
-        document.id, 
-        correctedData, 
-        correctionNotes.trim() || `Field '${correctionField}' updated`, 
-        "anonymous"
-      )
-      toast.success("Correction submitted successfully")
-      setCorrectionField("")
-      setCorrectionValue("")
-      setCorrectionNotes("")
-      loadCorrections()
-      loadFullDocument()
-    } catch (error) {
-      console.error("Failed to submit correction:", error)
-      toast.error("Failed to submit correction")
-    } finally {
-      setIsSubmittingCorrection(false)
     }
   }
 
@@ -481,7 +446,7 @@ export function DocumentDetailSheet({
                   </TabsTrigger>
                 </TabsList>
 
-                <div className="flex-1 overflow-auto">
+                <div className="flex-1 overflow-hidden relative">
                   {isLoading ? (
                     <div className="p-4 space-y-4">
                       <Skeleton className="h-32 w-full" />
@@ -490,7 +455,7 @@ export function DocumentDetailSheet({
                   ) : (
                     <>
                       {/* Extraction Tab */}
-                      <TabsContent value="extracted" className="h-full m-0 p-4 overflow-hidden">
+                      <TabsContent value="extracted" className="absolute inset-0 m-0 p-4 overflow-hidden data-[state=inactive]:hidden">
                         <Card className="flex flex-col h-full overflow-hidden">
                           <CardHeader className="pb-3 flex-shrink-0">
                             <div className="flex items-center justify-between">
@@ -619,7 +584,7 @@ export function DocumentDetailSheet({
                       </TabsContent>
 
                       {/* Evaluation Tab */}
-                      <TabsContent value="evaluation" className="h-full m-0 p-4 overflow-hidden">
+                      <TabsContent value="evaluation" className="absolute inset-0 m-0 p-4 overflow-hidden data-[state=inactive]:hidden">
                         <Card className="flex flex-col h-full overflow-hidden">
                           <CardHeader className="pb-3 flex-shrink-0">
                             <div className="flex items-center justify-between">
@@ -664,7 +629,7 @@ export function DocumentDetailSheet({
                       </TabsContent>
 
                       {/* OCR Tab */}
-                      <TabsContent value="ocr" className="h-full m-0 p-4 overflow-hidden">
+                      <TabsContent value="ocr" className="absolute inset-0 m-0 p-4 overflow-hidden data-[state=inactive]:hidden">
                         <Card className="flex flex-col h-full overflow-hidden">
                           <CardHeader className="pb-3 flex-shrink-0">
                             <div className="flex items-center justify-between">
@@ -688,7 +653,7 @@ export function DocumentDetailSheet({
                       </TabsContent>
 
                       {/* Summary Tab */}
-                      <TabsContent value="summary" className="h-full m-0 p-4 overflow-hidden">
+                      <TabsContent value="summary" className="absolute inset-0 m-0 p-4 overflow-hidden data-[state=inactive]:hidden">
                         <Card className="flex flex-col h-full overflow-hidden">
                           <CardHeader className="pb-3 flex-shrink-0">
                             <CardTitle className="text-lg">Document Summary</CardTitle>
@@ -708,7 +673,7 @@ export function DocumentDetailSheet({
                       </TabsContent>
 
                       {/* Processing Details Tab */}
-                      <TabsContent value="details" className="h-full m-0 p-4 overflow-auto">
+                      <TabsContent value="details" className="absolute inset-0 m-0 p-4 overflow-auto data-[state=inactive]:hidden">
                         <div className="grid gap-4">
                         {/* Timing Information */}
                         <Card>
@@ -844,7 +809,7 @@ export function DocumentDetailSheet({
                     </TabsContent>
 
                     {/* Chat Tab */}
-                    <TabsContent value="chat" className="h-full m-0 p-4 flex flex-col">
+                    <TabsContent value="chat" className="absolute inset-0 m-0 p-4 flex flex-col data-[state=inactive]:hidden">
                       <Card className="flex-1 flex flex-col">
                         <CardHeader className="pb-3">
                           <CardTitle className="text-lg">Chat with Document</CardTitle>
@@ -908,14 +873,14 @@ export function DocumentDetailSheet({
                     </TabsContent>
 
                     {/* Corrections Tab */}
-                    <TabsContent value="corrections" className="m-0 p-4 data-[state=active]:block">
-                      <div className="space-y-3">
+                    <TabsContent value="corrections" className="absolute inset-0 m-0 p-4 overflow-hidden data-[state=inactive]:hidden">
+                      <div className="h-full flex flex-col">
                         {/* Correction History */}
-                        <Card>
-                          <CardHeader className="pb-2">
+                        <Card className="flex-1 flex flex-col overflow-hidden">
+                          <CardHeader className="pb-2 flex-shrink-0">
                             <CardTitle className="text-base">Correction History</CardTitle>
                           </CardHeader>
-                          <CardContent className="pt-0">
+                          <CardContent className="pt-0 flex-1 overflow-auto">
                             {!fullDocument?.extracted_data ? (
                               <div className="text-center py-4 text-sm text-muted-foreground">
                                 <p>No data available</p>
@@ -1003,56 +968,6 @@ export function DocumentDetailSheet({
                                 )}
                               </div>
                             )}
-                          </CardContent>
-                        </Card>
-
-                        {/* Submit Correction Form - Compact */}
-                        <Card className="border-dashed">
-                          <CardHeader className="pb-2">
-                            <CardTitle className="text-sm">Add Correction</CardTitle>
-                          </CardHeader>
-                          <CardContent className="space-y-2 pt-2">
-                            <div className="grid grid-cols-2 gap-2">
-                              <div>
-                                <Label className="text-xs">Field Name</Label>
-                                <Input
-                                  placeholder="e.g., claim_id"
-                                  value={correctionField}
-                                  onChange={(e) => setCorrectionField(e.target.value)}
-                                  className="h-8 text-xs"
-                                />
-                              </div>
-                              <div>
-                                <Label className="text-xs">Value</Label>
-                                <Input
-                                  placeholder="Correct value"
-                                  value={correctionValue}
-                                  onChange={(e) => setCorrectionValue(e.target.value)}
-                                  className="h-8 text-xs"
-                                />
-                              </div>
-                            </div>
-                            <div>
-                              <Label className="text-xs">Notes</Label>
-                              <Textarea
-                                placeholder="Why?"
-                                value={correctionNotes}
-                                onChange={(e) => setCorrectionNotes(e.target.value)}
-                                className="resize-none text-xs h-16"
-                                rows={2}
-                              />
-                            </div>
-                            <Button 
-                              onClick={submitCorrection}
-                              disabled={!correctionField.trim() || !correctionValue.trim() || isSubmittingCorrection}
-                              size="sm"
-                              className="w-full"
-                            >
-                              {isSubmittingCorrection && (
-                                <Loader2 className="h-3 w-3 mr-1 animate-spin" />
-                              )}
-                              Submit
-                            </Button>
                           </CardContent>
                         </Card>
                       </div>
