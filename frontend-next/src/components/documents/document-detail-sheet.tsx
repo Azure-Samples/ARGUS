@@ -912,15 +912,15 @@ export function DocumentDetailSheet({
 
                     {/* Chat Tab */}
                     <TabsContent value="chat" className="absolute inset-0 m-0 p-4 flex flex-col data-[state=inactive]:hidden">
-                      <Card className="flex-1 flex flex-col">
-                        <CardHeader className="pb-3">
+                      <Card className="h-full flex flex-col">
+                        <CardHeader className="pb-3 flex-shrink-0">
                           <CardTitle className="text-lg">Chat with Document</CardTitle>
                           <CardDescription>
                             Ask questions about the document content
                           </CardDescription>
                         </CardHeader>
-                        <CardContent className="flex-1 flex flex-col">
-                          <ScrollArea className="flex-1 mb-4">
+                        <CardContent className="flex-1 flex flex-col min-h-0 pb-4">
+                          <div className="flex-1 overflow-y-auto mb-4 border rounded-lg p-3 bg-muted/20">
                             <div className="space-y-4">
                               {chatMessages.length === 0 ? (
                                 <div className="text-center py-8 text-muted-foreground">
@@ -934,27 +934,35 @@ export function DocumentDetailSheet({
                                     className={`flex ${msg.role === "user" ? "justify-end" : "justify-start"}`}
                                   >
                                     <div
-                                      className={`max-w-[80%] p-3 rounded-lg ${
+                                      className={`max-w-[85%] p-3 rounded-lg ${
                                         msg.role === "user"
                                           ? "bg-primary text-primary-foreground"
-                                          : "bg-muted"
+                                          : "bg-background border shadow-sm"
                                       }`}
                                     >
-                                      {msg.content}
+                                      {msg.role === "assistant" ? (
+                                        <div className="prose prose-sm dark:prose-invert max-w-none [&>*:first-child]:mt-0 [&>*:last-child]:mb-0 prose-table:text-xs prose-th:px-2 prose-td:px-2 prose-th:py-1 prose-td:py-1 prose-table:border prose-th:border prose-td:border">
+                                          <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                                            {msg.content}
+                                          </ReactMarkdown>
+                                        </div>
+                                      ) : (
+                                        <span className="whitespace-pre-wrap">{msg.content}</span>
+                                      )}
                                     </div>
                                   </div>
                                 ))
                               )}
                               {isSending && (
                                 <div className="flex justify-start">
-                                  <div className="bg-muted p-3 rounded-lg">
+                                  <div className="bg-background border shadow-sm p-3 rounded-lg">
                                     <Loader2 className="h-4 w-4 animate-spin" />
                                   </div>
                                 </div>
                               )}
                             </div>
-                          </ScrollArea>
-                          <div className="flex gap-2">
+                          </div>
+                          <div className="flex gap-2 flex-shrink-0">
                             <Input
                               placeholder="Ask a question..."
                               value={chatInput}

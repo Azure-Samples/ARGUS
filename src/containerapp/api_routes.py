@@ -567,9 +567,7 @@ Please answer the user's question based on this document context."""
         # Make the API call
         response = client.chat.completions.create(
             model=config["openai_model_deployment"],
-            messages=messages,
-            max_tokens=1000,
-            top_p=0.9
+            messages=messages
         )
         
         # Extract the response

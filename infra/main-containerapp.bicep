@@ -107,7 +107,7 @@ resource storageAccount 'Microsoft.Storage/storageAccounts@2022-05-01' = {
   properties: {
     accessTier: 'Hot'
   }
-  tags: commonTags
+  tags: union(commonTags, { SecurityControl: 'Ignore' })
 }
 
 // Blob Service
@@ -148,7 +148,7 @@ resource cosmosDbAccount 'Microsoft.DocumentDB/databaseAccounts@2021-04-15' = {
       }
     ]
   }
-  tags: commonTags
+  tags: union(commonTags, { SecurityControl: 'Ignore' })
 }
 
 // Cosmos DB Database
