@@ -9,9 +9,12 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI, Request, BackgroundTasks
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
+from sse_starlette.sse import EventSourceResponse
 
 from dependencies import initialize_azure_clients, cleanup_azure_clients
 import api_routes
+from mcp_server import mcp_server
+from mcp.server.sse import SseServerTransport
 
 # Configure logging
 logging.basicConfig(
@@ -157,6 +160,12 @@ async def chat_with_document(request: Request):
     return await api_routes.chat_with_document(request)
 
 
+# MCP-powered chat endpoint with tool calling
+@app.post("/api/mcp-chat")
+async def mcp_chat(request: Request):
+    return await api_routes.mcp_chat(request)
+
+
 # Human-in-the-loop correction endpoints
 @app.patch("/api/documents/{document_id}/corrections")
 async def submit_correction(document_id: str, request: Request):
@@ -208,6 +217,112 @@ async def get_dataset_documents(dataset_name: str):
 @app.post("/api/datasets/{dataset_name}/upload")
 async def upload_file(dataset_name: str, request: Request, background_tasks: BackgroundTasks):
     return await api_routes.upload_file(dataset_name, request, background_tasks)
+
+
+@app.get("/api/upload-url")
+async def get_upload_url(filename: str, dataset: str = "default-dataset"):
+    """Get a pre-signed SAS URL for direct blob upload"""
+    return await api_routes.get_upload_url(filename, dataset)
+
+
+# ============================================================================
+# MCP (Model Context Protocol) Endpoints
+# ============================================================================
+
+# SSE transport for MCP
+sse_transport = SseServerTransport("/mcp/messages/")
+
+
+@app.get("/mcp/sse")
+async def mcp_sse_endpoint(request: Request):
+    """
+    MCP Server-Sent Events endpoint.
+    
+    Connect to this endpoint to establish an MCP session with ARGUS.
+    The response includes the message endpoint URL for sending requests.
+    """
+    async with sse_transport.connect_sse(
+        request.scope, request.receive, request._send
+    ) as streams:
+        await mcp_server.run(
+            streams[0], streams[1], mcp_server.create_initialization_options()
+        )
+
+
+@app.post("/mcp/messages/")
+async def mcp_messages_endpoint(request: Request):
+    """
+    MCP messages endpoint for receiving client requests.
+    
+    This endpoint receives JSON-RPC messages from MCP clients.
+    """
+    await sse_transport.handle_post_message(
+        request.scope, request.receive, request._send
+    )
+
+
+@app.get("/mcp/info")
+async def mcp_info():
+    """
+    Get information about the ARGUS MCP server.
+    
+    Returns available tools and connection instructions.
+    """
+    return {
+        "name": "argus",
+        "description": "ARGUS Document Intelligence MCP Server",
+        "version": "1.0.0",
+        "transport": "sse",
+        "endpoints": {
+            "sse": "/mcp/sse",
+            "messages": "/mcp/messages/"
+        },
+        "tools": [
+            {
+                "name": "argus_list_documents",
+                "description": "List all processed documents"
+            },
+            {
+                "name": "argus_get_document", 
+                "description": "Get detailed document information"
+            },
+            {
+                "name": "argus_chat_with_document",
+                "description": "Ask questions about a document"
+            },
+            {
+                "name": "argus_list_datasets",
+                "description": "List available dataset configurations"
+            },
+            {
+                "name": "argus_get_dataset_config",
+                "description": "Get dataset configuration details"
+            },
+            {
+                "name": "argus_process_document_url",
+                "description": "Queue document for processing"
+            },
+            {
+                "name": "argus_get_extraction",
+                "description": "Get extracted data from document"
+            },
+            {
+                "name": "argus_search_documents",
+                "description": "Search documents by keyword"
+            },
+            {
+                "name": "argus_get_upload_url",
+                "description": "Get a pre-signed SAS URL for direct blob upload"
+            }
+        ],
+        "configuration_example": {
+            "mcpServers": {
+                "argus": {
+                    "url": "https://your-argus-instance.azurecontainerapps.io/mcp/sse"
+                }
+            }
+        }
+    }
 
 
 # Optional: If you want to run this directly

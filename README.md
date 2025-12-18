@@ -267,6 +267,86 @@ curl -X POST \
 
 ---
 
+## 🤖 MCP Integration: AI-Powered Document Access
+
+ARGUS supports the **Model Context Protocol (MCP)**, enabling AI assistants like GitHub Copilot, Claude, and other MCP-compatible clients to interact directly with your document intelligence platform.
+
+### 🔌 What is MCP?
+
+The [Model Context Protocol](https://modelcontextprotocol.io/) is an open standard that allows AI assistants to securely connect to external data sources and tools. With ARGUS MCP support, your AI assistant can:
+
+- 📄 **List and search documents** across all your datasets
+- 🔍 **Query document content** and extracted data
+- 💬 **Chat with documents** using natural language
+- 📤 **Upload new documents** for processing
+- ⚙️ **Manage datasets** and configurations
+
+### ⚡ Quick Setup
+
+Add ARGUS to your MCP client configuration:
+
+**VS Code / GitHub Copilot** (`~/.vscode/mcp.json` or workspace settings):
+```json
+{
+  "mcpServers": {
+    "argus": {
+      "url": "https://your-argus-instance.azurecontainerapps.io/mcp/sse"
+    }
+  }
+}
+```
+
+**Claude Desktop** (`~/Library/Application Support/Claude/claude_desktop_config.json`):
+```json
+{
+  "mcpServers": {
+    "argus": {
+      "url": "https://your-argus-instance.azurecontainerapps.io/mcp/sse"
+    }
+  }
+}
+```
+
+### 🛠️ Available MCP Tools
+
+| Tool | Description |
+|------|-------------|
+| `argus_list_documents` | List all processed documents with filtering options |
+| `argus_get_document` | Get detailed document information including OCR and extraction results |
+| `argus_chat_with_document` | Ask natural language questions about a document |
+| `argus_search_documents` | Search documents by keyword across all datasets |
+| `argus_list_datasets` | List available dataset configurations |
+| `argus_get_dataset_config` | Get system prompt and schema for a dataset |
+| `argus_process_document_url` | Queue a document for processing from blob URL |
+| `argus_get_extraction` | Get extracted structured data from a document |
+| `argus_get_upload_url` | Get a pre-signed SAS URL for direct document upload |
+
+### 💡 Example Interactions
+
+Once configured, you can interact with ARGUS through your AI assistant:
+
+```
+User: "Show me all invoices processed in the last week"
+AI: [Uses argus_list_documents to retrieve recent invoices]
+
+User: "What's the total amount on invoice INV-2024-001?"
+AI: [Uses argus_get_document to fetch invoice details]
+
+User: "I need to upload a new contract for processing"
+AI: [Uses argus_get_upload_url to get a secure upload link]
+
+User: "Compare the extraction results between these two invoices"
+AI: [Uses argus_get_extraction on both documents and compares]
+```
+
+### 🔒 Security
+
+- MCP connections use **Server-Sent Events (SSE)** over HTTPS
+- Authentication inherits from your ARGUS deployment's security configuration
+- All operations respect your Azure RBAC and managed identity settings
+
+---
+
 ## 🎛️ Advanced Configuration
 
 ### 📊 Dataset Management

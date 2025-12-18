@@ -596,6 +596,459 @@ Please answer the user's question based on this document context."""
         raise HTTPException(status_code=500, detail=f"Chat processing failed: {str(e)}")
 
 
+async def mcp_chat(request: Request):
+    """
+    MCP-powered chat endpoint with tool calling capabilities.
+    Uses Azure OpenAI with function calling to execute ARGUS MCP tools.
+    """
+    try:
+        data = await request.json()
+        message = data.get("message", "").strip()
+        chat_history = data.get("chat_history", [])
+        attachments = data.get("attachments", [])  # List of {filename, content_type, blob_url or upload pending}
+        
+        if not message:
+            raise HTTPException(status_code=400, detail="message is required")
+        
+        # Get Azure OpenAI configuration
+        _, cosmos_config_container = connect_to_cosmos()
+        config = get_config(cosmos_config_container)
+        
+        if not config.get("openai_api_key") or not config.get("openai_api_endpoint"):
+            raise HTTPException(status_code=503, detail="Azure OpenAI not configured")
+        
+        # Initialize OpenAI client
+        client = AzureOpenAI(
+            api_key=config["openai_api_key"],
+            api_version=config["openai_api_version"],
+            azure_endpoint=config["openai_api_endpoint"]
+        )
+        
+        # Define the tools (MCP tools as OpenAI functions)
+        tools = [
+            {
+                "type": "function",
+                "function": {
+                    "name": "argus_list_documents",
+                    "description": "List all processed documents with optional filtering by dataset or status",
+                    "parameters": {
+                        "type": "object",
+                        "properties": {
+                            "dataset": {"type": "string", "description": "Filter by dataset name"},
+                            "status": {"type": "string", "description": "Filter by status (pending, processing, completed, failed)"},
+                            "limit": {"type": "integer", "description": "Maximum number of documents to return", "default": 50}
+                        },
+                        "required": []
+                    }
+                }
+            },
+            {
+                "type": "function",
+                "function": {
+                    "name": "argus_get_document",
+                    "description": "Get detailed information about a specific document including OCR text, extracted data, and evaluation results",
+                    "parameters": {
+                        "type": "object",
+                        "properties": {
+                            "document_id": {"type": "string", "description": "The unique identifier of the document"}
+                        },
+                        "required": ["document_id"]
+                    }
+                }
+            },
+            {
+                "type": "function",
+                "function": {
+                    "name": "argus_chat_with_document",
+                    "description": "Ask natural language questions about a specific document's content",
+                    "parameters": {
+                        "type": "object",
+                        "properties": {
+                            "document_id": {"type": "string", "description": "The document to chat about"},
+                            "question": {"type": "string", "description": "Your question about the document"}
+                        },
+                        "required": ["document_id", "question"]
+                    }
+                }
+            },
+            {
+                "type": "function",
+                "function": {
+                    "name": "argus_list_datasets",
+                    "description": "List all available dataset configurations in ARGUS",
+                    "parameters": {
+                        "type": "object",
+                        "properties": {},
+                        "required": []
+                    }
+                }
+            },
+            {
+                "type": "function",
+                "function": {
+                    "name": "argus_get_dataset_config",
+                    "description": "Get the configuration for a specific dataset including system prompt and output schema",
+                    "parameters": {
+                        "type": "object",
+                        "properties": {
+                            "dataset_name": {"type": "string", "description": "The name of the dataset"}
+                        },
+                        "required": ["dataset_name"]
+                    }
+                }
+            },
+            {
+                "type": "function",
+                "function": {
+                    "name": "argus_search_documents",
+                    "description": "Search documents by filename or content keywords",
+                    "parameters": {
+                        "type": "object",
+                        "properties": {
+                            "query": {"type": "string", "description": "Search keyword or phrase"},
+                            "dataset": {"type": "string", "description": "Limit search to specific dataset"},
+                            "limit": {"type": "integer", "description": "Maximum results", "default": 20}
+                        },
+                        "required": ["query"]
+                    }
+                }
+            },
+            {
+                "type": "function",
+                "function": {
+                    "name": "argus_get_extraction",
+                    "description": "Get just the extracted structured data from a document",
+                    "parameters": {
+                        "type": "object",
+                        "properties": {
+                            "document_id": {"type": "string", "description": "The document ID"}
+                        },
+                        "required": ["document_id"]
+                    }
+                }
+            },
+            {
+                "type": "function",
+                "function": {
+                    "name": "argus_process_document_url",
+                    "description": "Queue a document from blob storage for processing",
+                    "parameters": {
+                        "type": "object",
+                        "properties": {
+                            "blob_url": {"type": "string", "description": "Full Azure Blob Storage URL"},
+                            "dataset": {"type": "string", "description": "Dataset to use", "default": "default-dataset"}
+                        },
+                        "required": ["blob_url"]
+                    }
+                }
+            },
+            {
+                "type": "function",
+                "function": {
+                    "name": "argus_get_upload_url",
+                    "description": "Get a pre-signed SAS URL for uploading a document to ARGUS",
+                    "parameters": {
+                        "type": "object",
+                        "properties": {
+                            "filename": {"type": "string", "description": "Name for the uploaded file"},
+                            "dataset": {"type": "string", "description": "Target dataset", "default": "default-dataset"}
+                        },
+                        "required": ["filename"]
+                    }
+                }
+            }
+        ]
+        
+        # Build system prompt
+        system_prompt = """You are ARGUS AI Assistant, a helpful AI that helps users interact with the ARGUS Document Intelligence Platform.
+
+You have access to ARGUS tools that allow you to:
+- List and search documents processed by ARGUS
+- Get detailed information about specific documents
+- Chat about document content and ask questions
+- View dataset configurations
+- Queue documents for processing
+- Generate upload URLs for new documents
+
+When users ask about documents, data extraction, or document processing, use the appropriate tools.
+Be helpful, concise, and accurate. If you need to look up information, use the tools available.
+
+If the user has attached files, they may ask you to process or analyze them. Help them with their requests."""
+        
+        # Build messages
+        messages = [{"role": "system", "content": system_prompt}]
+        
+        # Add chat history
+        for hist in chat_history[-10:]:  # Last 10 messages
+            messages.append({
+                "role": hist.get("role", "user"),
+                "content": hist.get("content", "")
+            })
+        
+        # Add attachment context if any
+        if attachments:
+            attachment_info = "\n\n[User has attached the following files: " + ", ".join([a.get("filename", "unknown") for a in attachments]) + "]"
+            message = message + attachment_info
+        
+        messages.append({"role": "user", "content": message})
+        
+        # Make the API call with tools
+        response = client.chat.completions.create(
+            model=config["openai_model_deployment"],
+            messages=messages,
+            tools=tools,
+            tool_choice="auto"
+        )
+        
+        assistant_message = response.choices[0].message
+        tool_calls_made = []
+        
+        # Handle tool calls (iteratively if needed)
+        max_iterations = 5
+        iteration = 0
+        
+        while assistant_message.tool_calls and iteration < max_iterations:
+            iteration += 1
+            
+            # Add the assistant message ONCE before processing all tool calls
+            messages.append(assistant_message)
+            
+            # Collect all tool responses
+            tool_responses = []
+            
+            # Process each tool call
+            for tool_call in assistant_message.tool_calls:
+                function_name = tool_call.function.name
+                function_args = json.loads(tool_call.function.arguments)
+                
+                logger.info(f"MCP Chat executing tool: {function_name} with args: {function_args}")
+                
+                # Execute the tool
+                tool_result = await _execute_mcp_tool(function_name, function_args)
+                
+                tool_calls_made.append({
+                    "tool": function_name,
+                    "arguments": function_args,
+                    "result_preview": str(tool_result)[:200] + "..." if len(str(tool_result)) > 200 else str(tool_result)
+                })
+                
+                # Collect tool response
+                tool_responses.append({
+                    "role": "tool",
+                    "tool_call_id": tool_call.id,
+                    "content": json.dumps(tool_result) if isinstance(tool_result, (dict, list)) else str(tool_result)
+                })
+            
+            # Add ALL tool responses after the assistant message
+            messages.extend(tool_responses)
+            
+            # Get the next response
+            response = client.chat.completions.create(
+                model=config["openai_model_deployment"],
+                messages=messages,
+                tools=tools,
+                tool_choice="auto"
+            )
+            assistant_message = response.choices[0].message
+        
+        # Get final response content
+        final_response = assistant_message.content or "I apologize, but I couldn't generate a response. Please try again."
+        
+        return {
+            "response": final_response,
+            "tool_calls": tool_calls_made,
+            "finish_reason": response.choices[0].finish_reason,
+            "usage": {
+                "prompt_tokens": response.usage.prompt_tokens,
+                "completion_tokens": response.usage.completion_tokens,
+                "total_tokens": response.usage.total_tokens
+            }
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error in MCP chat endpoint: {e}")
+        logger.error(traceback.format_exc())
+        raise HTTPException(status_code=500, detail=f"MCP chat processing failed: {str(e)}")
+
+
+async def _execute_mcp_tool(tool_name: str, arguments: dict) -> Any:
+    """Execute an MCP tool and return the result"""
+    try:
+        data_container = get_data_container()
+        conf_container = get_conf_container()
+        blob_service_client = get_blob_service_client()
+        
+        if tool_name == "argus_list_documents":
+            dataset = arguments.get("dataset")
+            status = arguments.get("status")
+            limit = arguments.get("limit", 50)
+            
+            if not data_container:
+                return {"error": "Data container not available"}
+            
+            query = "SELECT c.id, c.file_name, c.partitionKey, c.properties.status, c.properties.timestamp FROM c"
+            conditions = []
+            if dataset:
+                conditions.append(f"c.partitionKey = '{dataset}'")
+            if status:
+                conditions.append(f"c.properties.status = '{status}'")
+            if conditions:
+                query += " WHERE " + " AND ".join(conditions)
+            query += f" ORDER BY c.properties.timestamp DESC OFFSET 0 LIMIT {limit}"
+            
+            items = list(data_container.query_items(query=query, enable_cross_partition_query=True))
+            return {"documents": items, "count": len(items)}
+        
+        elif tool_name == "argus_get_document":
+            document_id = arguments.get("document_id")
+            if not document_id:
+                return {"error": "document_id is required"}
+            
+            if not data_container:
+                return {"error": "Data container not available"}
+            
+            query = f"SELECT * FROM c WHERE c.id = '{document_id}'"
+            items = list(data_container.query_items(query=query, enable_cross_partition_query=True))
+            
+            if not items:
+                return {"error": "Document not found"}
+            
+            doc = items[0]
+            return {
+                "id": doc.get("id"),
+                "filename": doc.get("file_name"),
+                "dataset": doc.get("partitionKey"),
+                "status": doc.get("properties", {}).get("status"),
+                "ocr_text": doc.get("extracted_data", {}).get("ocr_output", "")[:2000],
+                "extraction": doc.get("extracted_data", {}).get("gpt_extraction_output"),
+                "summary": doc.get("extracted_data", {}).get("gpt_summary"),
+                "evaluation": doc.get("extracted_data", {}).get("evaluation")
+            }
+        
+        elif tool_name == "argus_chat_with_document":
+            document_id = arguments.get("document_id")
+            question = arguments.get("question")
+            
+            if not document_id or not question:
+                return {"error": "document_id and question are required"}
+            
+            # Use the existing chat endpoint logic
+            from fastapi import Request as FakeRequest
+            class MockRequest:
+                async def json(self):
+                    return {"document_id": document_id, "message": question, "chat_history": []}
+            
+            result = await chat_with_document(MockRequest())
+            return {"answer": result.get("response")}
+        
+        elif tool_name == "argus_list_datasets":
+            if not conf_container:
+                return {"error": "Configuration container not available"}
+            
+            query = "SELECT DISTINCT c.partitionKey FROM c"
+            items = list(conf_container.query_items(query=query, enable_cross_partition_query=True))
+            datasets = [item.get("partitionKey") for item in items if item.get("partitionKey")]
+            
+            # Also check blob storage for datasets
+            if blob_service_client:
+                container_name = os.getenv('STORAGE_CONTAINER_NAME', 'datasets')
+                container_client = blob_service_client.get_container_client(container_name)
+                blobs = container_client.list_blobs()
+                blob_datasets = set()
+                for blob in blobs:
+                    parts = blob.name.split('/')
+                    if len(parts) > 1:
+                        blob_datasets.add(parts[0])
+                datasets = list(set(datasets) | blob_datasets)
+            
+            return {"datasets": datasets}
+        
+        elif tool_name == "argus_get_dataset_config":
+            dataset_name = arguments.get("dataset_name")
+            if not dataset_name:
+                return {"error": "dataset_name is required"}
+            
+            prompt, schema = fetch_model_prompt_and_schema(dataset_name)
+            return {
+                "dataset": dataset_name,
+                "system_prompt": prompt[:1000] if prompt else None,
+                "output_schema": schema
+            }
+        
+        elif tool_name == "argus_search_documents":
+            query_text = arguments.get("query", "")
+            dataset = arguments.get("dataset")
+            limit = arguments.get("limit", 20)
+            
+            if not data_container:
+                return {"error": "Data container not available"}
+            
+            # Search by filename (Cosmos DB doesn't support full-text search easily)
+            cosmos_query = f"SELECT c.id, c.file_name, c.partitionKey, c.properties.status FROM c WHERE CONTAINS(LOWER(c.file_name), LOWER('{query_text}'))"
+            if dataset:
+                cosmos_query += f" AND c.partitionKey = '{dataset}'"
+            cosmos_query += f" OFFSET 0 LIMIT {limit}"
+            
+            items = list(data_container.query_items(query=cosmos_query, enable_cross_partition_query=True))
+            return {"results": items, "count": len(items), "query": query_text}
+        
+        elif tool_name == "argus_get_extraction":
+            document_id = arguments.get("document_id")
+            if not document_id:
+                return {"error": "document_id is required"}
+            
+            if not data_container:
+                return {"error": "Data container not available"}
+            
+            query = f"SELECT c.extracted_data.gpt_extraction_output FROM c WHERE c.id = '{document_id}'"
+            items = list(data_container.query_items(query=query, enable_cross_partition_query=True))
+            
+            if not items:
+                return {"error": "Document not found"}
+            
+            return {"extraction": items[0].get("gpt_extraction_output")}
+        
+        elif tool_name == "argus_process_document_url":
+            blob_url = arguments.get("blob_url")
+            dataset = arguments.get("dataset", "default-dataset")
+            
+            if not blob_url:
+                return {"error": "blob_url is required"}
+            
+            # Queue for processing
+            event_data = {
+                "url": blob_url,
+                "processing_options": {
+                    "run_ocr": True,
+                    "run_gpt_vision": True,
+                    "run_summary": True,
+                    "run_evaluation": True
+                }
+            }
+            asyncio.create_task(process_blob_event(blob_url, event_data))
+            
+            return {"status": "queued", "blob_url": blob_url, "dataset": dataset}
+        
+        elif tool_name == "argus_get_upload_url":
+            filename = arguments.get("filename")
+            dataset = arguments.get("dataset", "default-dataset")
+            
+            if not filename:
+                return {"error": "filename is required"}
+            
+            result = await get_upload_url(filename, dataset)
+            return result
+        
+        else:
+            return {"error": f"Unknown tool: {tool_name}"}
+    
+    except Exception as e:
+        logger.error(f"Error executing MCP tool {tool_name}: {e}")
+        return {"error": str(e)}
+
+
 async def submit_correction(document_id: str, request: Request):
     """
     Submit a human correction for a document's extraction.
@@ -1156,6 +1609,85 @@ async def upload_file(dataset_name: str, request: Request, background_tasks: Bac
     except Exception as e:
         logger.error(f"Error uploading file: {e}")
         raise HTTPException(status_code=500, detail=f"Failed to upload file: {str(e)}")
+
+
+async def get_upload_url(filename: str, dataset_name: str = "default-dataset"):
+    """Generate a SAS URL for direct blob upload"""
+    from datetime import timedelta
+    from azure.storage.blob import generate_blob_sas, BlobSasPermissions
+    
+    blob_service_client = get_blob_service_client()
+    if not blob_service_client:
+        raise HTTPException(status_code=503, detail="Blob storage not available")
+    
+    try:
+        container_name = os.getenv('STORAGE_CONTAINER_NAME', 'datasets')
+        blob_path = f"{dataset_name}/{filename}"
+        
+        # Get account info
+        account_name = blob_service_client.account_name
+        
+        # Get container client and blob client
+        container_client = blob_service_client.get_container_client(container_name)
+        blob_client = container_client.get_blob_client(blob_path)
+        
+        # Generate SAS token with write permission (valid for 1 hour)
+        # Use user delegation key for SAS (more secure with managed identity)
+        user_delegation_key = blob_service_client.get_user_delegation_key(
+            key_start_time=datetime.utcnow(),
+            key_expiry_time=datetime.utcnow() + timedelta(hours=1)
+        )
+        
+        sas_token = generate_blob_sas(
+            account_name=account_name,
+            container_name=container_name,
+            blob_name=blob_path,
+            user_delegation_key=user_delegation_key,
+            permission=BlobSasPermissions(write=True, create=True),
+            expiry=datetime.utcnow() + timedelta(hours=1)
+        )
+        
+        # Construct the full URL with SAS token
+        upload_url = f"{blob_client.url}?{sas_token}"
+        
+        # Determine content type hint
+        ext = filename.lower().split('.')[-1] if '.' in filename else ''
+        content_type_hints = {
+            'pdf': 'application/pdf',
+            'png': 'image/png',
+            'jpg': 'image/jpeg',
+            'jpeg': 'image/jpeg',
+            'tiff': 'image/tiff',
+            'tif': 'image/tiff',
+            'docx': 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+            'xlsx': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        }
+        content_type = content_type_hints.get(ext, 'application/octet-stream')
+        
+        return {
+            "upload_url": upload_url,
+            "method": "PUT",
+            "headers": {
+                "x-ms-blob-type": "BlockBlob",
+                "Content-Type": content_type
+            },
+            "filename": filename,
+            "dataset": dataset_name,
+            "blob_path": blob_path,
+            "expires_in": "1 hour",
+            "instructions": [
+                "Upload your file using HTTP PUT to the upload_url",
+                "Set header 'x-ms-blob-type: BlockBlob'",
+                f"Set header 'Content-Type: {content_type}'",
+                "The file body should be the raw file content (not base64)",
+                "After upload, ARGUS will automatically process the document"
+            ],
+            "curl_example": f"curl -X PUT -H 'x-ms-blob-type: BlockBlob' -H 'Content-Type: {content_type}' --data-binary @{filename} '<upload_url>'"
+        }
+        
+    except Exception as e:
+        logger.error(f"Error generating upload URL: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to generate upload URL: {str(e)}")
 
 
 async def get_document_file(document_id: str):

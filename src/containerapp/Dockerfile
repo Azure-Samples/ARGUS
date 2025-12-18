@@ -52,6 +52,7 @@ COPY dependencies.py .
 COPY logic_app_manager.py .
 COPY blob_processing.py .
 COPY api_routes.py .
+COPY mcp_server.py .
 COPY requirements.txt .
 
 # Copy the original AI OCR modules from the functionapp directory

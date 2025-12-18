@@ -919,6 +919,215 @@ MISTRAL_DOC_AI_KEY=your-mistral-api-key
 
 ---
 
+## 🤖 MCP (Model Context Protocol) Endpoints
+
+ARGUS provides MCP support for AI assistant integration, enabling tools like GitHub Copilot, Claude, and other MCP-compatible clients to interact with your document intelligence platform.
+
+### Transport
+
+ARGUS uses **Server-Sent Events (SSE)** transport for MCP communication.
+
+### GET `/mcp/info`
+**MCP Server Information**
+
+Get information about the MCP server and available tools.
+
+**Response:**
+```json
+{
+  "name": "argus",
+  "description": "ARGUS Document Intelligence MCP Server",
+  "version": "1.0.0",
+  "transport": "sse",
+  "endpoints": {
+    "sse": "/mcp/sse",
+    "messages": "/mcp/messages/"
+  },
+  "tools": [
+    {"name": "argus_list_documents", "description": "List all processed documents"},
+    {"name": "argus_get_document", "description": "Get detailed document information"},
+    {"name": "argus_chat_with_document", "description": "Ask questions about a document"},
+    {"name": "argus_list_datasets", "description": "List available dataset configurations"},
+    {"name": "argus_get_dataset_config", "description": "Get dataset configuration details"},
+    {"name": "argus_process_document_url", "description": "Queue document for processing"},
+    {"name": "argus_get_extraction", "description": "Get extracted data from document"},
+    {"name": "argus_search_documents", "description": "Search documents by keyword"},
+    {"name": "argus_get_upload_url", "description": "Get a pre-signed SAS URL for direct blob upload"}
+  ],
+  "configuration_example": {
+    "mcpServers": {
+      "argus": {
+        "url": "https://your-argus-instance.azurecontainerapps.io/mcp/sse"
+      }
+    }
+  }
+}
+```
+
+### GET `/mcp/sse`
+**SSE Connection Endpoint**
+
+Establishes a Server-Sent Events connection for MCP communication. Returns a session ID that must be used for subsequent message requests.
+
+**Headers:**
+- `Accept: text/event-stream`
+
+**Response:** SSE stream with session initialization
+
+### POST `/mcp/messages/`
+**MCP Message Handler**
+
+Send MCP protocol messages (tool calls, etc.) to the server.
+
+**Query Parameters:**
+- `session_id` (required): Session ID from SSE connection
+
+**Request Body:** MCP protocol message (JSON-RPC format)
+
+**Example Tool Call:**
+```json
+{
+  "jsonrpc": "2.0",
+  "id": 1,
+  "method": "tools/call",
+  "params": {
+    "name": "argus_list_documents",
+    "arguments": {
+      "dataset": "default-dataset",
+      "limit": 10
+    }
+  }
+}
+```
+
+### MCP Tools Reference
+
+#### `argus_list_documents`
+List all processed documents with optional filtering.
+
+**Arguments:**
+| Name | Type | Required | Description |
+|------|------|----------|-------------|
+| `dataset` | string | No | Filter by dataset name |
+| `status` | string | No | Filter by status (pending, processing, completed, failed) |
+| `limit` | integer | No | Maximum number of documents to return (default: 50) |
+
+#### `argus_get_document`
+Get detailed information about a specific document.
+
+**Arguments:**
+| Name | Type | Required | Description |
+|------|------|----------|-------------|
+| `document_id` | string | Yes | The document ID to retrieve |
+
+#### `argus_chat_with_document`
+Ask natural language questions about a document.
+
+**Arguments:**
+| Name | Type | Required | Description |
+|------|------|----------|-------------|
+| `document_id` | string | Yes | The document to chat about |
+| `message` | string | Yes | Your question or message |
+| `chat_history` | array | No | Previous conversation messages |
+
+#### `argus_list_datasets`
+List all available dataset configurations.
+
+**Arguments:** None
+
+#### `argus_get_dataset_config`
+Get the configuration details for a specific dataset.
+
+**Arguments:**
+| Name | Type | Required | Description |
+|------|------|----------|-------------|
+| `dataset_name` | string | Yes | Name of the dataset |
+
+#### `argus_process_document_url`
+Queue a document from blob storage for processing.
+
+**Arguments:**
+| Name | Type | Required | Description |
+|------|------|----------|-------------|
+| `blob_url` | string | Yes | Full Azure Blob Storage URL |
+| `dataset` | string | No | Dataset to use (default: "default-dataset") |
+
+#### `argus_get_extraction`
+Get the extracted structured data from a document.
+
+**Arguments:**
+| Name | Type | Required | Description |
+|------|------|----------|-------------|
+| `document_id` | string | Yes | The document ID |
+
+#### `argus_search_documents`
+Search documents by keyword across content and metadata.
+
+**Arguments:**
+| Name | Type | Required | Description |
+|------|------|----------|-------------|
+| `query` | string | Yes | Search keyword or phrase |
+| `dataset` | string | No | Limit search to specific dataset |
+| `limit` | integer | No | Maximum results (default: 20) |
+
+#### `argus_get_upload_url`
+Get a pre-signed SAS URL for direct document upload to Azure Blob Storage.
+
+**Arguments:**
+| Name | Type | Required | Description |
+|------|------|----------|-------------|
+| `filename` | string | Yes | Name for the uploaded file |
+| `dataset` | string | No | Target dataset (default: "default-dataset") |
+
+**Response:**
+```json
+{
+  "upload_url": "https://storage.blob.core.windows.net/datasets/...",
+  "method": "PUT",
+  "headers": {
+    "x-ms-blob-type": "BlockBlob",
+    "Content-Type": "application/pdf"
+  },
+  "filename": "invoice.pdf",
+  "dataset": "default-dataset",
+  "blob_path": "default-dataset/invoice.pdf",
+  "expires_in": "1 hour",
+  "instructions": [
+    "Upload your file using HTTP PUT to the upload_url",
+    "Set header 'x-ms-blob-type: BlockBlob'",
+    "Set header 'Content-Type: application/pdf'",
+    "The file body should be the raw file content (not base64)",
+    "After upload, ARGUS will automatically process the document"
+  ]
+}
+```
+
+### MCP Client Configuration
+
+**VS Code / GitHub Copilot:**
+```json
+{
+  "mcpServers": {
+    "argus": {
+      "url": "https://your-argus-instance.azurecontainerapps.io/mcp/sse"
+    }
+  }
+}
+```
+
+**Claude Desktop:**
+```json
+{
+  "mcpServers": {
+    "argus": {
+      "url": "https://your-argus-instance.azurecontainerapps.io/mcp/sse"
+    }
+  }
+}
+```
+
+---
+
 ## 🔍 Usage Examples
 
 ### Local Development Setup

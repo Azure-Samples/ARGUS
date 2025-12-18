@@ -25,6 +25,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
+import { Plug } from "lucide-react"
 
 const navItems = [
   { href: "/", label: "Process Files", icon: Brain },
@@ -32,6 +33,7 @@ const navItems = [
   { href: "/settings", label: "Settings", icon: Settings },
   { href: "/instructions", label: "Instructions", icon: BookOpen },
   { href: "/api-docs", label: "API Docs", icon: FileCode },
+  { href: "/mcp", label: "MCP", icon: Plug },
 ]
 
 export function SiteHeader() {
