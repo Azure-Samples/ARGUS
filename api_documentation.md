@@ -231,7 +231,114 @@ Force refresh configuration by reloading demo datasets from filesystem.
 
 ---
 
-## 🔄 Logic App Concurrency Management
+## � Dataset Management
+
+### GET `/api/datasets`
+**List Datasets**
+
+Get all available dataset configurations.
+
+**Response:**
+```json
+{
+  "datasets": [
+    {
+      "name": "default-dataset",
+      "system_prompt_preview": "Extract all data from the document...",
+      "schema_fields": ["invoice_number", "vendor_name", "total_amount"],
+      "max_pages_per_chunk": 10
+    },
+    {
+      "name": "medical-dataset",
+      "system_prompt_preview": "Extract medical information...",
+      "schema_fields": ["patient_name", "diagnosis", "medications"],
+      "max_pages_per_chunk": 5
+    }
+  ]
+}
+```
+
+### POST `/api/datasets`
+**Create Dataset**
+
+Create a new dataset configuration for document processing.
+
+**Request Body:**
+```json
+{
+  "dataset_name": "purchase-orders",
+  "system_prompt": "Extract purchase order information including vendor details, line items, quantities, prices, and total amounts. Return data in the specified JSON format.",
+  "output_schema": {
+    "vendor_name": "Name of the vendor/supplier",
+    "po_number": "Purchase order number",
+    "order_date": "Date of the order (YYYY-MM-DD format)",
+    "line_items": [
+      {
+        "description": "Item description",
+        "quantity": "Number of units",
+        "unit_price": "Price per unit",
+        "total": "Line item total"
+      }
+    ],
+    "subtotal": "Sum of all line items",
+    "tax": "Tax amount if applicable",
+    "total_amount": "Final total including tax"
+  },
+  "max_pages_per_chunk": 10
+}
+```
+
+**Response (201):**
+```json
+{
+  "success": true,
+  "dataset_name": "purchase-orders",
+  "message": "Dataset 'purchase-orders' created successfully",
+  "configuration": {
+    "system_prompt_length": 156,
+    "output_schema_fields": ["vendor_name", "po_number", "order_date", "line_items", "subtotal", "tax", "total_amount"],
+    "max_pages_per_chunk": 10
+  }
+}
+```
+
+**Error Response (400):**
+```json
+{
+  "detail": "Dataset name must contain only alphanumeric characters and hyphens"
+}
+```
+
+```json
+{
+  "detail": "Dataset 'purchase-orders' already exists. Use update_dataset to modify it."
+}
+```
+
+### GET `/api/datasets/{dataset_name}/documents`
+**List Dataset Documents**
+
+Get all documents in a specific dataset.
+
+**Response:**
+```json
+{
+  "dataset": "default-dataset",
+  "documents": [
+    {
+      "id": "default-dataset__invoice-001.pdf",
+      "filename": "invoice-001.pdf",
+      "status": "completed",
+      "processed_at": "2025-07-17T10:30:00Z"
+    }
+  ],
+  "count": 1
+}
+```
+
+---
+
+## �🔄 Logic App Concurrency Management
 
 ### GET `/api/concurrency`
 **Get Concurrency Settings**
@@ -1098,6 +1205,35 @@ Get a pre-signed SAS URL for direct document upload to Azure Blob Storage.
     "Set header 'Content-Type: application/pdf'",
     "The file body should be the raw file content (not base64)",
     "After upload, ARGUS will automatically process the document"
+  ]
+}
+```
+
+#### `argus_create_dataset`
+Create a new dataset configuration for document processing.
+
+**Arguments:**
+| Name | Type | Required | Description |
+|------|------|----------|-------------|
+| `dataset_name` | string | Yes | Name for the dataset (alphanumeric and hyphens only, 2-50 chars) |
+| `system_prompt` | string | Yes | System prompt guiding document extraction (min 10 chars) |
+| `output_schema` | object | Yes | JSON object defining the expected extraction structure |
+| `max_pages_per_chunk` | integer | No | Maximum pages per processing chunk (default: 10) |
+
+**Response:**
+```json
+{
+  "success": true,
+  "dataset_name": "purchase-orders",
+  "message": "Dataset 'purchase-orders' created successfully",
+  "configuration": {
+    "system_prompt_length": 245,
+    "output_schema_fields": ["vendor_name", "order_number", "items", "total_amount"],
+    "max_pages_per_chunk": 10
+  },
+  "next_steps": [
+    "Upload documents to this dataset using argus_get_upload_url with dataset='purchase-orders'",
+    "Or list documents using argus_list_documents with dataset='purchase-orders'"
   ]
 }
 ```

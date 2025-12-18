@@ -240,6 +240,44 @@ The SAS URL is valid for 1 hour.""",
             "required": ["filename"]
         }
     ),
+    Tool(
+        name="argus_create_dataset",
+        description="""Create a new dataset configuration in ARGUS.
+        
+Use this tool to:
+- Set up a new document processing pipeline
+- Define custom extraction schema for new document types
+- Configure system prompts for specific use cases
+
+A dataset defines how documents are processed and what data is extracted.
+Each dataset has:
+- A system prompt that guides the GPT extraction
+- An output schema defining the expected JSON structure
+- Configuration for chunking large documents""",
+        inputSchema={
+            "type": "object",
+            "properties": {
+                "dataset_name": {
+                    "type": "string",
+                    "description": "Name for the new dataset (alphanumeric and hyphens only, e.g., 'invoices', 'medical-records')"
+                },
+                "system_prompt": {
+                    "type": "string",
+                    "description": "The system prompt that guides document extraction. Should describe what to extract and how."
+                },
+                "output_schema": {
+                    "type": "object",
+                    "description": "JSON object defining the expected extraction output structure. Keys are field names, values describe what to extract."
+                },
+                "max_pages_per_chunk": {
+                    "type": "integer",
+                    "description": "Maximum pages per processing chunk (default: 10)",
+                    "default": 10
+                }
+            },
+            "required": ["dataset_name", "system_prompt", "output_schema"]
+        }
+    ),
 ]
 
 
@@ -275,6 +313,8 @@ async def call_tool(name: str, arguments: dict[str, Any]) -> list[TextContent | 
             return await _handle_search_documents(arguments)
         elif name == "argus_get_upload_url":
             return await _handle_get_upload_url(arguments)
+        elif name == "argus_create_dataset":
+            return await _handle_create_dataset(arguments)
         else:
             return [TextContent(type="text", text=f"Unknown tool: {name}")]
     except Exception as e:
@@ -786,3 +826,96 @@ async def _handle_get_upload_url(arguments: dict) -> list[TextContent]:
     except Exception as e:
         logger.error(f"Error generating upload URL: {e}")
         return [TextContent(type="text", text=f"Error generating upload URL: {str(e)}")]
+
+
+async def _handle_create_dataset(arguments: dict) -> list[TextContent]:
+    """Create a new dataset configuration"""
+    import re
+    
+    dataset_name = arguments.get("dataset_name")
+    system_prompt = arguments.get("system_prompt")
+    output_schema = arguments.get("output_schema")
+    max_pages_per_chunk = arguments.get("max_pages_per_chunk", 10)
+    
+    # Validate required fields
+    if not dataset_name:
+        return [TextContent(type="text", text="Error: dataset_name is required")]
+    if not system_prompt:
+        return [TextContent(type="text", text="Error: system_prompt is required")]
+    if output_schema is None:
+        return [TextContent(type="text", text="Error: output_schema is required")]
+    
+    # Validate dataset name format
+    if not re.match(r'^[a-zA-Z0-9-]+$', dataset_name):
+        return [TextContent(type="text", text="Error: dataset_name must contain only alphanumeric characters and hyphens")]
+    
+    if len(dataset_name) < 2 or len(dataset_name) > 50:
+        return [TextContent(type="text", text="Error: dataset_name must be between 2 and 50 characters")]
+    
+    # Validate system_prompt length
+    if len(system_prompt.strip()) < 10:
+        return [TextContent(type="text", text="Error: system_prompt must be at least 10 characters")]
+    
+    # Validate output_schema is a dictionary
+    if not isinstance(output_schema, dict):
+        return [TextContent(type="text", text="Error: output_schema must be a valid JSON object")]
+    
+    conf_container = get_conf_container()
+    if not conf_container:
+        return [TextContent(type="text", text="Error: Configuration container not available")]
+    
+    try:
+        # Get existing configuration
+        try:
+            config_item = conf_container.read_item(
+                item='configuration',
+                partition_key='configuration'
+            )
+        except Exception:
+            # Create new configuration if it doesn't exist
+            config_item = {
+                'id': 'configuration',
+                'partitionKey': 'configuration',
+                'datasets': {}
+            }
+        
+        # Ensure datasets key exists
+        if 'datasets' not in config_item:
+            config_item['datasets'] = {}
+        
+        # Check if dataset already exists
+        if dataset_name in config_item['datasets']:
+            return [TextContent(type="text", text=f"Error: Dataset '{dataset_name}' already exists. Choose a different name.")]
+        
+        # Add new dataset configuration
+        config_item['datasets'][dataset_name] = {
+            'model_prompt': system_prompt.strip(),
+            'example_schema': output_schema,
+            'max_pages_per_chunk': max_pages_per_chunk
+        }
+        
+        # Upsert the configuration
+        conf_container.upsert_item(body=config_item)
+        
+        logger.info(f"Created dataset '{dataset_name}' via MCP")
+        
+        result = {
+            "success": True,
+            "dataset_name": dataset_name,
+            "message": f"Dataset '{dataset_name}' created successfully",
+            "configuration": {
+                "system_prompt_length": len(system_prompt),
+                "output_schema_fields": list(output_schema.keys()) if output_schema else [],
+                "max_pages_per_chunk": max_pages_per_chunk
+            },
+            "next_steps": [
+                f"Upload documents to this dataset using argus_get_upload_url with dataset='{dataset_name}'",
+                f"Or list documents using argus_list_documents with dataset='{dataset_name}'"
+            ]
+        }
+        
+        return [TextContent(type="text", text=json.dumps(result, indent=2, default=str))]
+        
+    except Exception as e:
+        logger.error(f"Error creating dataset: {e}")
+        return [TextContent(type="text", text=f"Error creating dataset: {str(e)}")]

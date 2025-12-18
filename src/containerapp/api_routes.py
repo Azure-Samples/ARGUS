@@ -731,7 +731,7 @@ async def mcp_chat(request: Request):
                 "type": "function",
                 "function": {
                     "name": "argus_process_document_url",
-                    "description": "Queue a document from blob storage for processing",
+                    "description": "Manually queue a document for processing. NOTE: Only use this for RE-PROCESSING existing documents or processing documents uploaded through external means. Files uploaded through this chat are automatically processed - do not call this tool for newly uploaded attachments.",
                     "parameters": {
                         "type": "object",
                         "properties": {
@@ -756,6 +756,23 @@ async def mcp_chat(request: Request):
                         "required": ["filename"]
                     }
                 }
+            },
+            {
+                "type": "function",
+                "function": {
+                    "name": "argus_create_dataset",
+                    "description": "Create a new dataset configuration with a custom system prompt and output schema for document extraction",
+                    "parameters": {
+                        "type": "object",
+                        "properties": {
+                            "dataset_name": {"type": "string", "description": "Unique name for the dataset (alphanumeric and hyphens only)"},
+                            "system_prompt": {"type": "string", "description": "Instructions for the AI on how to extract data from documents in this dataset"},
+                            "output_schema": {"type": "object", "description": "JSON schema defining the structure of extracted data. Use empty strings as placeholders for values."},
+                            "max_pages_per_chunk": {"type": "integer", "description": "Maximum pages to process per chunk", "default": 10}
+                        },
+                        "required": ["dataset_name", "system_prompt", "output_schema"]
+                    }
+                }
             }
         ]
         
@@ -766,14 +783,15 @@ You have access to ARGUS tools that allow you to:
 - List and search documents processed by ARGUS
 - Get detailed information about specific documents
 - Chat about document content and ask questions
-- View dataset configurations
-- Queue documents for processing
+- View and create dataset configurations
 - Generate upload URLs for new documents
 
 When users ask about documents, data extraction, or document processing, use the appropriate tools.
 Be helpful, concise, and accurate. If you need to look up information, use the tools available.
 
-If the user has attached files, they may ask you to process or analyze them. Help them with their requests."""
+IMPORTANT: When users attach and upload files through this chat, the files are AUTOMATICALLY queued for processing by the system. DO NOT call argus_process_document_url after a file upload - the processing is already triggered automatically. Only use argus_process_document_url if you need to re-process an existing document or process a document that was uploaded through other means.
+
+If the user has attached files, inform them that the files have been uploaded and will be automatically processed. They can check the status later using the list_documents or get_document tools."""
         
         # Build messages
         messages = [{"role": "system", "content": system_prompt}]
@@ -787,7 +805,13 @@ If the user has attached files, they may ask you to process or analyze them. Hel
         
         # Add attachment context if any
         if attachments:
-            attachment_info = "\n\n[User has attached the following files: " + ", ".join([a.get("filename", "unknown") for a in attachments]) + "]"
+            attachment_details = []
+            for a in attachments:
+                detail = f"- {a.get('filename', 'unknown')}"
+                if a.get('document_id'):
+                    detail += f" (document_id: {a.get('document_id')})"
+                attachment_details.append(detail)
+            attachment_info = "\n\n[User has uploaded the following files which are now being automatically processed:\n" + "\n".join(attachment_details) + "\n\nYou can use the document_id to check processing status with argus_get_document.]"
             message = message + attachment_info
         
         messages.append({"role": "user", "content": message})
@@ -1039,6 +1063,23 @@ async def _execute_mcp_tool(tool_name: str, arguments: dict) -> Any:
                 return {"error": "filename is required"}
             
             result = await get_upload_url(filename, dataset)
+            return result
+        
+        elif tool_name == "argus_create_dataset":
+            dataset_name = arguments.get("dataset_name")
+            system_prompt = arguments.get("system_prompt")
+            output_schema = arguments.get("output_schema")
+            max_pages = arguments.get("max_pages_per_chunk", 10)
+            
+            if not dataset_name or not system_prompt or output_schema is None:
+                return {"error": "dataset_name, system_prompt, and output_schema are required"}
+            
+            # Validate dataset name (alphanumeric and hyphens only)
+            import re
+            if not re.match(r'^[a-zA-Z0-9-]+$', dataset_name):
+                return {"error": "dataset_name must contain only alphanumeric characters and hyphens"}
+            
+            result = await create_dataset(dataset_name, system_prompt, output_schema, max_pages)
             return result
         
         else:
@@ -1586,6 +1627,9 @@ async def upload_file(dataset_name: str, request: Request, background_tasks: Bac
         # Get the blob URL
         blob_url = blob_client.url
         
+        # Generate the document ID (same logic as blob_processing.py)
+        document_id = blob_path.replace('/', '__')
+        
         # Queue for processing if any processing options are enabled
         if run_ocr or run_gpt_vision or run_summary or run_evaluation:
             background_tasks.add_task(
@@ -1602,7 +1646,13 @@ async def upload_file(dataset_name: str, request: Request, background_tasks: Bac
                 }
             )
         
-        return {"message": "File uploaded successfully", "filename": filename, "blob_url": blob_url}
+        return {
+            "message": "File uploaded successfully", 
+            "filename": filename, 
+            "blob_url": blob_url,
+            "document_id": document_id,
+            "dataset": dataset_name
+        }
         
     except HTTPException:
         raise
@@ -1767,3 +1817,148 @@ async def get_document_file(document_id: str):
     except Exception as e:
         logger.error(f"Error getting document file {document_id}: {e}")
         raise HTTPException(status_code=500, detail=f"Failed to get document file: {str(e)}")
+
+
+async def create_dataset(
+    dataset_name: str,
+    system_prompt: str,
+    output_schema: dict,
+    max_pages_per_chunk: int = 10
+) -> Dict[str, Any]:
+    """
+    Create a new dataset configuration in ARGUS.
+    
+    Args:
+        dataset_name: Name of the dataset (alphanumeric and hyphens only)
+        system_prompt: The system prompt for document extraction
+        output_schema: JSON schema defining the expected output structure
+        max_pages_per_chunk: Maximum pages per processing chunk (default: 10)
+    
+    Returns:
+        Dictionary with created dataset information
+    """
+    import re
+    
+    # Validate dataset name
+    if not re.match(r'^[a-zA-Z0-9-]+$', dataset_name):
+        raise ValueError("Dataset name must contain only alphanumeric characters and hyphens")
+    
+    if len(dataset_name) < 2 or len(dataset_name) > 50:
+        raise ValueError("Dataset name must be between 2 and 50 characters")
+    
+    # Validate system_prompt
+    if not system_prompt or len(system_prompt.strip()) < 10:
+        raise ValueError("System prompt must be at least 10 characters")
+    
+    # Validate output_schema is a valid dictionary
+    if not isinstance(output_schema, dict):
+        raise ValueError("Output schema must be a valid JSON object")
+    
+    try:
+        conf_container = get_conf_container()
+        
+        # Get existing configuration
+        try:
+            config_item = conf_container.read_item(
+                item='configuration',
+                partition_key='configuration'
+            )
+        except Exception:
+            # Create new configuration if it doesn't exist
+            config_item = {
+                'id': 'configuration',
+                'partitionKey': 'configuration',
+                'datasets': {}
+            }
+        
+        # Ensure datasets key exists
+        if 'datasets' not in config_item:
+            config_item['datasets'] = {}
+        
+        # Check if dataset already exists
+        if dataset_name in config_item['datasets']:
+            raise ValueError(f"Dataset '{dataset_name}' already exists. Use update_dataset to modify it.")
+        
+        # Add new dataset configuration
+        config_item['datasets'][dataset_name] = {
+            'model_prompt': system_prompt.strip(),
+            'example_schema': output_schema,
+            'max_pages_per_chunk': max_pages_per_chunk
+        }
+        
+        # Upsert the configuration
+        conf_container.upsert_item(body=config_item)
+        
+        logger.info(f"Created dataset '{dataset_name}' successfully")
+        
+        return {
+            "success": True,
+            "dataset_name": dataset_name,
+            "message": f"Dataset '{dataset_name}' created successfully",
+            "configuration": {
+                "system_prompt_length": len(system_prompt),
+                "output_schema_fields": list(output_schema.keys()) if output_schema else [],
+                "max_pages_per_chunk": max_pages_per_chunk
+            }
+        }
+        
+    except ValueError:
+        raise
+    except Exception as e:
+        logger.error(f"Error creating dataset '{dataset_name}': {e}")
+        raise Exception(f"Failed to create dataset: {str(e)}")
+
+
+async def create_dataset_endpoint(request: Request):
+    """
+    REST API endpoint to create a new dataset.
+    
+    Request body:
+    {
+        "dataset_name": "my-dataset",
+        "system_prompt": "Extract all data from the document...",
+        "output_schema": {"field1": "...", "field2": "..."},
+        "max_pages_per_chunk": 10  // optional, defaults to 10
+    }
+    """
+    import re
+    
+    try:
+        body = await request.json()
+        
+        # Extract and validate required fields
+        dataset_name = body.get('dataset_name')
+        system_prompt = body.get('system_prompt')
+        output_schema = body.get('output_schema')
+        max_pages_per_chunk = body.get('max_pages_per_chunk', 10)
+        
+        if not dataset_name:
+            raise HTTPException(status_code=400, detail="dataset_name is required")
+        if not system_prompt:
+            raise HTTPException(status_code=400, detail="system_prompt is required")
+        if output_schema is None:
+            raise HTTPException(status_code=400, detail="output_schema is required")
+        
+        # Validate dataset name format
+        if not re.match(r'^[a-zA-Z0-9-]+$', dataset_name):
+            raise HTTPException(
+                status_code=400, 
+                detail="Dataset name must contain only alphanumeric characters and hyphens"
+            )
+        
+        result = await create_dataset(
+            dataset_name=dataset_name,
+            system_prompt=system_prompt,
+            output_schema=output_schema,
+            max_pages_per_chunk=max_pages_per_chunk
+        )
+        
+        return result
+        
+    except HTTPException:
+        raise
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        logger.error(f"Error in create_dataset_endpoint: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to create dataset: {str(e)}")

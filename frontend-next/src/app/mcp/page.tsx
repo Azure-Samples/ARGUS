@@ -229,6 +229,12 @@ export default function MCPPage() {
   const [uploadFilename, setUploadFilename] = React.useState("")
   const [limit, setLimit] = React.useState("50")
   
+  // Create dataset tool state
+  const [newDatasetName, setNewDatasetName] = React.useState("")
+  const [systemPrompt, setSystemPrompt] = React.useState("")
+  const [outputSchema, setOutputSchema] = React.useState("")
+  const [maxPagesPerChunk, setMaxPagesPerChunk] = React.useState("10")
+  
   // Chat state
   const [chatMessages, setChatMessages] = React.useState<ChatMessage[]>([])
   const [chatInput, setChatInput] = React.useState("")
@@ -279,6 +285,7 @@ export default function MCPPage() {
       argus_get_extraction: FileText,
       argus_search_documents: Search,
       argus_get_upload_url: Upload,
+      argus_create_dataset: Database,
     }
     return icons[toolName] || FileText
   }
@@ -331,6 +338,25 @@ export default function MCPPage() {
         case "argus_get_upload_url":
           if (!uploadFilename) throw new Error("Filename is required")
           endpoint = `/api/upload-url?filename=${encodeURIComponent(uploadFilename)}&dataset=${datasetName}`
+          break
+        case "argus_create_dataset":
+          if (!newDatasetName) throw new Error("Dataset name is required")
+          if (!systemPrompt) throw new Error("System prompt is required")
+          if (!outputSchema) throw new Error("Output schema is required")
+          endpoint = `/api/datasets`
+          method = "POST"
+          let parsedSchema
+          try {
+            parsedSchema = JSON.parse(outputSchema)
+          } catch {
+            throw new Error("Output schema must be valid JSON")
+          }
+          body = {
+            dataset_name: newDatasetName,
+            system_prompt: systemPrompt,
+            output_schema: parsedSchema,
+            max_pages_per_chunk: parseInt(maxPagesPerChunk) || 10
+          }
           break
         default:
           throw new Error("Unknown tool")
@@ -411,7 +437,7 @@ export default function MCPPage() {
 
     try {
       // Upload attachments first if any
-      let uploadedFiles: Array<{ filename: string; blob_url: string }> = []
+      let uploadedFiles: Array<{ filename: string; blob_url: string; document_id: string }> = []
       if (currentAttachments.length > 0) {
         toast.info("Uploading files...")
         const baseUrl = await backendClient.getBackendBaseUrl()
@@ -432,7 +458,11 @@ export default function MCPPage() {
 
             if (uploadResponse.ok) {
               const uploadData = await uploadResponse.json()
-              uploadedFiles.push({ filename: att.file.name, blob_url: uploadData.blob_url })
+              uploadedFiles.push({ 
+                filename: att.file.name, 
+                blob_url: uploadData.blob_url,
+                document_id: uploadData.document_id 
+              })
             } else {
               console.error(`Failed to upload ${att.file.name}: ${uploadResponse.statusText}`)
             }
@@ -466,6 +496,7 @@ export default function MCPPage() {
           attachments: uploadedFiles.map((f) => ({
             filename: f.filename,
             blob_url: f.blob_url,
+            document_id: f.document_id,
           })),
         }),
       })
@@ -600,6 +631,51 @@ export default function MCPPage() {
             <div>
               <Label htmlFor="dataset">Dataset</Label>
               <Input id="dataset" value={datasetName} onChange={(e) => setDatasetName(e.target.value)} placeholder="default-dataset" />
+            </div>
+          </div>
+        )
+      case "argus_create_dataset":
+        return (
+          <div className="space-y-4">
+            <div>
+              <Label htmlFor="newDatasetName">Dataset Name *</Label>
+              <Input 
+                id="newDatasetName" 
+                value={newDatasetName} 
+                onChange={(e) => setNewDatasetName(e.target.value)} 
+                placeholder="my-dataset (alphanumeric and hyphens only)" 
+              />
+            </div>
+            <div>
+              <Label htmlFor="systemPrompt">System Prompt *</Label>
+              <Textarea 
+                id="systemPrompt" 
+                value={systemPrompt} 
+                onChange={(e) => setSystemPrompt(e.target.value)} 
+                placeholder="Extract all data from the document and return it in the specified JSON format..."
+                rows={4}
+              />
+            </div>
+            <div>
+              <Label htmlFor="outputSchema">Output Schema (JSON) *</Label>
+              <Textarea 
+                id="outputSchema" 
+                value={outputSchema} 
+                onChange={(e) => setOutputSchema(e.target.value)} 
+                placeholder='{"field1": "description of what to extract", "field2": "..."}'
+                rows={6}
+                className="font-mono text-sm"
+              />
+            </div>
+            <div>
+              <Label htmlFor="maxPages">Max Pages Per Chunk</Label>
+              <Input 
+                id="maxPages" 
+                type="number" 
+                value={maxPagesPerChunk} 
+                onChange={(e) => setMaxPagesPerChunk(e.target.value)} 
+                placeholder="10" 
+              />
             </div>
           </div>
         )

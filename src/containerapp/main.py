@@ -209,6 +209,12 @@ async def list_datasets():
     return await api_routes.list_datasets()
 
 
+@app.post("/api/datasets")
+async def create_dataset(request: Request):
+    """Create a new dataset configuration"""
+    return await api_routes.create_dataset_endpoint(request)
+
+
 @app.get("/api/datasets/{dataset_name}/documents")
 async def get_dataset_documents(dataset_name: str):
     return await api_routes.get_dataset_documents(dataset_name)
@@ -313,6 +319,10 @@ async def mcp_info():
             {
                 "name": "argus_get_upload_url",
                 "description": "Get a pre-signed SAS URL for direct blob upload"
+            },
+            {
+                "name": "argus_create_dataset",
+                "description": "Create a new dataset configuration"
             }
         ],
         "configuration_example": {

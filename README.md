@@ -317,6 +317,7 @@ Add ARGUS to your MCP client configuration:
 | `argus_search_documents` | Search documents by keyword across all datasets |
 | `argus_list_datasets` | List available dataset configurations |
 | `argus_get_dataset_config` | Get system prompt and schema for a dataset |
+| `argus_create_dataset` | Create a new dataset with custom prompt and schema |
 | `argus_process_document_url` | Queue a document for processing from blob URL |
 | `argus_get_extraction` | Get extracted structured data from a document |
 | `argus_get_upload_url` | Get a pre-signed SAS URL for direct document upload |
@@ -337,6 +338,9 @@ AI: [Uses argus_get_upload_url to get a secure upload link]
 
 User: "Compare the extraction results between these two invoices"
 AI: [Uses argus_get_extraction on both documents and compares]
+
+User: "Create a new dataset for processing purchase orders"
+AI: [Uses argus_create_dataset with appropriate prompt and schema]
 ```
 
 ### 🔒 Security
