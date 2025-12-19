@@ -71,11 +71,10 @@ app = FastAPI(
 cors_origins = os.getenv("CORS_ORIGINS", "").split(",")
 cors_origins = [origin.strip() for origin in cors_origins if origin.strip()]
 
-# Default allowed origins for production
+# Default allowed origins for local development
 default_origins = [
     "http://localhost:3000",
     "http://127.0.0.1:3000",
-    "https://ca-frontend-js23nrf4s4ha2.nicesand-0a67ac7b.eastus2.azurecontainerapps.io",
 ]
 
 # Add any dynamically configured origins
@@ -83,8 +82,8 @@ all_origins = list(set(default_origins + cors_origins))
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # Allow all origins for now
-    allow_credentials=True,
+    allow_origins=["*"],  # Allow all origins
+    allow_credentials=False,  # Must be False when using allow_origins=["*"]
     allow_methods=["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"],
     allow_headers=["*"],
     expose_headers=["Mcp-Session-Id"],  # Required for MCP Streamable HTTP transport
@@ -253,12 +252,16 @@ async def get_upload_url(filename: str, dataset: str = "default-dataset"):
 # ============================================================================
 
 @app.get("/mcp/info")
-async def mcp_info():
+async def mcp_info(request: Request):
     """
     Get information about the ARGUS MCP server.
     
     Returns available tools and connection instructions.
     """
+    # Dynamically construct the MCP URL from the current request
+    base_url = str(request.base_url).rstrip('/')
+    mcp_url = f"{base_url}/mcp"
+    
     return {
         "name": "argus",
         "description": "ARGUS Document Intelligence MCP Server",
@@ -312,7 +315,7 @@ async def mcp_info():
         "configuration_example": {
             "mcpServers": {
                 "argus": {
-                    "url": "https://ca-argus.nicesand-0a67ac7b.eastus2.azurecontainerapps.io/mcp"
+                    "url": mcp_url
                 }
             }
         }

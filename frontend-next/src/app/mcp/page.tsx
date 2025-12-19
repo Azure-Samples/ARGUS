@@ -982,7 +982,7 @@ export default function MCPPage() {
                     {
                       mcpServers: {
                         argus: {
-                          url: mcpInfo?.configuration_example?.mcpServers?.argus?.url || "https://ca-argus.nicesand-0a67ac7b.eastus2.azurecontainerapps.io/mcp",
+                          url: mcpInfo?.configuration_example?.mcpServers?.argus?.url || "<backend-url-loading...>",
                         },
                       },
                     },
@@ -1006,7 +1006,7 @@ export default function MCPPage() {
                     {
                       mcpServers: {
                         argus: {
-                          url: mcpInfo?.configuration_example?.mcpServers?.argus?.url || "https://ca-argus.nicesand-0a67ac7b.eastus2.azurecontainerapps.io/mcp",
+                          url: mcpInfo?.configuration_example?.mcpServers?.argus?.url || "<backend-url-loading...>",
                         },
                       },
                     },

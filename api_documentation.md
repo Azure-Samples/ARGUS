@@ -1067,11 +1067,14 @@ Get information about the MCP server and available tools.
   "configuration_example": {
     "mcpServers": {
       "argus": {
-        "url": "https://ca-argus.nicesand-0a67ac7b.eastus2.azurecontainerapps.io/mcp"
+        "url": "https://<your-backend-url>/mcp"
       }
     }
   }
 }
+```
+
+> **Note**: The `url` in `configuration_example` is dynamically generated based on the request origin. The example above shows a placeholder.
 ```
 
 ### `/mcp`
@@ -1240,18 +1243,20 @@ Create a new dataset configuration for document processing.
 {
   "mcpServers": {
     "argus": {
-      "url": "https://ca-argus.nicesand-0a67ac7b.eastus2.azurecontainerapps.io/mcp"
+      "url": "https://<your-backend-url>/mcp"
     }
   }
 }
 ```
+
+> **Tip**: Get your backend URL from the ARGUS frontend MCP page, or run `azd show` after deployment.
 
 **Claude Desktop:**
 ```json
 {
   "mcpServers": {
     "argus": {
-      "url": "https://ca-argus.nicesand-0a67ac7b.eastus2.azurecontainerapps.io/mcp"
+      "url": "https://<your-backend-url>/mcp"
     }
   }
 }

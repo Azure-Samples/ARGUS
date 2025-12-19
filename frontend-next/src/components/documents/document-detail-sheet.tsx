@@ -79,11 +79,11 @@ interface ChatMessage {
 
 interface Correction {
   timestamp: string
-  corrector_id: string
-  notes: string
-  original_data: Record<string, unknown> | null
-  corrected_data: Record<string, unknown>
-  correction_number: number
+  corrector_id?: string
+  notes?: string
+  original_data?: Record<string, unknown> | null
+  corrected_data?: Record<string, unknown>
+  correction_number?: number
 }
 
 export function DocumentDetailSheet({

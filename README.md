@@ -290,18 +290,20 @@ Add ARGUS to your MCP client configuration:
 {
   "mcpServers": {
     "argus": {
-      "url": "https://ca-argus.nicesand-0a67ac7b.eastus2.azurecontainerapps.io/mcp"
+      "url": "https://<your-backend-url>/mcp"
     }
   }
 }
 ```
+
+> **Tip**: After deployment with `azd up`, get your backend URL from the Azure Portal or run `azd show` to find the Container App URL.
 
 **Claude Desktop** (`~/Library/Application Support/Claude/claude_desktop_config.json`):
 ```json
 {
   "mcpServers": {
     "argus": {
-      "url": "https://ca-argus.nicesand-0a67ac7b.eastus2.azurecontainerapps.io/mcp"
+      "url": "https://<your-backend-url>/mcp"
     }
   }
 }
