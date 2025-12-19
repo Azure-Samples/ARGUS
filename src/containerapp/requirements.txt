@@ -26,6 +26,8 @@ langchain-openai==0.2.12
 tiktoken==0.8.0
 requests-html==0.10.0
 
-# MCP (Model Context Protocol) support
-mcp>=1.0.0
+# MCP (Model Context Protocol) support - Streamable HTTP transport
+mcp>=1.9.0
 sse-starlette>=2.0.0
+starlette>=0.27.0
+anyio>=4.0.0

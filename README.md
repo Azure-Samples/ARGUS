@@ -269,7 +269,7 @@ curl -X POST \
 
 ## 🤖 MCP Integration: AI-Powered Document Access
 
-ARGUS supports the **Model Context Protocol (MCP)**, enabling AI assistants like GitHub Copilot, Claude, and other MCP-compatible clients to interact directly with your document intelligence platform.
+ARGUS supports the **Model Context Protocol (MCP)** using the modern **Streamable HTTP transport**, enabling AI assistants like GitHub Copilot, Claude, and other MCP-compatible clients to interact directly with your document intelligence platform.
 
 ### 🔌 What is MCP?
 
@@ -290,7 +290,7 @@ Add ARGUS to your MCP client configuration:
 {
   "mcpServers": {
     "argus": {
-      "url": "https://your-argus-instance.azurecontainerapps.io/mcp/sse"
+      "url": "https://ca-argus.nicesand-0a67ac7b.eastus2.azurecontainerapps.io/mcp"
     }
   }
 }
@@ -301,11 +301,13 @@ Add ARGUS to your MCP client configuration:
 {
   "mcpServers": {
     "argus": {
-      "url": "https://your-argus-instance.azurecontainerapps.io/mcp/sse"
+      "url": "https://ca-argus.nicesand-0a67ac7b.eastus2.azurecontainerapps.io/mcp"
     }
   }
 }
 ```
+
+> **Note**: ARGUS uses the Streamable HTTP transport (the modern MCP standard). The endpoint is a single `/mcp` path that handles all MCP communication.
 
 ### 🛠️ Available MCP Tools
 

@@ -1032,7 +1032,10 @@ ARGUS provides MCP support for AI assistant integration, enabling tools like Git
 
 ### Transport
 
-ARGUS uses **Server-Sent Events (SSE)** transport for MCP communication.
+ARGUS uses **Streamable HTTP** transport for MCP communication. This is the modern MCP standard (as of the 2025-03-26 protocol revision) which provides:
+- Single endpoint for all MCP communication
+- Better reliability and scalability
+- Proper session handling with `Mcp-Session-Id` header
 
 ### GET `/mcp/info`
 **MCP Server Information**
@@ -1045,10 +1048,9 @@ Get information about the MCP server and available tools.
   "name": "argus",
   "description": "ARGUS Document Intelligence MCP Server",
   "version": "1.0.0",
-  "transport": "sse",
+  "transport": "streamable-http",
   "endpoints": {
-    "sse": "/mcp/sse",
-    "messages": "/mcp/messages/"
+    "mcp": "/mcp"
   },
   "tools": [
     {"name": "argus_list_documents", "description": "List all processed documents"},
@@ -1056,6 +1058,7 @@ Get information about the MCP server and available tools.
     {"name": "argus_chat_with_document", "description": "Ask questions about a document"},
     {"name": "argus_list_datasets", "description": "List available dataset configurations"},
     {"name": "argus_get_dataset_config", "description": "Get dataset configuration details"},
+    {"name": "argus_create_dataset", "description": "Create a new dataset configuration"},
     {"name": "argus_process_document_url", "description": "Queue document for processing"},
     {"name": "argus_get_extraction", "description": "Get extracted data from document"},
     {"name": "argus_search_documents", "description": "Search documents by keyword"},
@@ -1064,34 +1067,26 @@ Get information about the MCP server and available tools.
   "configuration_example": {
     "mcpServers": {
       "argus": {
-        "url": "https://your-argus-instance.azurecontainerapps.io/mcp/sse"
+        "url": "https://ca-argus.nicesand-0a67ac7b.eastus2.azurecontainerapps.io/mcp"
       }
     }
   }
 }
 ```
 
-### GET `/mcp/sse`
-**SSE Connection Endpoint**
+### `/mcp`
+**Streamable HTTP MCP Endpoint**
 
-Establishes a Server-Sent Events connection for MCP communication. Returns a session ID that must be used for subsequent message requests.
+This is the main MCP endpoint that handles all protocol communication. It supports both GET and POST methods:
+
+- **GET**: Returns a streaming response for server-to-client messages
+- **POST**: Accepts MCP protocol messages (JSON-RPC format)
 
 **Headers:**
-- `Accept: text/event-stream`
+- `Content-Type: application/json` (for POST requests)
+- `Mcp-Session-Id` (optional): Session identifier for stateful interactions
 
-**Response:** SSE stream with session initialization
-
-### POST `/mcp/messages/`
-**MCP Message Handler**
-
-Send MCP protocol messages (tool calls, etc.) to the server.
-
-**Query Parameters:**
-- `session_id` (required): Session ID from SSE connection
-
-**Request Body:** MCP protocol message (JSON-RPC format)
-
-**Example Tool Call:**
+**Example Tool Call (POST):**
 ```json
 {
   "jsonrpc": "2.0",
@@ -1245,7 +1240,7 @@ Create a new dataset configuration for document processing.
 {
   "mcpServers": {
     "argus": {
-      "url": "https://your-argus-instance.azurecontainerapps.io/mcp/sse"
+      "url": "https://ca-argus.nicesand-0a67ac7b.eastus2.azurecontainerapps.io/mcp"
     }
   }
 }
@@ -1256,7 +1251,7 @@ Create a new dataset configuration for document processing.
 {
   "mcpServers": {
     "argus": {
-      "url": "https://your-argus-instance.azurecontainerapps.io/mcp/sse"
+      "url": "https://ca-argus.nicesand-0a67ac7b.eastus2.azurecontainerapps.io/mcp"
     }
   }
 }

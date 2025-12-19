@@ -48,8 +48,7 @@ interface MCPInfo {
   version: string
   transport: string
   endpoints: {
-    sse: string
-    messages: string
+    mcp: string
   }
   tools: Array<{
     name: string
@@ -983,7 +982,7 @@ export default function MCPPage() {
                     {
                       mcpServers: {
                         argus: {
-                          url: mcpInfo?.configuration_example?.mcpServers?.argus?.url || "https://your-argus-instance.azurecontainerapps.io/mcp/sse",
+                          url: mcpInfo?.configuration_example?.mcpServers?.argus?.url || "https://ca-argus.nicesand-0a67ac7b.eastus2.azurecontainerapps.io/mcp",
                         },
                       },
                     },
@@ -1007,7 +1006,7 @@ export default function MCPPage() {
                     {
                       mcpServers: {
                         argus: {
-                          url: mcpInfo?.configuration_example?.mcpServers?.argus?.url || "https://your-argus-instance.azurecontainerapps.io/mcp/sse",
+                          url: mcpInfo?.configuration_example?.mcpServers?.argus?.url || "https://ca-argus.nicesand-0a67ac7b.eastus2.azurecontainerapps.io/mcp",
                         },
                       },
                     },
@@ -1023,17 +1022,10 @@ export default function MCPPage() {
                 <div className="grid gap-2">
                   <div className="p-3 rounded-lg border flex items-center justify-between">
                     <div>
-                      <p className="font-medium">SSE Endpoint</p>
-                      <p className="text-sm text-muted-foreground">Server-Sent Events connection</p>
+                      <p className="font-medium">Streamable HTTP Endpoint</p>
+                      <p className="text-sm text-muted-foreground">Main MCP communication endpoint</p>
                     </div>
-                    <code className="bg-muted px-2 py-1 rounded text-sm">/mcp/sse</code>
-                  </div>
-                  <div className="p-3 rounded-lg border flex items-center justify-between">
-                    <div>
-                      <p className="font-medium">Messages Endpoint</p>
-                      <p className="text-sm text-muted-foreground">Tool call handler</p>
-                    </div>
-                    <code className="bg-muted px-2 py-1 rounded text-sm">/mcp/messages/</code>
+                    <code className="bg-muted px-2 py-1 rounded text-sm">/mcp</code>
                   </div>
                   <div className="p-3 rounded-lg border flex items-center justify-between">
                     <div>

@@ -8,13 +8,12 @@ from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, Request, BackgroundTasks
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse
-from sse_starlette.sse import EventSourceResponse
+from starlette.types import Receive, Scope, Send
 
 from dependencies import initialize_azure_clients, cleanup_azure_clients
 import api_routes
 from mcp_server import mcp_server
-from mcp.server.sse import SseServerTransport
+from mcp.server.streamable_http_manager import StreamableHTTPSessionManager
 
 # Configure logging
 logging.basicConfig(
@@ -25,21 +24,38 @@ logger = logging.getLogger(__name__)
 
 MAX_TIMEOUT = 45*60  # Set timeout duration in seconds
 
+# Create the StreamableHTTP session manager (created here so it's available for lifespan)
+mcp_session_manager: StreamableHTTPSessionManager | None = None
+
 
 @asynccontextmanager
-async def lifespan(app: FastAPI):
-    """Initialize Azure clients on startup"""
+async def lifespan(_app: FastAPI):  # noqa: ARG001
+    """Initialize Azure clients and MCP session manager on startup"""
+    global mcp_session_manager  # noqa: PLW0603
+    
     try:
         await initialize_azure_clients()
         logger.info("Successfully initialized Azure clients")
     except Exception as e:
-        logger.error(f"Failed to initialize Azure clients: {e}")
+        logger.error("Failed to initialize Azure clients: %s", e)
         raise
     
-    yield
+    # Initialize MCP session manager
+    mcp_session_manager = StreamableHTTPSessionManager(
+        app=mcp_server,
+        event_store=None,  # No resumability - stateless mode
+        json_response=True,  # Use JSON responses for better compatibility
+        stateless=True,  # Stateless mode for scalability
+    )
+    
+    # Run MCP session manager
+    async with mcp_session_manager.run():
+        logger.info("MCP Streamable HTTP session manager started")
+        yield
     
     # Cleanup
     await cleanup_azure_clients()
+    logger.info("Application shutdown complete")
 
 
 # Initialize FastAPI app
@@ -71,6 +87,7 @@ app.add_middleware(
     allow_credentials=True,
     allow_methods=["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"],
     allow_headers=["*"],
+    expose_headers=["Mcp-Session-Id"],  # Required for MCP Streamable HTTP transport
 )
 
 
@@ -232,40 +249,8 @@ async def get_upload_url(filename: str, dataset: str = "default-dataset"):
 
 
 # ============================================================================
-# MCP (Model Context Protocol) Endpoints
+# MCP (Model Context Protocol) Endpoints - Streamable HTTP Transport
 # ============================================================================
-
-# SSE transport for MCP
-sse_transport = SseServerTransport("/mcp/messages/")
-
-
-@app.get("/mcp/sse")
-async def mcp_sse_endpoint(request: Request):
-    """
-    MCP Server-Sent Events endpoint.
-    
-    Connect to this endpoint to establish an MCP session with ARGUS.
-    The response includes the message endpoint URL for sending requests.
-    """
-    async with sse_transport.connect_sse(
-        request.scope, request.receive, request._send
-    ) as streams:
-        await mcp_server.run(
-            streams[0], streams[1], mcp_server.create_initialization_options()
-        )
-
-
-@app.post("/mcp/messages/")
-async def mcp_messages_endpoint(request: Request):
-    """
-    MCP messages endpoint for receiving client requests.
-    
-    This endpoint receives JSON-RPC messages from MCP clients.
-    """
-    await sse_transport.handle_post_message(
-        request.scope, request.receive, request._send
-    )
-
 
 @app.get("/mcp/info")
 async def mcp_info():
@@ -278,10 +263,9 @@ async def mcp_info():
         "name": "argus",
         "description": "ARGUS Document Intelligence MCP Server",
         "version": "1.0.0",
-        "transport": "sse",
+        "transport": "streamable-http",
         "endpoints": {
-            "sse": "/mcp/sse",
-            "messages": "/mcp/messages/"
+            "mcp": "/mcp"
         },
         "tools": [
             {
@@ -328,11 +312,23 @@ async def mcp_info():
         "configuration_example": {
             "mcpServers": {
                 "argus": {
-                    "url": "https://your-argus-instance.azurecontainerapps.io/mcp/sse"
+                    "url": "https://ca-argus.nicesand-0a67ac7b.eastus2.azurecontainerapps.io/mcp"
                 }
             }
         }
     }
+
+
+async def handle_mcp_request(scope: Scope, receive: Receive, send: Send) -> None:
+    """ASGI handler for MCP Streamable HTTP requests."""
+    if mcp_session_manager is None:
+        raise RuntimeError("MCP session manager not initialized")
+    await mcp_session_manager.handle_request(scope, receive, send)
+
+
+# Mount MCP at /mcp endpoint (supports GET, POST, DELETE)
+# Note: /mcp/info is defined above as a FastAPI route, which takes precedence
+app.mount("/mcp", handle_mcp_request)
 
 
 # Optional: If you want to run this directly
