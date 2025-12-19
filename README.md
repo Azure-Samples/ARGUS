@@ -347,11 +347,6 @@ User: "Create a new dataset for processing purchase orders"
 AI: [Uses argus_create_dataset with appropriate prompt and schema]
 ```
 
-### 🔒 Security
-
-- MCP connections use **Server-Sent Events (SSE)** over HTTPS
-- Authentication inherits from your ARGUS deployment's security configuration
-- All operations respect your Azure RBAC and managed identity settings
 
 ---
 

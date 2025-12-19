@@ -28,7 +28,11 @@ import {
   Pencil,
   Save,
   RefreshCw,
-  Settings
+  Settings,
+  ZoomIn,
+  ZoomOut,
+  Move,
+  RotateCw
 } from "lucide-react"
 import { toast } from "sonner"
 
@@ -128,6 +132,66 @@ export function DocumentDetailSheet({
   
   // State for file URL
   const [fileUrl, setFileUrl] = React.useState<string | undefined>(undefined)
+  
+  // Image viewer state (zoom, pan, rotation)
+  const [imageZoom, setImageZoom] = React.useState(1)
+  const [imagePosition, setImagePosition] = React.useState({ x: 0, y: 0 })
+  const [imageRotation, setImageRotation] = React.useState(0)
+  const [isDragging, setIsDragging] = React.useState(false)
+  const [dragStart, setDragStart] = React.useState({ x: 0, y: 0 })
+  const imageContainerRef = React.useRef<HTMLDivElement>(null)
+  
+  // Check if file is an image
+  const isImageFile = React.useMemo(() => {
+    const fileName = document?.fileName?.toLowerCase() || ''
+    return fileName.endsWith('.jpg') || fileName.endsWith('.jpeg') || 
+           fileName.endsWith('.png') || fileName.endsWith('.gif') || 
+           fileName.endsWith('.webp') || fileName.endsWith('.bmp')
+  }, [document?.fileName])
+  
+  // Reset image viewer state when document changes
+  React.useEffect(() => {
+    setImageZoom(1)
+    setImagePosition({ x: 0, y: 0 })
+    setImageRotation(0)
+  }, [document?.id])
+  
+  // Image zoom handlers
+  const handleZoomIn = () => setImageZoom(prev => Math.min(prev + 0.25, 5))
+  const handleZoomOut = () => setImageZoom(prev => Math.max(prev - 0.25, 0.25))
+  const handleResetView = () => {
+    setImageZoom(1)
+    setImagePosition({ x: 0, y: 0 })
+    setImageRotation(0)
+  }
+  const handleRotate = () => setImageRotation(prev => (prev + 90) % 360)
+  
+  // Mouse handlers for panning
+  const handleMouseDown = (e: React.MouseEvent) => {
+    if (imageZoom > 1) {
+      setIsDragging(true)
+      setDragStart({ x: e.clientX - imagePosition.x, y: e.clientY - imagePosition.y })
+    }
+  }
+  
+  const handleMouseMove = (e: React.MouseEvent) => {
+    if (isDragging && imageZoom > 1) {
+      setImagePosition({
+        x: e.clientX - dragStart.x,
+        y: e.clientY - dragStart.y
+      })
+    }
+  }
+  
+  const handleMouseUp = () => setIsDragging(false)
+  const handleMouseLeave = () => setIsDragging(false)
+  
+  // Wheel zoom handler
+  const handleWheel = (e: React.WheelEvent) => {
+    e.preventDefault()
+    const delta = e.deltaY > 0 ? -0.1 : 0.1
+    setImageZoom(prev => Math.min(Math.max(prev + delta, 0.25), 5))
+  }
   
   // Load full document data
   React.useEffect(() => {
@@ -428,23 +492,75 @@ export function DocumentDetailSheet({
                   <CardHeader className="pb-3 flex-shrink-0">
                     <div className="flex items-center justify-between">
                       <CardTitle className="text-lg">Document Preview</CardTitle>
-                      {fileUrl && (
-                        <Button variant="outline" size="sm" asChild>
-                          <a href={fileUrl} target="_blank" rel="noopener noreferrer">
-                            <ExternalLink className="h-4 w-4 mr-2" />
-                            Open
-                          </a>
-                        </Button>
-                      )}
+                      <div className="flex items-center gap-2">
+                        {isImageFile && fileUrl && (
+                          <>
+                            <Button variant="outline" size="icon" onClick={handleZoomOut} title="Zoom Out">
+                              <ZoomOut className="h-4 w-4" />
+                            </Button>
+                            <span className="text-sm text-muted-foreground min-w-[3rem] text-center">
+                              {Math.round(imageZoom * 100)}%
+                            </span>
+                            <Button variant="outline" size="icon" onClick={handleZoomIn} title="Zoom In">
+                              <ZoomIn className="h-4 w-4" />
+                            </Button>
+                            <Button variant="outline" size="icon" onClick={handleRotate} title="Rotate">
+                              <RotateCw className="h-4 w-4" />
+                            </Button>
+                            <Button variant="outline" size="icon" onClick={handleResetView} title="Reset View">
+                              <RotateCcw className="h-4 w-4" />
+                            </Button>
+                          </>
+                        )}
+                        {fileUrl && (
+                          <Button variant="outline" size="sm" asChild>
+                            <a href={fileUrl} target="_blank" rel="noopener noreferrer">
+                              <ExternalLink className="h-4 w-4 mr-2" />
+                              Open
+                            </a>
+                          </Button>
+                        )}
+                      </div>
                     </div>
+                    {isImageFile && imageZoom > 1 && (
+                      <p className="text-xs text-muted-foreground mt-1">
+                        <Move className="h-3 w-3 inline mr-1" />
+                        Drag to pan • Scroll to zoom
+                      </p>
+                    )}
                   </CardHeader>
                   <CardContent className="flex-1 overflow-hidden p-4">
                     {fileUrl ? (
-                      <iframe
-                        src={fileUrl}
-                        className="w-full h-full rounded-lg border"
-                        title="Document Preview"
-                      />
+                      isImageFile ? (
+                        <div 
+                          ref={imageContainerRef}
+                          className="w-full h-full rounded-lg border overflow-hidden bg-muted/30 relative"
+                          style={{ cursor: imageZoom > 1 ? (isDragging ? 'grabbing' : 'grab') : 'default' }}
+                          onMouseDown={handleMouseDown}
+                          onMouseMove={handleMouseMove}
+                          onMouseUp={handleMouseUp}
+                          onMouseLeave={handleMouseLeave}
+                          onWheel={handleWheel}
+                        >
+                          <img
+                            src={fileUrl}
+                            alt="Document Preview"
+                            className="absolute top-1/2 left-1/2 max-w-none select-none"
+                            style={{
+                              transform: `translate(-50%, -50%) translate(${imagePosition.x}px, ${imagePosition.y}px) scale(${imageZoom}) rotate(${imageRotation}deg)`,
+                              transformOrigin: 'center center',
+                              transition: isDragging ? 'none' : 'transform 0.1s ease-out'
+                            }}
+                            draggable={false}
+                          />
+                        </div>
+                      ) : (
+                        <iframe
+                          src={fileUrl}
+                          className="w-full h-full rounded-lg border"
+                          title="Document Preview"
+                        />
+                      )
                     ) : (
                       <div className="h-full flex items-center justify-center text-muted-foreground">
                         <FileText className="h-12 w-12 opacity-50" />
