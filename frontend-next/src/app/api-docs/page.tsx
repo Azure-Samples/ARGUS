@@ -137,8 +137,8 @@ export default function ApiDocsPage() {
             <div className="p-4 rounded-lg border">
               <h4 className="font-medium mb-2">Authentication</h4>
               <ul className="space-y-1 text-sm text-muted-foreground">
-                <li>• Azure Default Credentials for Azure services</li>
-                <li>• API keys via environment variables</li>
+                <li>• Azure Managed Identity for OpenAI, Cosmos DB, Storage, Doc Intelligence</li>
+                <li>• DefaultAzureCredential for local development</li>
                 <li>• CORS enabled for frontend integration</li>
               </ul>
             </div>
@@ -389,10 +389,11 @@ export default function ApiDocsPage() {
           <Endpoint
             method="GET"
             path="/api/settings/openai"
-            description="Get current OpenAI configuration"
+            description="Get current OpenAI configuration (managed identity auth)"
             response={`{
   "endpoint": "https://your-resource.openai.azure.com/",
-  "deployment_name": "gpt-4o"
+  "deployment_name": "gpt-4o",
+  "auth": "managed_identity"
 }`}
           />
           <Endpoint
@@ -401,7 +402,6 @@ export default function ApiDocsPage() {
             description="Update OpenAI configuration"
             requestBody={`{
   "endpoint": "https://your-resource.openai.azure.com/",
-  "api_key": "sk-...",
   "deployment_name": "gpt-4o"
 }`}
             response={`{

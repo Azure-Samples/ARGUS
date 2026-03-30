@@ -2,7 +2,6 @@
 
 import * as React from "react"
 import {
-  Key,
   Server,
   Zap,
   Save,
@@ -66,12 +65,9 @@ interface ConcurrencySettingsResponse {
 export default function SettingsPage() {
   // OpenAI Settings state
   const [openaiEndpoint, setOpenaiEndpoint] = React.useState("")
-  const [openaiKey, setOpenaiKey] = React.useState("")
   const [deploymentName, setDeploymentName] = React.useState("")
-  const [showApiKey, setShowApiKey] = React.useState(false)
   const [isEnvBased, setIsEnvBased] = React.useState(false)
   const [isLoadingOpenai, setIsLoadingOpenai] = React.useState(true)
-  const [isSavingOpenai, setIsSavingOpenai] = React.useState(false)
 
   // OCR Provider state
   const [ocrProvider, setOcrProvider] = React.useState<string>("azure")
@@ -125,7 +121,6 @@ export default function SettingsPage() {
       
       // Set OpenAI settings
       setOpenaiEndpoint(settings.openai_endpoint || "")
-      setOpenaiKey(settings.openai_key === "***hidden***" ? "" : settings.openai_key || "")
       setDeploymentName(settings.deployment_name || "")
       
       // Set OCR settings
@@ -138,36 +133,6 @@ export default function SettingsPage() {
       toast.error("Failed to load settings")
     } finally {
       setIsLoadingOpenai(false)
-    }
-  }
-
-  async function saveOpenAISettings() {
-    if (!openaiEndpoint || !deploymentName) {
-      toast.error("Endpoint and Deployment Name are required")
-      return
-    }
-    
-    setIsSavingOpenai(true)
-    try {
-      const updateData: Record<string, unknown> = {
-        openai_endpoint: openaiEndpoint,
-        openai_deployment_name: deploymentName,
-      }
-      // Only include key if provided
-      if (openaiKey) {
-        updateData.openai_key = openaiKey
-      }
-      
-      await backendClient.updateOpenAISettings(updateData)
-      toast.success("OpenAI settings updated", {
-        description: isEnvBased ? "Changes are active immediately for new requests" : undefined
-      })
-      loadOpenAISettings()
-    } catch (error) {
-      console.error("Failed to save OpenAI settings:", error)
-      toast.error("Failed to save OpenAI settings")
-    } finally {
-      setIsSavingOpenai(false)
     }
   }
 
@@ -279,11 +244,11 @@ export default function SettingsPage() {
         <Card>
           <CardHeader>
             <div className="flex items-center gap-2">
-              <Key className="h-5 w-5 text-muted-foreground" />
+              <Cloud className="h-5 w-5 text-muted-foreground" />
               <CardTitle>OpenAI Configuration</CardTitle>
             </div>
             <CardDescription>
-              Configure Azure OpenAI endpoint and credentials
+              Azure OpenAI with managed identity authentication
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
@@ -291,19 +256,16 @@ export default function SettingsPage() {
               <div className="space-y-4">
                 <div className="h-10 bg-muted animate-pulse rounded" />
                 <div className="h-10 bg-muted animate-pulse rounded" />
-                <div className="h-10 bg-muted animate-pulse rounded" />
               </div>
             ) : (
               <>
-                {isEnvBased && (
-                  <Alert>
-                    <Info className="h-4 w-4" />
-                    <AlertTitle>Environment Variable Configuration</AlertTitle>
-                    <AlertDescription>
-                      Configuration is managed via environment variables. Runtime updates are temporary and will be lost when the container restarts.
-                    </AlertDescription>
-                  </Alert>
-                )}
+                <Alert>
+                  <CheckCircle className="h-4 w-4" />
+                  <AlertTitle>Managed Identity Authentication</AlertTitle>
+                  <AlertDescription>
+                    This deployment uses Azure Managed Identity for OpenAI authentication. No API keys are required — credentials are managed automatically by Azure.
+                  </AlertDescription>
+                </Alert>
                 
                 <div className="space-y-2">
                   <Label htmlFor="endpoint">Azure OpenAI Endpoint</Label>
@@ -312,31 +274,9 @@ export default function SettingsPage() {
                     placeholder="https://your-resource.openai.azure.com/"
                     value={openaiEndpoint}
                     onChange={(e) => setOpenaiEndpoint(e.target.value)}
+                    readOnly={isEnvBased}
+                    className={isEnvBased ? "bg-muted" : ""}
                   />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="api-key">API Key</Label>
-                  <div className="relative">
-                    <Input
-                      id="api-key"
-                      type={showApiKey ? "text" : "password"}
-                      placeholder={isEnvBased ? "Enter new key or leave blank to keep current" : "Enter your API key"}
-                      value={openaiKey}
-                      onChange={(e) => setOpenaiKey(e.target.value)}
-                    />
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      className="absolute right-0 top-0 h-full px-3"
-                      onClick={() => setShowApiKey(!showApiKey)}
-                    >
-                      {showApiKey ? (
-                        <EyeOff className="h-4 w-4" />
-                      ) : (
-                        <Eye className="h-4 w-4" />
-                      )}
-                    </Button>
-                  </div>
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="deployment">Model Deployment Name</Label>
@@ -345,20 +285,15 @@ export default function SettingsPage() {
                     placeholder="gpt-4o"
                     value={deploymentName}
                     onChange={(e) => setDeploymentName(e.target.value)}
+                    readOnly={isEnvBased}
+                    className={isEnvBased ? "bg-muted" : ""}
                   />
                 </div>
-                <Button
-                  onClick={saveOpenAISettings}
-                  disabled={isSavingOpenai}
-                  className="w-full"
-                >
-                  {isSavingOpenai ? (
-                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                  ) : (
-                    <Save className="h-4 w-4 mr-2" />
-                  )}
-                  {isEnvBased ? "Update Runtime Settings" : "Save OpenAI Settings"}
-                </Button>
+                {isEnvBased && (
+                  <p className="text-xs text-muted-foreground">
+                    Endpoint and deployment are configured via environment variables and managed by infrastructure.
+                  </p>
+                )}
               </>
             )}
           </CardContent>

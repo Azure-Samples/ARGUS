@@ -1,844 +1,248 @@
-// Container App version of the ARGUS infrastructure with private ACR
+// ARGUS Infrastructure — Modularized with VNet, Private Endpoints, Key Vault, RBAC
 targetScope = 'resourceGroup'
 
-// Parameters
+// ─── Parameters ───
 param location string = resourceGroup().location
 param environmentName string
 param containerAppName string = 'ca-${uniqueString(resourceGroup().id)}'
+param frontendContainerAppName string = 'ca-frontend-${uniqueString(resourceGroup().id)}'
 param resourceToken string = uniqueString(subscription().id, resourceGroup().id, environmentName)
 
-// Storage and Database parameters
 param storageAccountName string = 'sa${resourceToken}'
 param cosmosDbAccountName string = 'cb${resourceToken}'
 param cosmosDbDatabaseName string = 'doc-extracts'
 param cosmosDbContainerName string = 'documents'
-
-// Container Registry parameters
 param containerRegistryName string = 'cr${resourceToken}'
-
-// Document Intelligence resource name
 param documentIntelligenceName string = 'di${resourceToken}'
+param azureOpenaiModelDeploymentName string
 
 @description('Principal ID of the running user for role assignments')
 param azurePrincipalId string
 
-// Azure OpenAI parameters
-@secure()
-param azureOpenaiEndpoint string
-@secure()
-param azureOpenaiKey string
-param azureOpenaiModelDeploymentName string
-
-// Common tags
+// ─── Tags ───
 var commonTags = {
   solution: 'ARGUS-1.0'
   environment: environmentName
   'azd-env-name': environmentName
 }
+var serviceResourceTags = union(commonTags, { 'azd-service-name': 'backend' })
 
-// Service-specific tags for the main service resource
-var serviceResourceTags = union(commonTags, {
-  'azd-service-name': 'backend'
-})
-
-// Container Registry
-resource containerRegistry 'Microsoft.ContainerRegistry/registries@2023-07-01' = {
-  name: containerRegistryName
-  location: location
-  sku: {
-    name: 'Basic'
-  }
-  properties: {
-    adminUserEnabled: false
-    publicNetworkAccess: 'Enabled'
-  }
-  tags: commonTags
-}
-
-// Log Analytics Workspace
-resource logAnalytics 'Microsoft.OperationalInsights/workspaces@2021-06-01' = {
-  name: 'law-${resourceToken}'
-  location: location
-  properties: {
-    retentionInDays: 30
-  }
-  tags: commonTags
-}
-
-// Application Insights
-resource applicationInsights 'Microsoft.Insights/components@2020-02-02' = {
-  name: 'ai-${resourceToken}'
-  location: location
-  kind: 'web'
-  properties: {
-    Application_Type: 'web'
-    WorkspaceResourceId: logAnalytics.id
-  }
-  tags: commonTags
-}
-
-// Container Apps Environment
-resource containerAppEnvironment 'Microsoft.App/managedEnvironments@2024-03-01' = {
-  name: 'cae-${resourceToken}'
-  location: location
-  properties: {
-    appLogsConfiguration: {
-      destination: 'log-analytics'
-      logAnalyticsConfiguration: {
-        customerId: logAnalytics.properties.customerId
-        sharedKey: logAnalytics.listKeys().primarySharedKey
-      }
-    }
-  }
-  tags: commonTags
-}
-
-// User Assigned Managed Identity for Container App
-resource userManagedIdentity 'Microsoft.ManagedIdentity/userAssignedIdentities@2023-01-31' = {
-  name: 'id-${resourceToken}'
-  location: location
-  tags: commonTags
-}
-
-// Storage Account
-resource storageAccount 'Microsoft.Storage/storageAccounts@2022-05-01' = {
-  name: storageAccountName
-  location: location
-  sku: {
-    name: 'Standard_LRS'
-  }
-  kind: 'StorageV2'
-  properties: {
-    accessTier: 'Hot'
-  }
-  tags: union(commonTags, { SecurityControl: 'Ignore' })
-}
-
-// Blob Service
-resource blobService 'Microsoft.Storage/storageAccounts/blobServices@2022-05-01' = {
-  parent: storageAccount
-  name: 'default'
-  properties: {
-    cors: {
-      corsRules: [
-        {
-          allowedOrigins: ['*']
-          allowedMethods: ['GET', 'PUT', 'POST', 'DELETE', 'HEAD', 'OPTIONS']
-          allowedHeaders: ['*']
-          exposedHeaders: ['*']
-          maxAgeInSeconds: 3600
-        }
-      ]
-    }
+// ═══════════════════════════════════════════════════
+// Module: Networking (VNet, subnets, private DNS zones)
+// ═══════════════════════════════════════════════════
+module network 'modules/network.bicep' = {
+  name: 'network'
+  params: {
+    location: location
+    resourceToken: resourceToken
+    tags: commonTags
   }
 }
 
-// Blob Container
-resource blobContainer 'Microsoft.Storage/storageAccounts/blobServices/containers@2022-05-01' = {
-  parent: blobService
-  name: 'datasets'
-  properties: {
-    publicAccess: 'None'
+// ═══════════════════════════════════════════════════
+// Module: Managed Identity
+// ═══════════════════════════════════════════════════
+module identity 'modules/identity.bicep' = {
+  name: 'identity'
+  params: {
+    location: location
+    resourceToken: resourceToken
+    tags: commonTags
   }
 }
 
-// Cosmos DB Account
-resource cosmosDbAccount 'Microsoft.DocumentDB/databaseAccounts@2021-04-15' = {
-  name: cosmosDbAccountName
-  location: location
-  kind: 'GlobalDocumentDB'
-  properties: {
-    databaseAccountOfferType: 'Standard'
-    locations: [
-      {
-        locationName: location
-        failoverPriority: 0
-        isZoneRedundant: false
-      }
-    ]
-    consistencyPolicy: {
-      defaultConsistencyLevel: 'Session'
-    }
-    capabilities: [
-      {
-        name: 'EnableServerless'
-      }
-    ]
-  }
-  tags: union(commonTags, { SecurityControl: 'Ignore' })
-}
-
-// Cosmos DB Database
-resource cosmosDbDatabase 'Microsoft.DocumentDB/databaseAccounts/sqlDatabases@2021-04-15' = {
-  parent: cosmosDbAccount
-  name: cosmosDbDatabaseName
-  properties: {
-    resource: {
-      id: cosmosDbDatabaseName
-    }
-  }
-  tags: commonTags
-}
-
-// Cosmos DB Container for documents
-resource cosmosDbContainer 'Microsoft.DocumentDB/databaseAccounts/sqlDatabases/containers@2021-04-15' = {
-  parent: cosmosDbDatabase
-  name: cosmosDbContainerName
-  properties: {
-    resource: {
-      id: cosmosDbContainerName
-      partitionKey: {
-        paths: ['/partitionKey']
-        kind: 'Hash'
-      }
-      defaultTtl: -1
-    }
-  }
-  tags: commonTags
-}
-
-// Cosmos DB Container for configuration
-resource cosmosDbContainerConf 'Microsoft.DocumentDB/databaseAccounts/sqlDatabases/containers@2021-04-15' = {
-  parent: cosmosDbDatabase
-  name: 'configuration'
-  properties: {
-    resource: {
-      id: 'configuration'
-      partitionKey: {
-        paths: ['/partitionKey']
-        kind: 'Hash'
-      }
-      defaultTtl: -1
-    }
-  }
-  tags: commonTags
-}
-
-// Document Intelligence resource
-resource documentIntelligence 'Microsoft.CognitiveServices/accounts@2021-04-30' = {
-  name: documentIntelligenceName
-  location: location
-  sku: {
-    name: 'S0'
-  }
-  kind: 'FormRecognizer'
-  properties: {
-    apiProperties: {}
-    customSubDomainName: documentIntelligenceName
-    publicNetworkAccess: 'Enabled'
-  }
-  tags: commonTags
-}
-
-// Container App
-resource containerApp 'Microsoft.App/containerApps@2024-03-01' = {
-  name: containerAppName
-  location: location
-  identity: {
-    type: 'SystemAssigned,UserAssigned'
-    userAssignedIdentities: {
-      '${userManagedIdentity.id}': {}
-    }
-  }
-  properties: {
-    environmentId: containerAppEnvironment.id
-    configuration: {
-      ingress: {
-        external: true
-        targetPort: 8000
-        corsPolicy: {
-          allowedOrigins: ['*']
-          allowedMethods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS']
-          allowedHeaders: ['*']
-          allowCredentials: false
-        }
-      }
-      registries: [
-        {
-          server: containerRegistry.properties.loginServer
-          identity: userManagedIdentity.id
-        }
-      ]
-      secrets: [
-        {
-          name: 'azure-openai-key'
-          value: azureOpenaiKey
-        }
-        {
-          name: 'appinsights-connection-string'
-          value: applicationInsights.properties.ConnectionString
-        }
-      ]
-    }
-    template: {
-      containers: [
-        {
-          name: containerAppName
-          image: 'mcr.microsoft.com/azuredocs/containerapps-helloworld:latest'
-          resources: {
-            cpu: json('1.0')
-            memory: '2Gi'
-          }
-          env: [
-            {
-              name: 'STORAGE_ACCOUNT_NAME'
-              value: storageAccount.name
-            }
-            {
-              name: 'BLOB_ACCOUNT_URL'
-              value: storageAccount.properties.primaryEndpoints.blob
-            }
-            {
-              name: 'CONTAINER_NAME'
-              value: blobContainer.name
-            }
-            {
-              name: 'COSMOS_URL'
-              value: cosmosDbAccount.properties.documentEndpoint
-            }
-            {
-              name: 'COSMOS_DB_NAME'
-              value: cosmosDbDatabaseName
-            }
-            {
-              name: 'COSMOS_DOCUMENTS_CONTAINER_NAME'
-              value: cosmosDbContainerName
-            }
-            {
-              name: 'COSMOS_CONFIG_CONTAINER_NAME'
-              value: 'configuration'
-            }
-            {
-              name: 'DOCUMENT_INTELLIGENCE_ENDPOINT'
-              value: documentIntelligence.properties.endpoint
-            }
-            {
-              name: 'AZURE_OPENAI_ENDPOINT'
-              value: azureOpenaiEndpoint
-            }
-            {
-              name: 'AZURE_OPENAI_KEY'
-              secretRef: 'azure-openai-key'
-            }
-            {
-              name: 'AZURE_OPENAI_MODEL_DEPLOYMENT_NAME'
-              value: azureOpenaiModelDeploymentName
-            }
-            {
-              name: 'APPLICATIONINSIGHTS_CONNECTION_STRING'
-              secretRef: 'appinsights-connection-string'
-            }
-            {
-              name: 'AZURE_CLIENT_ID'
-              value: userManagedIdentity.properties.clientId
-            }
-            {
-              name: 'AZURE_SUBSCRIPTION_ID'
-              value: subscription().subscriptionId
-            }
-            {
-              name: 'AZURE_RESOURCE_GROUP_NAME'
-              value: resourceGroup().name
-            }
-            {
-              name: 'LOGIC_APP_NAME'
-              value: 'logic-argus-v2-${resourceToken}'
-            }
-            {
-              name: 'AZURE_STORAGE_ACCOUNT_NAME'
-              value: storageAccount.name
-            }
-          ]
-        }
-      ]
-      scale: {
-        minReplicas: 1
-        maxReplicas: 5
-        rules: [
-          {
-            name: 'http-rule'
-            http: {
-              metadata: {
-                concurrentRequests: '10'
-              }
-            }
-          }
-        ]
-      }
-    }
-  }
-  tags: serviceResourceTags
-}
-
-// Frontend Container App
-param frontendContainerAppName string = 'ca-frontend-${uniqueString(resourceGroup().id)}'
-
-resource frontendContainerApp 'Microsoft.App/containerApps@2024-03-01' = {
-  name: frontendContainerAppName
-  location: location
-  identity: {
-    type: 'SystemAssigned,UserAssigned'
-    userAssignedIdentities: {
-      '${userManagedIdentity.id}': {}
-    }
-  }
-  properties: {
-    environmentId: containerAppEnvironment.id
-    configuration: {
-      ingress: {
-        external: true
-        targetPort: 3000
-        corsPolicy: {
-          allowedOrigins: ['*']
-          allowedMethods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS']
-          allowedHeaders: ['*']
-          allowCredentials: false
-        }
-      }
-      registries: [
-        {
-          server: containerRegistry.properties.loginServer
-          identity: userManagedIdentity.id
-        }
-      ]
-    }
-    template: {
-      containers: [
-        {
-          name: frontendContainerAppName
-          image: 'mcr.microsoft.com/azuredocs/containerapps-helloworld:latest'
-          resources: {
-            cpu: json('1.0')
-            memory: '2Gi'
-          }
-          env: [
-            {
-              name: 'BLOB_ACCOUNT_URL'
-              value: storageAccount.properties.primaryEndpoints.blob
-            }
-            {
-              name: 'CONTAINER_NAME'
-              value: blobContainer.name
-            }
-            {
-              name: 'COSMOS_URL'
-              value: cosmosDbAccount.properties.documentEndpoint
-            }
-            {
-              name: 'COSMOS_DB_NAME'
-              value: cosmosDbDatabaseName
-            }
-            {
-              name: 'COSMOS_DOCUMENTS_CONTAINER_NAME'
-              value: cosmosDbContainerName
-            }
-            {
-              name: 'COSMOS_CONFIG_CONTAINER_NAME'
-              value: cosmosDbContainerConf.name
-            }
-            {
-              name: 'AZURE_CLIENT_ID'
-              value: userManagedIdentity.properties.clientId
-            }
-            {
-              name: 'BACKEND_URL'
-              value: 'https://${containerApp.properties.configuration.ingress.fqdn}'
-            }
-          ]
-        }
-      ]
-      scale: {
-        minReplicas: 1
-        maxReplicas: 5
-        rules: [
-          {
-            name: 'http-rule'
-            http: {
-              metadata: {
-                concurrentRequests: '10'
-              }
-            }
-          }
-        ]
-      }
-    }
-  }
-  tags: union(commonTags, {
-    'azd-service-name': 'frontend'
-  })
-}
-
-// Role assignments for User Managed Identity - ACR Pull
-resource acrPullRoleAssignment 'Microsoft.Authorization/roleAssignments@2020-04-01-preview' = {
-  name: guid(containerRegistry.id, userManagedIdentity.id, 'AcrPull')
-  scope: containerRegistry
-  properties: {
-    roleDefinitionId: subscriptionResourceId('Microsoft.Authorization/roleDefinitions', '7f951dda-4ed3-4680-a7ca-43fe172d538d') // AcrPull
-    principalId: userManagedIdentity.properties.principalId
-    principalType: 'ServicePrincipal'
+// ═══════════════════════════════════════════════════
+// Module: Monitoring (Log Analytics + App Insights)
+// ═══════════════════════════════════════════════════
+module monitoring 'modules/monitoring.bicep' = {
+  name: 'monitoring'
+  params: {
+    location: location
+    resourceToken: resourceToken
+    tags: commonTags
   }
 }
 
-// Role assignments for User Managed Identity - Storage Blob Data Contributor
-resource containerAppStorageBlobDataContributorRole 'Microsoft.Authorization/roleAssignments@2020-04-01-preview' = {
-  name: guid(userManagedIdentity.id, storageAccount.id, 'StorageBlobDataContributor')
-  scope: storageAccount
-  properties: {
-    roleDefinitionId: subscriptionResourceId('Microsoft.Authorization/roleDefinitions', 'ba92f5b4-2d11-453d-a403-e96b0029c9fe') // Storage Blob Data Contributor
-    principalId: userManagedIdentity.properties.principalId
-    principalType: 'ServicePrincipal'
+// ═══════════════════════════════════════════════════
+// Module: Key Vault (with private endpoint, RBAC)
+// ═══════════════════════════════════════════════════
+module keyVault 'modules/key-vault.bicep' = {
+  name: 'keyVault'
+  params: {
+    location: location
+    resourceToken: resourceToken
+    tags: commonTags
+    privateEndpointsSubnetId: network.outputs.privateEndpointsSubnetId
+    privateDnsZoneKeyVaultId: network.outputs.privateDnsZoneKeyVaultId
   }
 }
 
-// Role assignments for User Managed Identity - Storage Blob Data Owner
-resource containerAppStorageBlobDataOwnerRole 'Microsoft.Authorization/roleAssignments@2020-04-01-preview' = {
-  name: guid(userManagedIdentity.id, storageAccount.id, 'StorageBlobDataOwner')
-  scope: storageAccount
-  properties: {
-    roleDefinitionId: subscriptionResourceId('Microsoft.Authorization/roleDefinitions', 'b7e6dc6d-f1e8-4753-8033-0f276bb0955b') // Storage Blob Data Owner
-    principalId: userManagedIdentity.properties.principalId
-    principalType: 'ServicePrincipal'
+// ═══════════════════════════════════════════════════
+// Module: Storage Account (private endpoint, no shared key)
+// ═══════════════════════════════════════════════════
+module storage 'modules/storage.bicep' = {
+  name: 'storage'
+  params: {
+    location: location
+    storageAccountName: storageAccountName
+    tags: commonTags
+    privateEndpointsSubnetId: network.outputs.privateEndpointsSubnetId
+    privateDnsZoneBlobId: network.outputs.privateDnsZoneBlobId
   }
 }
 
-// Role assignments for User Managed Identity - Storage Account Contributor  
-resource containerAppStorageAccountContributorRole 'Microsoft.Authorization/roleAssignments@2020-04-01-preview' = {
-  name: guid(userManagedIdentity.id, storageAccount.id, 'StorageAccountContributor')
-  scope: storageAccount
-  properties: {
-    roleDefinitionId: subscriptionResourceId('Microsoft.Authorization/roleDefinitions', '17d1049b-9a84-46fb-8f53-869881c3d3ab') // Storage Account Contributor
-    principalId: userManagedIdentity.properties.principalId
-    principalType: 'ServicePrincipal'
+// ═══════════════════════════════════════════════════
+// Module: Cosmos DB (private endpoint, local auth disabled)
+// ═══════════════════════════════════════════════════
+module cosmos 'modules/cosmos.bicep' = {
+  name: 'cosmos'
+  params: {
+    location: location
+    cosmosDbAccountName: cosmosDbAccountName
+    cosmosDbDatabaseName: cosmosDbDatabaseName
+    cosmosDbContainerName: cosmosDbContainerName
+    tags: commonTags
+    privateEndpointsSubnetId: network.outputs.privateEndpointsSubnetId
+    privateDnsZoneCosmosId: network.outputs.privateDnsZoneCosmosId
   }
 }
 
-// Cosmos DB role assignment for Container App System Identity
-resource cosmosDBDataContributorRoleDefinition 'Microsoft.DocumentDB/databaseAccounts/sqlRoleDefinitions@2021-04-15' existing = {
-  parent: cosmosDbAccount
-  name: '00000000-0000-0000-0000-000000000002' // Built-in Data Contributor Role
-}
-
-resource cosmosDBRoleAssignment 'Microsoft.DocumentDB/databaseAccounts/sqlRoleAssignments@2021-04-15' = {
-  parent: cosmosDbAccount
-  name: guid(cosmosDbAccount.id, userManagedIdentity.id, cosmosDBDataContributorRoleDefinition.id)
-  properties: {
-    roleDefinitionId: cosmosDBDataContributorRoleDefinition.id
-    principalId: userManagedIdentity.properties.principalId
-    scope: cosmosDbAccount.id
+// ═══════════════════════════════════════════════════
+// Module: Document Intelligence (private endpoint, local auth disabled)
+// ═══════════════════════════════════════════════════
+module docIntel 'modules/document-intelligence.bicep' = {
+  name: 'docIntel'
+  params: {
+    location: location
+    documentIntelligenceName: documentIntelligenceName
+    tags: commonTags
+    privateEndpointsSubnetId: network.outputs.privateEndpointsSubnetId
+    privateDnsZoneCognitiveServicesId: network.outputs.privateDnsZoneCognitiveServicesId
   }
 }
 
-// Document Intelligence role assignment for Container App User Managed Identity
-resource containerAppDocumentIntelligenceContributorRole 'Microsoft.Authorization/roleAssignments@2020-04-01-preview' = {
-  name: guid(userManagedIdentity.id, documentIntelligence.id, 'CognitiveServicesUser')
-  scope: documentIntelligence
-  properties: {
-    roleDefinitionId: subscriptionResourceId('Microsoft.Authorization/roleDefinitions', 'a97b65f3-24c7-4388-baec-2e87135dc908') // Cognitive Services User
-    principalId: userManagedIdentity.properties.principalId
-    principalType: 'ServicePrincipal'
+// ═══════════════════════════════════════════════════
+// Module: Azure AI Services / OpenAI (private endpoint, managed identity)
+// ═══════════════════════════════════════════════════
+module aiServices 'modules/ai-services.bicep' = {
+  name: 'aiServices'
+  params: {
+    location: location
+    resourceToken: resourceToken
+    tags: commonTags
+    azureOpenaiModelDeploymentName: azureOpenaiModelDeploymentName
+    privateEndpointsSubnetId: network.outputs.privateEndpointsSubnetId
+    privateDnsZoneOpenAIId: network.outputs.privateDnsZoneOpenAIId
   }
 }
 
-// User role assignments (for development access)
-resource userCosmosDBRoleAssignment 'Microsoft.DocumentDB/databaseAccounts/sqlRoleAssignments@2021-04-15' = {
-  name: guid(cosmosDbAccount.id, cosmosDbDatabase.id, cosmosDbContainer.id, azurePrincipalId)
-  parent: cosmosDbAccount
-  properties: {
-    principalId: azurePrincipalId
-    roleDefinitionId: cosmosDBDataContributorRoleDefinition.id
-    scope: cosmosDbAccount.id
+// ═══════════════════════════════════════════════════
+// Module: Container Registry (Basic, managed identity pull)
+// ═══════════════════════════════════════════════════
+module acr 'modules/container-registry.bicep' = {
+  name: 'acr'
+  params: {
+    location: location
+    containerRegistryName: containerRegistryName
+    tags: commonTags
   }
 }
 
-resource userStorageAccountRoleAssignment 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
-  name: guid(storageAccount.id, azurePrincipalId, 'StorageBlobDataContributor')
-  scope: storageAccount
-  properties: {
-    principalId: azurePrincipalId
-    roleDefinitionId: subscriptionResourceId('Microsoft.Authorization/roleDefinitions', 'ba92f5b4-2d11-453d-a403-e96b0029c9fe') // Storage Blob Data Contributor
+// ═══════════════════════════════════════════════════
+// Module: Container Apps (Backend + Frontend)
+// ═══════════════════════════════════════════════════
+module containerApps 'modules/container-apps.bicep' = {
+  name: 'containerApps'
+  params: {
+    location: location
+    resourceToken: resourceToken
+    containerAppName: containerAppName
+    frontendContainerAppName: frontendContainerAppName
+    tags: commonTags
+    serviceResourceTags: serviceResourceTags
+    logAnalyticsCustomerId: monitoring.outputs.logAnalyticsCustomerId
+    logAnalyticsSharedKey: monitoring.outputs.logAnalyticsSharedKey
+    applicationInsightsConnectionString: monitoring.outputs.applicationInsightsConnectionString
+    userManagedIdentityId: identity.outputs.identityId
+    userManagedIdentityClientId: identity.outputs.identityClientId
+    containerRegistryLoginServer: acr.outputs.registryLoginServer
+    storageAccountName: storage.outputs.storageAccountName
+    blobEndpoint: storage.outputs.blobEndpoint
+    containerName: storage.outputs.containerName
+    cosmosEndpoint: cosmos.outputs.cosmosEndpoint
+    cosmosDatabaseName: cosmos.outputs.cosmosDatabaseName
+    cosmosContainerName: cosmos.outputs.cosmosContainerName
+    cosmosConfigContainerName: cosmos.outputs.cosmosConfigContainerName
+    documentIntelligenceEndpoint: docIntel.outputs.documentIntelligenceEndpoint
+    aiServicesEndpoint: aiServices.outputs.aiServicesEndpoint
+    azureOpenaiModelDeploymentName: azureOpenaiModelDeploymentName
+    keyVaultUri: keyVault.outputs.keyVaultUri
+    containerAppsSubnetId: network.outputs.containerAppsSubnetId
   }
 }
 
-// Event Grid System Topic for Storage Account
-resource eventGridSystemTopic 'Microsoft.EventGrid/systemTopics@2022-06-15' = {
-  name: 'st-${resourceToken}'
-  location: location
-  properties: {
-    source: storageAccount.id
-    topicType: 'Microsoft.Storage.StorageAccounts'
-  }
-  tags: commonTags
-}
-
-// Event Grid Subscription for blob created events
-// Note: This is commented out initially to avoid webhook validation issues
-// Uncomment after the container app is deployed and the webhook endpoint is available
-/*
-resource blobCreatedEventSubscription 'Microsoft.EventGrid/systemTopics/eventSubscriptions@2022-06-15' = {
-  parent: eventGridSystemTopic
-  name: 'blob-created-subscription'
-  properties: {
-    destination: {
-      endpointType: 'WebHook'
-      properties: {
-        endpointUrl: 'https://${containerApp.properties.configuration.ingress.fqdn}/api/blob-created'
-        maxEventsPerBatch: 1
-        preferredBatchSizeInKilobytes: 64
-      }
-    }
-    filter: {
-      includedEventTypes: [
-        'Microsoft.Storage.BlobCreated'
-      ]
-      subjectBeginsWith: '/blobServices/default/containers/datasets/'
-      enableAdvancedFilteringOnArrays: false
-    }
-    eventDeliverySchema: 'EventGridSchema'
-    retryPolicy: {
-      maxDeliveryAttempts: 3
-      eventTimeToLiveInMinutes: 1440
-    }
-  }
-}
-*/
-
-// Logic App for blob-triggered file processing
-resource logicApp 'Microsoft.Logic/workflows@2019-05-01' = {
-  name: 'logic-argus-v2-${resourceToken}'
-  location: location
-  identity: {
-    type: 'SystemAssigned'
-  }
-  properties: {
-    state: 'Enabled'
-    definition: {
-      '$schema': 'https://schema.management.azure.com/providers/Microsoft.Logic/schemas/2016-06-01/workflowdefinition.json#'
-      contentVersion: '1.0.0.0'
-      parameters: {
-        backendUrl: {
-          type: 'string'
-          defaultValue: 'https://${containerApp.properties.configuration.ingress.fqdn}'
-        }
-      }
-      triggers: {
-        When_a_blob_is_created: {
-          type: 'Request'
-          kind: 'Http'
-          inputs: {
-            schema: {
-              type: 'array'
-              items: {
-                type: 'object'
-                properties: {
-                  topic: {
-                    type: 'string'
-                  }
-                  subject: {
-                    type: 'string'
-                  }
-                  eventType: {
-                    type: 'string'
-                  }
-                  eventTime: {
-                    type: 'string'
-                  }
-                  id: {
-                    type: 'string'
-                  }
-                  data: {
-                    type: 'object'
-                    properties: {
-                      api: {
-                        type: 'string'
-                      }
-                      requestId: {
-                        type: 'string'
-                      }
-                      eTag: {
-                        type: 'string'
-                      }
-                      contentType: {
-                        type: 'string'
-                      }
-                      contentLength: {
-                        type: 'integer'
-                      }
-                      blobType: {
-                        type: 'string'
-                      }
-                      url: {
-                        type: 'string'
-                      }
-                      sequencer: {
-                        type: 'string'
-                      }
-                      storageDiagnostics: {
-                        type: 'object'
-                      }
-                    }
-                  }
-                  dataVersion: {
-                    type: 'string'
-                  }
-                  metadataVersion: {
-                    type: 'string'
-                  }
-                }
-              }
-            }
-          }
-          runtimeConfiguration: {
-            concurrency: {
-              runs: 5
-            }
-          }
-        }
-      }
-      actions: {
-        Check_If_File_In_Datasets_Subdirectory: {
-          type: 'If'
-          expression: {
-            and: [
-              {
-                contains: [
-                  '@triggerBody()[0]?[\'subject\']'
-                  '/blobServices/default/containers/datasets/blobs/'
-                ]
-              }
-              {
-                greater: [
-                  '@length(split(replace(triggerBody()[0]?[\'subject\'], \'/blobServices/default/containers/datasets/blobs/\', \'\'), \'/\'))'
-                  1
-                ]
-              }
-            ]
-          }
-          actions: {
-            HTTP_Call_Backend: {
-              type: 'Http'
-              inputs: {
-                method: 'POST'
-                uri: '@concat(parameters(\'backendUrl\'), \'/api/process-file\')'
-                headers: {
-                  'Content-Type': 'application/json'
-                }
-                body: {
-                  filename: '@last(split(replace(triggerBody()[0]?[\'subject\'], \'/blobServices/default/containers/datasets/blobs/\', \'\'), \'/\'))'
-                  dataset: '@first(split(replace(triggerBody()[0]?[\'subject\'], \'/blobServices/default/containers/datasets/blobs/\', \'\'), \'/\'))'
-                  blob_path: '@concat(\'/datasets/\', replace(triggerBody()[0]?[\'subject\'], \'/blobServices/default/containers/datasets/blobs/\', \'\'))'
-                  trigger_source: 'blob_upload'
-                }
-              }
-            }
-          }
-          else: {
-            actions: {}
-          }
-          runAfter: {}
-        }
-      }
-      outputs: {}
-    }
-  }
-  tags: commonTags
-}
-
-// Event Grid Subscription to trigger Logic App on blob events
-resource logicAppEventSubscription 'Microsoft.EventGrid/systemTopics/eventSubscriptions@2022-06-15' = {
-  parent: eventGridSystemTopic
-  name: 'logic-app-blob-subscription'
-  properties: {
-    destination: {
-      endpointType: 'WebHook'
-      properties: {
-        endpointUrl: '${listCallbackUrl(resourceId('Microsoft.Logic/workflows/triggers', logicApp.name, 'When_a_blob_is_created'), '2019-05-01').value}'
-        maxEventsPerBatch: 1
-        preferredBatchSizeInKilobytes: 64
-      }
-    }
-    filter: {
-      includedEventTypes: [
-        'Microsoft.Storage.BlobCreated'
-      ]
-      subjectBeginsWith: '/blobServices/default/containers/datasets/'
-      enableAdvancedFilteringOnArrays: false
-    }
-    eventDeliverySchema: 'EventGridSchema'
-    retryPolicy: {
-      maxDeliveryAttempts: 3
-      eventTimeToLiveInMinutes: 1440
-    }
+// ═══════════════════════════════════════════════════
+// Module: RBAC Role Assignments (tightened, resource-scoped)
+// ═══════════════════════════════════════════════════
+module roleAssignments 'modules/role-assignments.bicep' = {
+  name: 'roleAssignments'
+  params: {
+    userManagedIdentityPrincipalId: identity.outputs.identityPrincipalId
+    azurePrincipalId: azurePrincipalId
+    containerRegistryId: acr.outputs.registryId
+    storageAccountId: storage.outputs.storageAccountId
+    cosmosAccountId: cosmos.outputs.cosmosAccountId
+    cosmosAccountName: cosmosDbAccountName
+    documentIntelligenceId: docIntel.outputs.documentIntelligenceId
+    aiServicesId: aiServices.outputs.aiServicesId
+    keyVaultId: keyVault.outputs.keyVaultId
   }
 }
 
-// Storage Connection for Logic App
-resource blobStorageConnection 'Microsoft.Web/connections@2016-06-01' = {
-  name: 'azureblob-connection-${resourceToken}'
-  location: location
-  properties: {
-    api: {
-      id: '/subscriptions/${subscription().subscriptionId}/providers/Microsoft.Web/locations/${location}/managedApis/azureblob'
-    }
-    displayName: 'Azure Blob Storage Connection'
-    parameterValues: {
-      accountName: storageAccount.name
-      accessKey: storageAccount.listKeys().keys[0].value
-    }
-  }
-  tags: commonTags
-}
-
-// Role assignment for Logic App to access storage
-resource logicAppStorageRoleAssignment 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
-  name: guid(logicApp.id, storageAccount.id, 'StorageBlobDataReader')
-  scope: storageAccount
-  properties: {
-    roleDefinitionId: subscriptionResourceId('Microsoft.Authorization/roleDefinitions', '2a2b9908-6ea1-4ae2-8e65-a410df84e7d1') // Storage Blob Data Reader
-    principalId: logicApp.identity.principalId
-    principalType: 'ServicePrincipal'
+// ═══════════════════════════════════════════════════
+// Module: Event Processing (Event Grid + Logic App)
+// ═══════════════════════════════════════════════════
+module eventProcessing 'modules/event-processing.bicep' = {
+  name: 'eventProcessing'
+  params: {
+    location: location
+    resourceToken: resourceToken
+    tags: commonTags
+    containerAppFqdn: containerApps.outputs.containerAppFqdn
+    storageAccountId: storage.outputs.storageAccountId
+    storageAccountName: storage.outputs.storageAccountName
   }
 }
 
-// Role assignment for container app to manage Logic Apps
-resource containerAppLogicRoleAssignment 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
-  name: guid(userManagedIdentity.id, resourceGroup().id, 'LogicAppContributor')
-  scope: resourceGroup()
-  properties: {
-    roleDefinitionId: subscriptionResourceId('Microsoft.Authorization/roleDefinitions', '87a39d53-fc1b-424a-814c-f7e04687dc9e') // Logic App Contributor
-    principalId: userManagedIdentity.properties.principalId
-    principalType: 'ServicePrincipal'
-  }
-}
-
+// ═══════════════════════════════════════════════════
 // Outputs
+// ═══════════════════════════════════════════════════
 output resourceGroupName string = resourceGroup().name
 output RESOURCE_GROUP_ID string = resourceGroup().id
-output containerAppName string = containerApp.name
-output containerAppFqdn string = containerApp.properties.configuration.ingress.fqdn
-output BACKEND_URL string = 'https://${containerApp.properties.configuration.ingress.fqdn}'
-output AZURE_CONTAINER_REGISTRY_ENDPOINT string = containerRegistry.properties.loginServer
-output containerRegistryName string = containerRegistry.name
-output containerRegistryLoginServer string = containerRegistry.properties.loginServer
-output storageAccountName string = storageAccount.name
-output containerName string = blobContainer.name
-output userManagedIdentityClientId string = userManagedIdentity.properties.clientId
-output userManagedIdentityPrincipalId string = userManagedIdentity.properties.principalId
+output containerAppName string = containerApps.outputs.containerAppName
+output containerAppFqdn string = containerApps.outputs.containerAppFqdn
+output BACKEND_URL string = 'https://${containerApps.outputs.containerAppFqdn}'
+output AZURE_CONTAINER_REGISTRY_ENDPOINT string = acr.outputs.registryLoginServer
+output containerRegistryName string = acr.outputs.registryName
+output containerRegistryLoginServer string = acr.outputs.registryLoginServer
+output storageAccountName string = storage.outputs.storageAccountName
+output containerName string = storage.outputs.containerName
+output userManagedIdentityClientId string = identity.outputs.identityClientId
+output userManagedIdentityPrincipalId string = identity.outputs.identityPrincipalId
 
-// Environment variables for the application
-output BLOB_ACCOUNT_URL string = storageAccount.properties.primaryEndpoints.blob
-output CONTAINER_NAME string = blobContainer.name
-output COSMOS_URL string = cosmosDbAccount.properties.documentEndpoint
-output COSMOS_DB_NAME string = cosmosDbDatabase.name
-output COSMOS_DOCUMENTS_CONTAINER_NAME string = cosmosDbContainer.name
-output COSMOS_CONFIG_CONTAINER_NAME string = cosmosDbContainerConf.name
-output DOCUMENT_INTELLIGENCE_ENDPOINT string = documentIntelligence.properties.endpoint
+output BLOB_ACCOUNT_URL string = storage.outputs.blobEndpoint
+output CONTAINER_NAME string = storage.outputs.containerName
+output COSMOS_URL string = cosmos.outputs.cosmosEndpoint
+output COSMOS_DB_NAME string = cosmos.outputs.cosmosDatabaseName
+output COSMOS_DOCUMENTS_CONTAINER_NAME string = cosmos.outputs.cosmosContainerName
+output COSMOS_CONFIG_CONTAINER_NAME string = cosmos.outputs.cosmosConfigContainerName
+output DOCUMENT_INTELLIGENCE_ENDPOINT string = docIntel.outputs.documentIntelligenceEndpoint
+output AZURE_OPENAI_ENDPOINT string = aiServices.outputs.aiServicesEndpoint
 output AZURE_OPENAI_MODEL_DEPLOYMENT_NAME string = azureOpenaiModelDeploymentName
-output APPLICATIONINSIGHTS_CONNECTION_STRING string = applicationInsights.properties.ConnectionString
+output APPLICATIONINSIGHTS_CONNECTION_STRING string = monitoring.outputs.applicationInsightsConnectionString
+output AZURE_KEY_VAULT_URI string = keyVault.outputs.keyVaultUri
 
-// Logic App outputs
-output logicAppName string = logicApp.name
-
-// Frontend outputs
-output frontendContainerAppName string = frontendContainerApp.name
-output frontendContainerAppFqdn string = frontendContainerApp.properties.configuration.ingress.fqdn
-output FRONTEND_URL string = 'https://${frontendContainerApp.properties.configuration.ingress.fqdn}'
+output logicAppName string = eventProcessing.outputs.logicAppName
+output frontendContainerAppName string = containerApps.outputs.frontendAppName
+output frontendContainerAppFqdn string = containerApps.outputs.frontendAppFqdn
+output FRONTEND_URL string = 'https://${containerApps.outputs.frontendAppFqdn}'

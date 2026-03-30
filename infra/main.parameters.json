@@ -14,14 +14,8 @@
     "azurePrincipalId": {
       "value": "${AZURE_PRINCIPAL_ID}"
     },
-    "azureOpenaiEndpoint": {
-      "value": "${AZURE_OPENAI_ENDPOINT}"
-    },
-    "azureOpenaiKey": {
-      "value": "${AZURE_OPENAI_KEY}"
-    },
     "azureOpenaiModelDeploymentName": {
-      "value": "${AZURE_OPENAI_MODEL_DEPLOYMENT_NAME}"
+      "value": "${AZURE_OPENAI_MODEL_DEPLOYMENT_NAME=gpt-5.4}"
     }
   }
 }

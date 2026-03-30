@@ -44,7 +44,8 @@ async def health_check():
         
         # Check if we can connect to storage
         if blob_service_client:
-            account_info = blob_service_client.get_account_information()
+            container_client = blob_service_client.get_container_client(os.getenv('CONTAINER_NAME', 'datasets'))
+            container_client.get_container_properties()
         
         # Check if we can connect to Cosmos DB
         if data_container and conf_container:
@@ -553,7 +554,7 @@ Please answer the user's question based on this document context."""
         
         # Initialize OpenAI client
         client = AzureOpenAI(
-            api_key=config["openai_api_key"],
+            azure_ad_token_provider=config["azure_openai_token_provider"],
             api_version=config["openai_api_version"],
             azure_endpoint=config["openai_api_endpoint"]
         )
@@ -614,12 +615,12 @@ async def mcp_chat(request: Request):
         _, cosmos_config_container = connect_to_cosmos()
         config = get_config(cosmos_config_container)
         
-        if not config.get("openai_api_key") or not config.get("openai_api_endpoint"):
+        if not config.get("openai_api_endpoint"):
             raise HTTPException(status_code=503, detail="Azure OpenAI not configured")
         
         # Initialize OpenAI client
         client = AzureOpenAI(
-            api_key=config["openai_api_key"],
+            azure_ad_token_provider=config["azure_openai_token_provider"],
             api_version=config["openai_api_version"],
             azure_endpoint=config["openai_api_endpoint"]
         )

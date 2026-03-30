@@ -94,7 +94,7 @@ def clean_json_response(raw_content: str) -> str:
 def get_client(cosmos_config_container=None):
     config = get_config(cosmos_config_container)
     return AzureOpenAI(
-        api_key=config["openai_api_key"],
+        azure_ad_token_provider=config["azure_openai_token_provider"],
         api_version=config["openai_api_version"],
         azure_endpoint=config["openai_api_endpoint"]
     )
