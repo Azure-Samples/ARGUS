@@ -447,37 +447,43 @@ class BackendClient {
     })
   }
 
-  // File upload with options - uses SAS URL for production
+  // File upload with options - proxies through backend to blob storage
   async uploadFile(
     datasetName: string,
     file: File,
     options?: UploadOptions
   ): Promise<{ message: string; id: string }> {
-    // Get SAS URL for direct blob upload
-    const uploadInfo = await this.getUploadUrl(file.name, datasetName)
-    
-    // Determine content type
-    const contentType = file.type || 'application/octet-stream'
-    
-    // Upload directly to Azure Blob Storage using SAS URL
-    const uploadResponse = await fetch(uploadInfo.upload_url, {
-      method: 'PUT',
-      headers: {
-        'x-ms-blob-type': 'BlockBlob',
-        'Content-Type': contentType,
-      },
-      body: file,
-    })
+    await this.initialize()
 
-    if (!uploadResponse.ok) {
-      const errorText = await uploadResponse.text().catch(() => '')
-      throw new Error(`Upload failed: ${uploadResponse.status} ${errorText}`)
+    const formData = new FormData()
+    formData.append('file', file)
+
+    // Build query params for processing options
+    const params = new URLSearchParams()
+    if (options) {
+      if (options.run_ocr !== undefined) params.set('run_ocr', String(options.run_ocr))
+      if (options.run_gpt_vision !== undefined) params.set('run_gpt_vision', String(options.run_gpt_vision))
+      if (options.run_summary !== undefined) params.set('run_summary', String(options.run_summary))
+      if (options.run_evaluation !== undefined) params.set('run_evaluation', String(options.run_evaluation))
     }
 
-    // The blob upload triggers automatic processing via Event Grid
+    const queryString = params.toString()
+    const url = `${this.baseUrl}/api/datasets/${encodeURIComponent(datasetName)}/upload${queryString ? `?${queryString}` : ''}`
+
+    const response = await fetch(url, {
+      method: 'POST',
+      body: formData,
+    })
+
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}))
+      throw new Error(errorData.detail || `Upload failed: ${response.status}`)
+    }
+
+    const result = await response.json()
     return {
-      message: `File ${file.name} uploaded successfully to ${datasetName}. Processing will begin automatically.`,
-      id: uploadInfo.blob_path,
+      message: result.message || `File ${file.name} uploaded successfully to ${datasetName}. Processing will begin automatically.`,
+      id: result.document_id || result.blob_path || '',
     }
   }
 
