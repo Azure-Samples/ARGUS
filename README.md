@@ -3,8 +3,9 @@
 <div align="center">
 
 [![Azure](https://img.shields.io/badge/Azure-0078D4?style=for-the-badge&logo=microsoft-azure&logoColor=white)](https://azure.microsoft.com)
-[![OpenAI](https://img.shields.io/badge/GPT--4-412991?style=for-the-badge&logo=openai&logoColor=white)](https://openai.com)
+[![OpenAI](https://img.shields.io/badge/GPT--5.4-412991?style=for-the-badge&logo=openai&logoColor=white)](https://openai.com)
 [![FastAPI](https://img.shields.io/badge/FastAPI-009688?style=for-the-badge&logo=fastapi&logoColor=white)](https://fastapi.tiangolo.com)
+[![Next.js](https://img.shields.io/badge/Next.js-000000?style=for-the-badge&logo=next.js&logoColor=white)](https://nextjs.org)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg?style=for-the-badge)](https://opensource.org/licenses/MIT)
 
 *Named after Argus Panoptes, the mythological giant with a hundred eyes—ARGUS never misses a detail in your documents.*
@@ -13,7 +14,7 @@
 
 ## 🚀 Transform Document Processing with AI Intelligence
 
-**ARGUS** revolutionizes how organizations extract, understand, and act on document data. By combining the precision of **Azure Document Intelligence** with the contextual reasoning of **GPT-4 Vision**, ARGUS doesn't just read documents—it *understands* them.
+**ARGUS** revolutionizes how organizations extract, understand, and act on document data. By combining the precision of **Azure Document Intelligence** with the contextual reasoning of **GPT-5.4**, ARGUS doesn't just read documents—it *understands* them.
 
 ### 💡 Why ARGUS?
 
@@ -41,10 +42,11 @@ Traditional OCR solutions extract text but miss the context. AI-only approaches 
 - **Zero-Shot Learning**: Works on new document types without training
 
 ### ⚡ **Enterprise-Ready Performance**
-- **Cloud-Native Architecture**: Built on Azure Container Apps
+- **Cloud-Native Architecture**: Built on Azure Container Apps with VNet integration
 - **Scalable Processing**: Handle document floods with confidence
 - **Real-Time Processing**: API-driven workflows for immediate results
 - **Event-Driven Automation**: Automatic processing on document upload
+- **Zero-Credential Security**: Managed identity authentication with no API keys
 
 </td>
 <td width="50%">
@@ -85,7 +87,7 @@ graph TB
         D --> E{🔍 OCR Provider}
         E -->|Azure| E1[Azure Document Intelligence]
         E -->|Mistral| E2[Mistral Document AI]
-        D --> F[🤖 GPT-4 Vision]
+        D --> F[🤖 GPT-5.4]
         E1 --> G[⚙️ Hybrid Processing Pipeline]
         E2 --> G
         F --> G
@@ -101,7 +103,7 @@ graph TB
         G --> K[🗄️ Azure Cosmos DB]
         J --> K
         I --> K
-        K --> L[📱 Streamlit Frontend]
+        K --> L[📱 Next.js Frontend]
     end
     
     style A fill:#e3f2fd,stroke:#1976d2,stroke-width:2px
@@ -127,14 +129,44 @@ graph TB
 | Component | Technology | Purpose |
 |-----------|------------|---------|
 | **🚀 Backend API** | Azure Container Apps + FastAPI | High-performance document processing engine |
-| **📱 Frontend UI** | Streamlit (Optional) | Interactive document management interface |
+| **📱 Frontend UI** | Next.js (React) | Modern document management interface |
 | **📁 Document Storage** | Azure Blob Storage | Secure, scalable document repository |
 | **🗄️ Metadata Database** | Azure Cosmos DB | Results, configurations, and analytics |
 | **🔍 OCR Engine** | Azure Document Intelligence or Mistral Document AI | Structured text and layout extraction |
-| **🧠 AI Reasoning** | Azure OpenAI (GPT-4 Vision) | Contextual understanding and extraction |
+| **🧠 AI Reasoning** | Azure OpenAI (GPT-5.4) | Contextual understanding and extraction |
 | **🏗️ Container Registry** | Azure Container Registry | Private, secure container images |
 | **🔒 Security** | Managed Identity + RBAC | Zero-credential architecture |
+| **🌐 Network** | VNet + Private Endpoints | Network isolation for all Azure services |
+| **🔑 Secrets** | Azure Key Vault | Centralized secrets management |
 | **📊 Monitoring** | Application Insights | Performance and health monitoring |
+
+---
+
+## 🔒 Security Architecture
+
+ARGUS implements a defense-in-depth security model:
+
+### Network Isolation
+- **VNet Integration**: All Container Apps run within a dedicated Virtual Network (`10.0.0.0/16`)
+- **Private Endpoints**: Storage, Cosmos DB, OpenAI, Document Intelligence, and Key Vault are accessible only through private endpoints
+- **Private DNS Zones**: Automatic DNS resolution for private endpoints via Azure Private DNS
+- **No Public Access**: All backend services have `publicNetworkAccess: Disabled`
+
+### Identity & Authentication
+- **Managed Identity**: User-assigned managed identity for all service-to-service authentication
+- **No API Keys**: Local authentication is disabled on all Azure services (`disableLocalAuth: true`)
+- **No Shared Keys**: Storage account shared key access is disabled (`allowSharedKeyAccess: false`)
+- **RBAC-Only Access**: All permissions are granted through Azure RBAC role assignments
+
+### RBAC Roles (Principle of Least Privilege)
+| Role | Scope | Purpose |
+|------|-------|---------|
+| Storage Blob Data Contributor | Storage Account | Read/write blob data |
+| Cosmos DB Built-in Data Contributor | Cosmos DB Account | Read/write database items |
+| Cognitive Services User | Document Intelligence | OCR operations |
+| Cognitive Services OpenAI User | Azure OpenAI | Model inference |
+| Key Vault Secrets User | Key Vault | Read secrets |
+| AcrPull | Container Registry | Pull container images |
 
 ---
 
@@ -161,10 +193,10 @@ graph TB
    curl -sL https://aka.ms/InstallAzureCLIDeb | sudo bash
    ```
 
-4. **Azure OpenAI Resource** 
-   - Create an Azure OpenAI resource in a [supported region](https://docs.microsoft.com/azure/cognitive-services/openai/overview#regional-availability)
-   - Deploy a vision-capable model: `gpt-4o`, `gpt-4-turbo`, or `gpt-4` (with vision)
-   - Collect: endpoint URL, API key, and deployment name
+4. **Azure Subscription**
+   - An active Azure subscription with permissions to create resources
+   - The deployment automatically provisions all required Azure services (OpenAI, Storage, Cosmos DB, etc.)
+   - Authentication uses managed identity — no API keys required
 
 </details>
 
@@ -372,7 +404,7 @@ ARGUS uses **datasets** to define how different types of documents should be pro
 <details>
 <summary><b>🔧 Create Custom Datasets</b></summary>
 
-Datasets are managed through the Streamlit frontend interface (deployed automatically with azd):
+Datasets are managed through the web frontend interface (deployed automatically with azd):
 
 1. **Access the frontend** (URL provided after azd deployment)
 2. **Navigate to the Process Files tab**
@@ -456,6 +488,8 @@ az containerapp update \
 
 The Streamlit frontend is **automatically deployed** with `azd up` and provides a user-friendly interface for document management.
 
+> **Note**: ARGUS ships with two frontends: a modern **Next.js** interface (default, deployed as `ca-frontend`) and a legacy **Streamlit** interface. The Next.js frontend is recommended for production use.
+
 <div align="center">
 <img src="docs/ArchitectureOverview.png" alt="ARGUS Frontend Interface" width="800"/>
 </div>
@@ -488,11 +522,24 @@ ARGUS/
 ├── 📂 .vscode/                          # VS Code settings & extensions
 │
 ├── 📂 infra/                            # 🏗️ Azure Infrastructure as Code
-│   ├── ⚙️ main.bicep                    # Primary Bicep template for Azure resources
+│   ├── ⚙️ main.bicep                    # Orchestrator Bicep template (calls modules)
 │   ├── ⚙️ main.parameters.json          # Infrastructure parameters & configuration
 │   ├── ⚙️ main-containerapp.bicep       # Container App specific infrastructure
 │   ├── ⚙️ main-containerapp.parameters.json # Container App parameters
-│   └── 📋 abbreviations.json            # Azure resource naming abbreviations
+│   ├── 📋 abbreviations.json            # Azure resource naming abbreviations
+│   └── 📂 modules/                      # Modular Bicep components
+│       ├── ⚙️ network.bicep             # VNet, subnets, private DNS zones
+│       ├── ⚙️ identity.bicep            # User-assigned managed identity
+│       ├── ⚙️ storage.bicep             # Storage account + private endpoint
+│       ├── ⚙️ cosmos.bicep              # Cosmos DB + private endpoint
+│       ├── ⚙️ ai-services.bicep         # Azure OpenAI + model deployment + PE
+│       ├── ⚙️ document-intelligence.bicep # Doc Intelligence + private endpoint
+│       ├── ⚙️ key-vault.bicep           # Key Vault + private endpoint
+│       ├── ⚙️ container-registry.bicep  # ACR for container images
+│       ├── ⚙️ container-apps.bicep      # CAE + backend/frontend container apps
+│       ├── ⚙️ role-assignments.bicep    # RBAC role assignments
+│       ├── ⚙️ monitoring.bicep          # Application Insights + Log Analytics
+│       └── ⚙️ event-processing.bicep    # Event Grid subscriptions
 │
 ├── 📂 src/                              # 🚀 Core Application Source Code
 │   ├── 📂 containerapp/                 # FastAPI Backend Service
@@ -530,7 +577,22 @@ ARGUS/
 │       ├── 📊 json_evaluator.py         # JSON structure validation
 │       └── 📂 tests/                    # Unit tests for evaluators
 │
-├── 📂 frontend/                         # 🖥️ Streamlit Web Interface
+├── 📂 frontend-next/                    # 🖥️ Next.js Web Interface
+│   ├── 📱 src/app/                      # App Router pages and API routes
+│   │   ├── 📄 page.tsx                  # Home page with document processing
+│   │   ├── 📂 explore/                  # Document browsing & analysis
+│   │   ├── 📂 settings/                 # Configuration management
+│   │   ├── 📂 instructions/             # Help & documentation
+│   │   ├── 📂 api-docs/                 # API reference documentation
+│   │   ├── 📂 mcp/                      # MCP integration info
+│   │   └── 📂 api/                      # Backend proxy API routes
+│   ├── 📂 src/components/               # Reusable React components
+│   ├── 📂 src/lib/                      # API client & utilities
+│   ├── 🐳 Dockerfile                    # Frontend container definition
+│   ├── 📦 package.json                  # Node.js dependencies
+│   └── ⚙️ next.config.js               # Next.js configuration
+│
+├── 📂 frontend/                         # 🖥️ Legacy Streamlit Interface
 │   ├── 📱 app.py                        # Main Streamlit application entry point
 │   ├── 🔄 backend_client.py             # API client for backend communication
 │   ├── 📤 process_files.py              # File upload & processing interface
@@ -594,10 +656,11 @@ open http://localhost:8000/docs
 |----------|-------------|
 | **🚀 API Framework** | FastAPI, Uvicorn, Pydantic |
 | **🧠 AI/ML** | LangChain, OpenAI SDK, Azure AI SDK |
-| **☁️ Azure Services** | Azure SDK (Blob, Cosmos, Document Intelligence) |
+| **☁️ Azure Services** | Azure SDK (Blob, Cosmos, Document Intelligence, Key Vault) |
+| **📱 Frontend** | Next.js 15, React, Tailwind CSS, shadcn/ui |
 | **📄 Document Processing** | PyMuPDF, Pillow, PyPDF2 |
 | **📊 Data & Analytics** | Pandas, NumPy, Matplotlib |
-| **🔒 Security** | Azure Identity, managed identities |
+| **🔒 Security** | Azure Identity, managed identities, Private Endpoints |
 
 ---
 
@@ -700,7 +763,7 @@ priority: "high"
 {
   "openai_settings": {
     "endpoint": "https://your-openai.openai.azure.com/",
-    "model": "gpt-4o",
+    "model": "gpt-5.4",
     "temperature": 0.1,
     "max_tokens": 4000
   },

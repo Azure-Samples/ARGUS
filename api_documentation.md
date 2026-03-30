@@ -8,12 +8,13 @@ ARGUS (Automated Retrieval and GPT Understanding System) is a document intellige
 
 - **Production**: Container App endpoint (configured via Azure deployment)
 - **Local Development**: `http://localhost:8000`
-- **Frontend**: Streamlit app on `http://localhost:8501`
+- **Frontend**: Next.js app (deployed as a Container App)
 
 ## Authentication
 
-- **Azure Services**: Uses Azure Default Credentials
-- **API Keys**: OpenAI API key configured via environment variables
+- **Azure Services**: Managed identity authentication via `DefaultAzureCredential` — no API keys
+- **Service-to-Service**: User-assigned managed identity with RBAC role assignments
+- **Local Auth**: Disabled on all Azure services (`disableLocalAuth: true`)
 - **CORS**: Enabled for frontend integration
 
 ---
@@ -470,29 +471,28 @@ Get diagnostic information about Logic App Manager setup.
 ### GET `/api/openai-settings`
 **Get OpenAI Settings**
 
-Retrieve current OpenAI configuration from environment variables (read-only).
+Retrieve current OpenAI configuration from environment variables (read-only). Authentication uses managed identity — no API keys are stored or transmitted.
 
 **Response:**
 ```json
 {
   "openai_endpoint": "https://myopenai.openai.azure.com/",
-  "openai_key": "***HIDDEN***",
-  "deployment_name": "gpt-4",
-  "note": "Configuration is read from environment variables only. Update via deployment/infrastructure."
+  "deployment_name": "gpt-5.4",
+  "authentication": "managed_identity",
+  "note": "Configuration is read from environment variables only. Authentication uses Azure Managed Identity (DefaultAzureCredential). Update deployment settings via infrastructure (Bicep/azd)."
 }
 ```
 
 ### PUT `/api/openai-settings`
 **Update OpenAI Settings**
 
-Update OpenAI configuration by modifying environment variables.
+Update OpenAI endpoint and deployment name by modifying environment variables. API key is not required — authentication uses managed identity.
 
 **Request Body:**
 ```json
 {
   "openai_endpoint": "https://myopenai.openai.azure.com/",
-  "openai_key": "your-api-key",
-  "deployment_name": "gpt-4"
+  "deployment_name": "gpt-5.4"
 }
 ```
 
@@ -502,7 +502,7 @@ Update OpenAI configuration by modifying environment variables.
   "message": "Environment variables updated successfully",
   "config": {
     "openai_endpoint": "https://myopenai.openai.azure.com/",
-    "deployment_name": "gpt-4"
+    "deployment_name": "gpt-5.4"
   }
 }
 ```
