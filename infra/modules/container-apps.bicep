@@ -40,6 +40,9 @@ param azureOpenaiModelDeploymentName string
 // Key Vault
 param keyVaultUri string
 
+// API Key (Key Vault secret URI)
+param apiKeySecretUri string
+
 // VNet
 param containerAppsSubnetId string
 
@@ -84,6 +87,13 @@ resource containerApp 'Microsoft.App/containerApps@2024-03-01' = {
           maxAge: 3600
         }
       }
+      secrets: [
+        {
+          name: 'api-key'
+          keyVaultUrl: apiKeySecretUri
+          identity: userManagedIdentityId
+        }
+      ]
       registries: [
         {
           server: containerRegistryLoginServer
@@ -101,6 +111,7 @@ resource containerApp 'Microsoft.App/containerApps@2024-03-01' = {
             memory: '2Gi'
           }
           env: [
+            { name: 'API_KEY', secretRef: 'api-key' }
             { name: 'STORAGE_ACCOUNT_NAME', value: storageAccountName }
             { name: 'BLOB_ACCOUNT_URL', value: blobEndpoint }
             { name: 'CONTAINER_NAME', value: containerName }
@@ -165,6 +176,13 @@ resource frontendApp 'Microsoft.App/containerApps@2024-03-01' = {
         external: true
         targetPort: 3000
       }
+      secrets: [
+        {
+          name: 'api-key'
+          keyVaultUrl: apiKeySecretUri
+          identity: userManagedIdentityId
+        }
+      ]
       registries: [
         {
           server: containerRegistryLoginServer
@@ -182,6 +200,7 @@ resource frontendApp 'Microsoft.App/containerApps@2024-03-01' = {
             memory: '2Gi'
           }
           env: [
+            { name: 'BACKEND_API_KEY', secretRef: 'api-key' }
             { name: 'BLOB_ACCOUNT_URL', value: blobEndpoint }
             { name: 'CONTAINER_NAME', value: containerName }
             { name: 'COSMOS_URL', value: cosmosEndpoint }

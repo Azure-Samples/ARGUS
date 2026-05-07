@@ -61,6 +61,17 @@ resource kvDnsGroup 'Microsoft.Network/privateEndpoints/privateDnsZoneGroups@202
   }
 }
 
+// API key for backend authentication
+// Uses a deterministic but hard-to-guess value derived from resource group identity
+resource apiKeySecret 'Microsoft.KeyVault/vaults/secrets@2023-07-01' = {
+  parent: keyVault
+  name: 'argus-api-key'
+  properties: {
+    value: uniqueString(keyVault.id, resourceGroup().id, 'argus-api-key')
+  }
+}
+
 output keyVaultId string = keyVault.id
 output keyVaultName string = keyVault.name
 output keyVaultUri string = keyVault.properties.vaultUri
+output apiKeySecretUri string = apiKeySecret.properties.secretUri

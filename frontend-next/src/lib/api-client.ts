@@ -126,9 +126,11 @@ export interface MCPInfo {
     mcpServers: {
       argus: {
         url: string
+        headers?: Record<string, string>
       }
     }
   }
+  auth_required?: boolean
 }
 
 // Settings types
@@ -239,7 +241,7 @@ class BackendClient {
   private initPromise: Promise<void> | null = null
 
   constructor() {
-    // Base URL will be fetched lazily from /api/config
+    // All requests are proxied through Next.js API routes to keep the API key server-side
   }
 
   /**
@@ -256,18 +258,8 @@ class BackendClient {
     }
 
     this.initPromise = (async () => {
-      try {
-        // Fetch backend URL from the Next.js API route
-        const response = await fetch('/api/config')
-        if (response.ok) {
-          const config = await response.json()
-          this.baseUrl = config.backendUrl || ''
-        }
-      } catch (error) {
-        console.warn('Failed to fetch backend config, using fallback:', error)
-        // Fallback to environment variable or empty string
-        this.baseUrl = process.env.NEXT_PUBLIC_API_URL || process.env.NEXT_PUBLIC_BACKEND_URL || ''
-      }
+      // Route all requests through the Next.js proxy to keep the API key server-side
+      this.baseUrl = '/api/backend'
       this.initialized = true
     })()
 

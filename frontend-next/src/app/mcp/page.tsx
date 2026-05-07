@@ -47,6 +47,7 @@ interface MCPInfo {
   description: string
   version: string
   transport: string
+  auth_required?: boolean
   endpoints: {
     mcp: string
   }
@@ -983,6 +984,7 @@ export default function MCPPage() {
                       mcpServers: {
                         argus: {
                           url: mcpInfo?.configuration_example?.mcpServers?.argus?.url || "<backend-url-loading...>",
+                          ...(mcpInfo?.auth_required ? { headers: { "X-API-Key": "<your-api-key>" } } : {}),
                         },
                       },
                     },
@@ -1007,6 +1009,7 @@ export default function MCPPage() {
                       mcpServers: {
                         argus: {
                           url: mcpInfo?.configuration_example?.mcpServers?.argus?.url || "<backend-url-loading...>",
+                          ...(mcpInfo?.auth_required ? { headers: { "X-API-Key": "<your-api-key>" } } : {}),
                         },
                       },
                     },

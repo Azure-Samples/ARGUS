@@ -177,6 +177,7 @@ module containerApps 'modules/container-apps.bicep' = {
     aiServicesEndpoint: aiServices.outputs.aiServicesEndpoint
     azureOpenaiModelDeploymentName: azureOpenaiModelDeploymentName
     keyVaultUri: keyVault.outputs.keyVaultUri
+    apiKeySecretUri: keyVault.outputs.apiKeySecretUri
     containerAppsSubnetId: network.outputs.containerAppsSubnetId
   }
 }

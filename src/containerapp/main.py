@@ -8,6 +8,7 @@ from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, Request, BackgroundTasks
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
 from starlette.types import Receive, Scope, Send
 
 from dependencies import initialize_azure_clients, cleanup_azure_clients
@@ -88,6 +89,22 @@ app.add_middleware(
     allow_headers=["*"],
     expose_headers=["Mcp-Session-Id"],  # Required for MCP Streamable HTTP transport
 )
+
+# API Key authentication middleware
+API_KEY = os.getenv("API_KEY")
+
+# Paths that don't require authentication
+PUBLIC_PATHS = {"/", "/health"}
+
+
+@app.middleware("http")
+async def api_key_auth(request: Request, call_next):
+    """Verify API key for all requests except health checks."""
+    if API_KEY and request.url.path not in PUBLIC_PATHS:
+        provided_key = request.headers.get("X-API-Key")
+        if not provided_key or provided_key != API_KEY:
+            return JSONResponse(status_code=401, content={"detail": "Invalid or missing API key"})
+    return await call_next(request)
 
 
 # Health check endpoints
@@ -315,10 +332,12 @@ async def mcp_info(request: Request):
         "configuration_example": {
             "mcpServers": {
                 "argus": {
-                    "url": mcp_url
+                    "url": mcp_url,
+                    **({"headers": {"X-API-Key": "<your-api-key>"}} if API_KEY else {})
                 }
             }
-        }
+        },
+        "auth_required": bool(API_KEY)
     }
 
 
